@@ -12,10 +12,13 @@ error InvalidPtr(MemoryKVPtr ptr);
 /// memory allocation for a `uint256[]` in the case of a final snapshot/export.
 type MemoryKV is uint256;
 /// The key associated with the value for each item in the linked list.
+
 type MemoryKVKey is uint256;
 /// The pointer to the next item in the list. `0` signifies the end of the list.
+
 type MemoryKVPtr is uint256;
 /// The value associated with the key for each item in the linked list.
+
 type MemoryKVVal is uint256;
 
 /// @title LibMemoryKV
@@ -53,9 +56,7 @@ library LibMemoryKV {
     /// Reads the `MemoryKVVal` that some `MemoryKVPtr` is pointing to. It is an
     /// error to call this if `ptr_` is `0`.
     /// @param ptr_ The pointer to read the value
-    function readPtrVal(
-        MemoryKVPtr ptr_
-    ) internal pure returns (MemoryKVVal v_) {
+    function readPtrVal(MemoryKVPtr ptr_) internal pure returns (MemoryKVVal v_) {
         // This is ALWAYS a bug. It means the caller did not check if the ptr is
         // nonzero before trying to read from it.
         if (MemoryKVPtr.unwrap(ptr_) == 0) {
@@ -77,21 +78,12 @@ library LibMemoryKV {
     /// @return ptr_ The _pointer_ to the value for the key, if it exists, else
     /// a pointer to `0`. If the pointer is non-zero the associated value can be
     /// read to a `MemoryKVVal` with `LibMemoryKV.readPtrVal`.
-    function getPtr(
-        MemoryKV kv_,
-        MemoryKVKey k_
-    ) internal pure returns (MemoryKVPtr ptr_) {
+    function getPtr(MemoryKV kv_, MemoryKVKey k_) internal pure returns (MemoryKVPtr ptr_) {
         uint256 mask_ = MASK_16BIT;
         assembly ("memory-safe") {
             // loop until k found or give up if ptr is zero
-            for {
-                ptr_ := and(kv_, mask_)
-            } iszero(iszero(ptr_)) {
-                ptr_ := mload(add(ptr_, 0x40))
-            } {
-                if eq(k_, mload(ptr_)) {
-                    break
-                }
+            for { ptr_ := and(kv_, mask_) } iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } {
+                if eq(k_, mload(ptr_)) { break }
             }
         }
     }
@@ -105,11 +97,7 @@ library LibMemoryKV {
     /// @param v_ The value to associate with the upserted key.
     /// @return The final value of `kv_` as it MAY be modified if the upsert
     /// resulted in an insert operation.
-    function setVal(
-        MemoryKV kv_,
-        MemoryKVKey k_,
-        MemoryKVVal v_
-    ) internal pure returns (MemoryKV) {
+    function setVal(MemoryKV kv_, MemoryKVKey k_, MemoryKVVal v_) internal pure returns (MemoryKV) {
         MemoryKVPtr ptr_ = getPtr(kv_, k_);
         uint256 mask_ = MASK_16BIT;
         // update
@@ -129,12 +117,13 @@ library LibMemoryKV {
                 mstore(add(ptr_, 0x20), v_)
                 mstore(add(ptr_, 0x40), and(kv_, mask_))
                 // kv must point to new insertion and update array len
-                kv_ := or(
-                    // inc len by 2
-                    shl(16, add(shr(16, kv_), 2)),
-                    // set ptr
-                    ptr_
-                )
+                kv_ :=
+                    or(
+                        // inc len by 2
+                        shl(16, add(shr(16, kv_), 2)),
+                        // set ptr
+                        ptr_
+                    )
             }
         }
         return kv_;
@@ -148,9 +137,7 @@ library LibMemoryKV {
     /// array will not reflect these mutations.
     /// @param kv_ The entrypoint into the key/value store.
     /// @return All the keys and values copied pairwise into a `uint256[]`.
-    function toUint256Array(
-        MemoryKV kv_
-    ) internal pure returns (uint256[] memory) {
+    function toUint256Array(MemoryKV kv_) internal pure returns (uint256[] memory) {
         unchecked {
             uint256 ptr_ = MemoryKV.unwrap(kv_) & MASK_16BIT;
             uint256 length_ = MemoryKV.unwrap(kv_) >> 16;

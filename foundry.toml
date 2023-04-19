@@ -12,7 +12,7 @@ optimizer_runs = 100000
 fuzz.runs = 1024
 
 [profile.default.model_checker]
-contracts = {'src/LibFoo.sol' = ['LibFoo']}
+contracts = {'src/LibMemoryKV.sol' = ['LibMemoryKV']}
 engine = 'chc'
 timeout = 10000
 targets = ['assert', 'underflow', 'overflow', 'divByZero', 'constantCondition', 'popEmptyArray', 'outOfBounds']
