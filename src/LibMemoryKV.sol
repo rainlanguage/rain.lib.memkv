@@ -73,7 +73,7 @@ library LibMemoryKV {
     function getPtr(MemoryKV kv_, MemoryKVKey k_) internal pure returns (MemoryKVPtr ptr_) {
         assembly ("memory-safe") {
             mstore(0, k_)
-            let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+            let bitOffset_ := mul(mod(keccak256(0, 0x20), 14), 0x10)
 
             // loop until k found or give up if ptr is zero
             for { ptr_ := and(shr(bitOffset_, kv_), 0xFFFF) } iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } {
@@ -95,7 +95,7 @@ library LibMemoryKV {
         assembly ("memory-safe") {
             // Hash to spread inserts across internal lists.
             mstore(0, k_)
-            let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+            let bitOffset_ := mul(mod(keccak256(0, 0x20), 14), 0x10)
             let startPtr_ := and(shr(bitOffset_, kv_), 0xFFFF)
             let ptr_ := startPtr_
             for {} iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } { if eq(k_, mload(ptr_)) { break } }
@@ -113,48 +113,93 @@ library LibMemoryKV {
                 mstore(add(ptr_, 0x20), v_)
                 mstore(add(ptr_, 0x40), startPtr_)
 
-                // kv must point to new insertion and update array len
-                let len_ := add(shr(add(0x10, bitOffset_), kv_), 2)
+                // update array len
+                let len_ := add(shr(0xf0, kv_), 2)
+                kv_ := or(shl(0xf0, len_), and(kv_, not(shl(0xf0, 0xFFFF))))
+
+                // kv must point to new insertion
                 kv_ :=
                     or(
-                        or(shl(add(0x10, bitOffset_), len_), shl(bitOffset_, ptr_)),
-                        // Mask out the 4 byte slot
-                        and(kv_, not(shl(bitOffset_, 0xFFFFFFFF)))
+                        shl(bitOffset_, ptr_),
+                        // Mask out the old pointer
+                        and(kv_, not(shl(bitOffset_, 0xFFFF)))
                     )
             }
         }
         return kv_;
     }
 
-    /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `uint256[]`. Reads the total length to preallocate the
-    /// `uint256[]` then walks the entire linked list, copying every key and
-    /// value into the array, until it reaches a pointer to `0`. Note this is a
-    /// one time export, if the key/value store is subsequently mutated the built
-    /// array will not reflect these mutations.
-    /// @param kv_ The entrypoint into the key/value store.
-    /// @return All the keys and values copied pairwise into a `uint256[]`.
-    function toUint256Array(MemoryKV kv_) internal pure returns (uint256[] memory) {
-        unchecked {
-            uint256 ptr_ = MemoryKV.unwrap(kv_) & MASK_16BIT;
-            uint256 length_ = MemoryKV.unwrap(kv_) >> 16;
-            uint256[] memory arr_ = new uint256[](length_);
-            assembly ("memory-safe") {
-                for {
-                    let cursor_ := add(arr_, 0x20)
-                    let end_ := add(cursor_, mul(mload(arr_), 0x20))
-                } lt(cursor_, end_) {
-                    cursor_ := add(cursor_, 0x20)
-                    ptr_ := mload(add(ptr_, 0x40))
-                } {
-                    // key
-                    mstore(cursor_, mload(ptr_))
-                    cursor_ := add(cursor_, 0x20)
-                    // value
-                    mstore(cursor_, mload(add(ptr_, 0x20)))
-                }
-            }
-            return arr_;
-        }
-    }
+    // /// Export/snapshot the underlying linked list of the key/value store into
+    // /// a standard `uint256[]`. Reads the total length to preallocate the
+    // /// `uint256[]` then walks the entire linked list, copying every key and
+    // /// value into the array, until it reaches a pointer to `0`. Note this is a
+    // /// one time export, if the key/value store is subsequently mutated the built
+    // /// array will not reflect these mutations.
+    // /// @param kv_ The entrypoint into the key/value store.
+    // /// @return arr_ All the keys and values copied pairwise into a `uint256[]`.
+    // function toUint256Array(MemoryKV kv_) internal pure returns (uint256[] memory arr_) {
+    //     unchecked {
+    //         // uint256 ptr_ = MemoryKV.unwrap(kv_) & MASK_16BIT;
+    //         // uint256 length_ = MemoryKV.unwrap(kv_) >> 16;
+    //         // uint256[] memory arr_ = new uint256[](length_);
+    //         assembly ("memory-safe") {
+    //             let mask_ := 0xFFFF
+    //             // No ifs, or, buts... plenty of ands tho.
+    //             let len0_ := and(shr(0x10, kv_), mask_)
+    //             let len1_ := and(shr(0x30, kv_), mask_)
+    //             let len2_ := and(shr(0x50, kv_), mask_)
+    //             let len3_ := and(shr(0x70, kv_), mask_)
+    //             let len4_ := and(shr(0x90, kv_), mask_)
+    //             let len5_ := and(shr(0xb0, kv_), mask_)
+    //             let len6_ := and(shr(0xd0, kv_), mask_)
+    //             let len7_ := shr(0xf0, kv_)
+
+    //             {
+    //                 let length_ := add(len0_, add(len1_, add(len2_, add(len3_, add(len4_, add(len5_, add(len6_, len7_)))))))
+
+    //                 // Manually create an `uint256[]`.
+    //                 // No need to zero out memory as we're about to write to it.
+    //                 arr_ := mload(0x40)
+    //                 mstore(0x40, add(arr_, add(0x20, mul(length_, 0x20))))
+    //             }
+
+    //             function copyFromPtr(start_, ptr_) -> end_ {}
+    //             pop(copyFromPtr(
+    //                 copyFromPtr(
+    //                     copyFromPtr(
+    //                         copyFromPtr(
+    //                             copyFromPtr(
+    //                                 copyFromPtr(
+    //                                     copyFromPtr(
+    //                                         copyFromPtr(add(arr_, 0x20), and(kv_, mask_)), and(shr(0x20, kv_), mask_)
+    //                                     ),
+    //                                     and(shr(0x40, kv_), mask_)
+    //                                 ),
+    //                                 and(shr(0x60, kv_), mask_)
+    //                             ),
+    //                             and(shr(0x80, kv_), mask_)
+    //                         ),
+    //                         and(shr(0xa0, kv_), mask_)
+    //                     ),
+    //                     and(shr(0xc0, kv_), mask_)
+    //                 ),
+    //                 and(shr(0xe0, kv_), mask_)
+    //             ))
+
+    //             // for {
+    //             //     let cursor_ := add(arr_, 0x20)
+    //             //     let end_ := add(cursor_, mul(mload(arr_), 0x20))
+    //             // } lt(cursor_, end_) {
+    //             //     cursor_ := add(cursor_, 0x20)
+    //             //     ptr_ := mload(add(ptr_, 0x40))
+    //             // } {
+    //             //     // key
+    //             //     mstore(cursor_, mload(ptr_))
+    //             //     cursor_ := add(cursor_, 0x20)
+    //             //     // value
+    //             //     mstore(cursor_, mload(add(ptr_, 0x20)))
+    //             // }
+    //         }
+    //     }
+    // }
 }
