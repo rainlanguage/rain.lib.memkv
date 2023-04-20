@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
+import "sol.lib.memory/LibMemory.sol";
 
 import "../src/LibMemoryKV.sol";
 import "./LibMemoryKVSlow.sol";
@@ -14,7 +15,9 @@ contract LibMemoryKVTest is Test {
         MemoryKVPtr ptr0_ = LibMemoryKV.getPtr(kv_, k_);
         assertEq(0, MemoryKVPtr.unwrap(ptr0_));
 
+        assertTrue(LibMemory.memoryIsAligned());
         kv_ = LibMemoryKV.setVal(kv_, k_, v_);
+        assertTrue(LibMemory.memoryIsAligned());
 
         assertTrue(MemoryKV.unwrap(kv_) > 0);
 
@@ -30,22 +33,30 @@ contract LibMemoryKVTest is Test {
 
         MemoryKV kv_ = MemoryKV.wrap(0);
 
+        assertTrue(LibMemory.memoryIsAligned());
         kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
+        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
         assertEq(MemoryKVPtr.unwrap(LibMemoryKV.getPtr(kv_, k1_)), 0);
 
+        assertTrue(LibMemory.memoryIsAligned());
         kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
+        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v10_));
 
+        assertTrue(LibMemory.memoryIsAligned());
         kv_ = LibMemoryKV.setVal(kv_, k1_, v11_);
+        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
 
+        assertTrue(LibMemory.memoryIsAligned());
         kv_ = LibMemoryKV.setVal(kv_, k0_, v01_);
+        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v01_));
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
