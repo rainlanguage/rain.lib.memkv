@@ -25,6 +25,78 @@ contract LibMemoryKVTest is Test {
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v_));
     }
 
+    function testSetReadVal2(MemoryKVKey k0_, MemoryKVVal v00_, MemoryKVVal v01_, MemoryKVKey k1_, MemoryKVVal v10_, MemoryKVVal v11_) public {
+        vm.assume(MemoryKVKey.unwrap(k0_) != MemoryKVKey.unwrap(k1_));
+
+        MemoryKV kv_ = MemoryKV.wrap(0);
+
+        kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
+
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+        assertEq(MemoryKVPtr.unwrap(LibMemoryKV.getPtr(kv_, k1_)), 0);
+
+        kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
+
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v10_));
+
+        kv_ = LibMemoryKV.setVal(kv_, k1_, v11_);
+
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+
+        kv_ = LibMemoryKV.setVal(kv_, k0_, v01_);
+
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v01_));
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+    }
+
+    function testReadPtrValGas() public {
+        // This is an illegal read but it gives the cost without memory
+        // expansion costs etc.
+        LibMemoryKV.readPtrVal(MemoryKVPtr.wrap(0));
+    }
+
+    function testGetPtrGas() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        LibMemoryKV.getPtr(kv_, MemoryKVKey.wrap(0));
+    }
+
+    function testSetValGas0() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+    }
+
+    function testSetValGas1() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+    }
+
+    function testSetValGas3() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+    }
+
+    function testSetValGas4() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+    }
+
+    function testSetValGas5() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+    }
+
     function testRoundTrip(uint256[] memory kvs_) public {
         // We hit gas limits pretty easily in this test for "large" sets.
         vm.assume(kvs_.length < 50);
