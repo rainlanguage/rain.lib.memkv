@@ -166,24 +166,22 @@ library LibMemoryKV {
             // relative savings for small-medium sized structures.
             let cursor_ := add(arr_, 0x20)
             {
-                let p0_ := shr(0x80, kv_)
+                // Remove the length from kv_ before iffing to save ~100 gas.
+                let p0_ := shr(0x90, shl(0x10, kv_))
                 if iszero(iszero(p0_)) {
                     {
                         let p00_ := shr(0x40, p0_)
                         if iszero(iszero(p00_)) {
                             {
-                                let p000_ := shr(0x20, p00_)
-                                if iszero(iszero(p000_)) {
-                                    // p0000_ is reserved for the 16 bit length
-                                    // so is NOT a pointer and MUST NOT be read
-                                    // as a pointer.
-                                    // {
-                                    //     let p0000_ := shr(0x10, p000_)
-                                    //     if iszero(iszero(p0000_)) { cursor_ := copyFromPtr(cursor_, p0000_) }
-                                    // }
-                                    let p0001_ := and(mask16_, p000_)
-                                    if iszero(iszero(p0001_)) { cursor_ := copyFromPtr(cursor_, p0001_) }
-                                }
+                                // This branch is a special case because we
+                                // already zeroed out the high bits which are
+                                // used by the length NOT a pointer.
+                                // We can skip processing where the pointer would
+                                // have been if it were not the length, and do
+                                // not need to scrub the high bits to move from
+                                // `p00_` to `p0001_`.
+                                let p0001_ := shr(0x20, p00_)
+                                if iszero(iszero(p0001_)) { cursor_ := copyFromPtr(cursor_, p0001_) }
                             }
                             let p001_ := and(mask32_, p00_)
                             if iszero(iszero(p001_)) {
