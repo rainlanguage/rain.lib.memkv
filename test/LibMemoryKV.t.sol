@@ -206,32 +206,87 @@ contract LibMemoryKVTest is Test {
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
     }
 
-    // function testRoundTrip(uint256[] memory kvs_) public {
-    //     // We hit gas limits pretty easily in this test for "large" sets.
-    //     vm.assume(kvs_.length < 50);
-    //     vm.assume(kvs_.length % 2 == 0);
+    function testUint256ArrayGas0() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
 
-    //     MemoryKV kv_ = MemoryKV.wrap(0);
+    function testUint256ArrayGas1() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
 
-    //     uint256[] memory slowKVs_ = new uint256[](0);
-    //     for (uint256 i_ = 0; i_ < kvs_.length; i_ += 2) {
-    //         uint256 k_ = kvs_[i_];
-    //         uint256 v_ = kvs_[i_ + 1];
+    function testUint256ArrayGas3() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
 
-    //         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(k_), MemoryKVVal.wrap(v_));
-    //         slowKVs_ = LibMemoryKVSlow.set(slowKVs_, k_, v_);
-    //     }
+    function testUint256ArrayGas4() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
 
-    //     uint256[] memory roundKVs_ = LibMemoryKV.toUint256Array(kv_);
-    //     assertEq(slowKVs_.length, roundKVs_.length);
+    function testUint256ArrayGas5() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
 
-    //     for (uint256 i_ = 0; i_ < slowKVs_.length; i_ += 2) {
-    //         uint256 k_ = slowKVs_[i_];
-    //         (bool slowExists_, uint256 slowVal_) = LibMemoryKVSlow.get(slowKVs_, k_);
-    //         (bool roundExists_, uint256 roundVal_) = LibMemoryKVSlow.get(roundKVs_, k_);
-    //         assertEq(slowExists_, true);
-    //         assertEq(roundExists_, true);
-    //         assertEq(slowVal_, roundVal_);
-    //     }
-    // }
+    function testUint256ArrayGas6() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+    }
+
+    function testRoundTrip(uint256[] memory kvs_) public {
+        // We hit gas limits pretty easily in this test for "large" sets.
+        vm.assume(kvs_.length < 50);
+        vm.assume(kvs_.length % 2 == 0);
+
+        MemoryKV kv_ = MemoryKV.wrap(0);
+
+        uint256[] memory slowKVs_ = new uint256[](0);
+        for (uint256 i_ = 0; i_ < kvs_.length; i_ += 2) {
+            uint256 k_ = kvs_[i_];
+            uint256 v_ = kvs_[i_ + 1];
+
+            kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(k_), MemoryKVVal.wrap(v_));
+            slowKVs_ = LibMemoryKVSlow.set(slowKVs_, k_, v_);
+        }
+
+        uint256[] memory roundKVs_ = LibMemoryKV.toUint256Array(kv_);
+        assertEq(slowKVs_.length, roundKVs_.length);
+
+        for (uint256 i_ = 0; i_ < slowKVs_.length; i_ += 2) {
+            uint256 k_ = slowKVs_[i_];
+            (bool slowExists_, uint256 slowVal_) = LibMemoryKVSlow.get(slowKVs_, k_);
+            (bool roundExists_, uint256 roundVal_) = LibMemoryKVSlow.get(roundKVs_, k_);
+            assertEq(slowExists_, true);
+            assertEq(roundExists_, true);
+            assertEq(slowVal_, roundVal_);
+        }
+    }
 }
