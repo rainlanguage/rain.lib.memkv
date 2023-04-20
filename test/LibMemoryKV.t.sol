@@ -16,7 +16,10 @@ contract LibMemoryKVTest is Test {
         assertEq(0, MemoryKVPtr.unwrap(ptr0_));
 
         assertTrue(LibMemory.memoryIsAligned());
+        Pointer alloc0_ = LibPointer.allocatedMemoryPointer();
         kv_ = LibMemoryKV.setVal(kv_, k_, v_);
+        Pointer alloc1_ = LibPointer.allocatedMemoryPointer();
+        assertTrue(Pointer.unwrap(alloc1_) == Pointer.unwrap(alloc0_) + 0x60);
         assertTrue(LibMemory.memoryIsAligned());
 
         assertTrue(MemoryKV.unwrap(kv_) > 0);
