@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "sol.lib.memory/LibUint256Array.sol";
+import "../src/LibMemoryKV.sol";
 
 library LibMemoryKVSlow {
     function exists(uint256[] memory kvs_, uint256 k_) internal pure returns (bool, uint256) {
@@ -28,6 +29,37 @@ library LibMemoryKVSlow {
             kv_[0] = k_;
             kv_[1] = v_;
             return LibUint256Array.unsafeExtend(kvs_, kv_);
+        }
+    }
+
+    function toUint256ArrayLinear(MemoryKV kv_) internal pure returns (uint256[] memory arr_) {
+        assembly ("memory-safe") {
+            arr_ := mload(0x40)
+            let len_ := shr(0xf0, kv_)
+            mstore(0x40, add(arr_, add(0x20, mul(len_, 0x20))))
+            mstore(arr_, len_)
+
+            function copyFromPtr(cursor_, ptr_) -> end_ {
+                for {} iszero(iszero(ptr_)) {
+                    ptr_ := mload(add(ptr_, 0x40))
+                    cursor_ := add(cursor_, 0x40)
+                } {
+                    mstore(cursor_, mload(ptr_))
+                    mstore(add(cursor_, 0x20), mload(add(ptr_, 0x20)))
+                }
+                end_ := cursor_
+            }
+
+            let cursor_ := add(arr_, 0x20)
+            for {
+                let ptrCursor_ := 0
+                let ptr_ := and(kv_, 0xFFFF)
+            } lt(ptrCursor_, 0xf0) {
+                ptrCursor_ := add(ptrCursor_, 0x10)
+                ptr_ := and(shr(ptrCursor_, kv_), 0xFFFF)
+            } {
+                cursor_ := copyFromPtr(cursor_, ptr_)
+            }
         }
     }
 }

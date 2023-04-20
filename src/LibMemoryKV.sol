@@ -129,13 +129,6 @@ library LibMemoryKV {
         return kv_;
     }
 
-    // function toUint256Array1(Memory kv_) internal pure returns (uint256[] memory arr_) {
-    //     assembly ("memory-safe") {
-    //         mstore(0, k_)
-    //         let bitOffset
-    //     }
-    // }
-
     /// Export/snapshot the underlying linked list of the key/value store into
     /// a standard `uint256[]`. Reads the total length to preallocate the
     /// `uint256[]` then walks the entire linked list, copying every key and
@@ -169,6 +162,8 @@ library LibMemoryKV {
             }
 
             // Bisect.
+            // This crazy tree saves ~1-1.5k gas vs. a simple loop with larger
+            // relative savings for small-medium sized structures.
             let cursor_ := add(arr_, 0x20)
             {
                 let p0_ := shr(0x80, kv_)
