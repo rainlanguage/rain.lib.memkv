@@ -129,6 +129,82 @@ library LibMemoryKV {
         return kv_;
     }
 
+    function toUint256Array(MemoryKV kv_) internal pure returns (uint256[] memory arr_) {
+        uint256 mask16_ = type(uint16).max;
+        uint256 mask32_ = type(uint32).max;
+        uint256 mask64_ = type(uint64).max;
+        assembly ("memory-safe") {
+            // Manually create an `uint256[]`.
+            // No need to zero out memory as we're about to write to it.
+            arr_ := mload(0x40)
+            let len_ := shr(0xf0, kv_)
+            mstore(0x40, add(arr_, add(0x20, mul(len_, 0x20))))
+            mstore(arr_, len_)
+
+            function copyFromPtr(start_, ptr_) -> end_ {
+                end_ := start_
+            }
+
+            // Bisect.
+            let cursor_ := add(arr_, 0x20)
+            {
+                let p0_ := shr(0x80, kv_)
+                if iszero(iszero(p0_)) {
+                    {
+                        let p00_ := shr(0x40, p0_)
+                        if iszero(iszero(p00_)) {
+                            {
+                                let p000_ := shr(0x20, p00_)
+                                if iszero(iszero(p000_)) {
+                                    {
+                                        let p0000_ := shr(0x10, p000_)
+                                        if iszero(iszero(p0000_)) { cursor_ := copyFromPtr(cursor_, p0000_) }
+                                    }
+                                    let p0001_ := and(mask16_, p000_)
+                                    if iszero(iszero(p0001_)) { cursor_ := copyFromPtr(cursor_, p0001_) }
+                                }
+                            }
+                            let p001_ := and(mask32_, p00_)
+                            if iszero(iszero(p001_)) {
+                                {
+                                    let p0010_ := shr(0x10, p001_)
+                                    if iszero(iszero(p0010_)) { cursor_ := copyFromPtr(cursor_, p0010_) }
+                                }
+                                let p0011_ := and(mask16_, p001_)
+                                if iszero(iszero(p0011_)) { cursor_ := copyFromPtr(cursor_, p0011_) }
+                            }
+                        }
+                    }
+                    let p01_ := and(mask64_, p0_)
+                    if iszero(iszero(p01_)) {
+                        {
+                            let p010_ := shr(0x20, p01_)
+                            if iszero(iszero(p010_)) {
+                                {
+                                    let p0100_ := shr(0x10, p010_)
+                                    if iszero(iszero(p0100_)) { cursor_ := copyFromPtr(cursor_, p0100_) }
+                                }
+                                let p0101_ := and(mask16_, p010_)
+                                if iszero(iszero(p0101_)) { cursor_ := copyFromPtr(cursor_, p0101_) }
+                            }
+                        }
+
+                        let p011_ := and(mask32_, p01_)
+                        if iszero(iszero(p011_)) {
+                            {
+                                let p0110_ := shr(0x10, p011_)
+                                if iszero(iszero(p0110_)) { cursor_ := copyFromPtr(cursor_, p0110_) }
+                            }
+
+                            let p0111_ := and(mask16_, p011_)
+                            if iszero(iszero(p0111_)) { cursor_ := copyFromPtr(cursor_, p0111_) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // /// Export/snapshot the underlying linked list of the key/value store into
     // /// a standard `uint256[]`. Reads the total length to preallocate the
     // /// `uint256[]` then walks the entire linked list, copying every key and
