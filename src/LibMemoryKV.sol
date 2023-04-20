@@ -92,29 +92,26 @@ library LibMemoryKV {
     /// @return The final value of `kv_` as it MAY be modified if the upsert
     /// resulted in an insert operation.
     function setVal(MemoryKV kv_, MemoryKVKey k_, MemoryKVVal v_) internal pure returns (MemoryKV) {
-        MemoryKVPtr ptr_ = getPtr(kv_, k_);
-        // update
-        if (MemoryKVPtr.unwrap(ptr_) > 0) {
-            assembly ("memory-safe") {
-                mstore(add(ptr_, 0x20), v_)
-            }
-        }
-        // insert
-        else {
-            assembly ("memory-safe") {
-                // Hash to spread inserts across internal lists.
-                mstore(0, k_)
-                let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+        assembly ("memory-safe") {
+            // Hash to spread inserts across internal lists.
+            mstore(0, k_)
+            let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+            let startPtr_ := and(shr(bitOffset_, kv_), 0xFFFF)
+            let ptr_ := startPtr_
+            for {} iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } { if eq(k_, mload(ptr_)) { break } }
 
+            switch iszero(ptr_)
+            // update
+            case 0 { mstore(add(ptr_, 0x20), v_) }
+            // insert
+            default {
                 // allocate new memory
                 ptr_ := mload(0x40)
                 mstore(0x40, add(ptr_, 0x60))
                 // set k/v/ptr
                 mstore(ptr_, k_)
                 mstore(add(ptr_, 0x20), v_)
-                // let encoded_ := and(shr(bitOffset_, kv_), 0xFFFFFFFF)
-                // mstore(add(ptr_, 0x40), and(encoded_, 0xFFFF))
-                mstore(add(ptr_, 0x40), and(shr(bitOffset_, kv_), 0xFFFF))
+                mstore(add(ptr_, 0x40), startPtr_)
 
                 // kv must point to new insertion and update array len
                 let len_ := add(shr(add(0x10, bitOffset_), kv_), 2)

@@ -68,7 +68,7 @@ contract LibMemoryKVTest is Test {
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v00_));
         MemoryKVPtr ptr2_ = LibMemoryKV.getPtr(kv_, k1_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr2_)), MemoryKVVal.unwrap(v10_));
-   }
+    }
 
     function testSetReadVal1Regression0() public {
         testSetReadVal1(
@@ -190,6 +190,20 @@ contract LibMemoryKVTest is Test {
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+    }
+
+    function testSetValGas6() public {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
     }
 
     // function testRoundTrip(uint256[] memory kvs_) public {
