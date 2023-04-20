@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import "sol.lib.binmaskflag/Binary.sol";
 
 /// Thrown when attempting to read a value from the other side of a zero pointer.
-error InvalidPtr(MemoryKVPtr ptr);
+error ZeroPtr();
 
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total length of
@@ -60,7 +60,7 @@ library LibMemoryKV {
         // This is ALWAYS a bug. It means the caller did not check if the ptr is
         // nonzero before trying to read from it.
         if (MemoryKVPtr.unwrap(ptr_) == 0) {
-            revert InvalidPtr(ptr_);
+            revert ZeroPtr();
         }
 
         assembly ("memory-safe") {
