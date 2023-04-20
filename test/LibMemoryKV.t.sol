@@ -31,38 +31,69 @@ contract LibMemoryKVTest is Test {
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v_));
     }
 
-    function testSetReadVal2(MemoryKVKey k0_, MemoryKVVal v00_, MemoryKVVal v01_, MemoryKVKey k1_, MemoryKVVal v10_, MemoryKVVal v11_) public {
+    function testSetReadVal2(
+        MemoryKVKey k0_,
+        MemoryKVVal v00_,
+        MemoryKVVal v01_,
+        MemoryKVKey k1_,
+        MemoryKVVal v10_,
+        MemoryKVVal v11_
+    ) public {
         vm.assume(MemoryKVKey.unwrap(k0_) != MemoryKVKey.unwrap(k1_));
 
         MemoryKV kv_ = MemoryKV.wrap(0);
 
-        assertTrue(LibMemory.memoryIsAligned());
-        kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
-        assertTrue(LibMemory.memoryIsAligned());
+        {
+            assertTrue(LibMemory.memoryIsAligned());
+            Pointer alloc0_ = LibPointer.allocatedMemoryPointer();
+            kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
+            Pointer alloc1_ = LibPointer.allocatedMemoryPointer();
+            assertTrue(Pointer.unwrap(alloc1_) == Pointer.unwrap(alloc0_) + 0x60);
+            assertTrue(LibMemory.memoryIsAligned());
 
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
-        assertEq(MemoryKVPtr.unwrap(LibMemoryKV.getPtr(kv_, k1_)), 0);
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+            assertEq(MemoryKVPtr.unwrap(LibMemoryKV.getPtr(kv_, k1_)), 0);
+        }
 
-        assertTrue(LibMemory.memoryIsAligned());
-        kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
-        assertTrue(LibMemory.memoryIsAligned());
+        {
+            assertTrue(LibMemory.memoryIsAligned());
+            Pointer alloc2_ = LibPointer.allocatedMemoryPointer();
+            kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
+            Pointer alloc3_ = LibPointer.allocatedMemoryPointer();
+            assertTrue(LibMemory.memoryIsAligned());
+            assertTrue(Pointer.unwrap(alloc3_) == Pointer.unwrap(alloc2_) + 0x60);
 
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v10_));
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v10_));
+        }
 
-        assertTrue(LibMemory.memoryIsAligned());
-        kv_ = LibMemoryKV.setVal(kv_, k1_, v11_);
-        assertTrue(LibMemory.memoryIsAligned());
+        {
+            assertTrue(LibMemory.memoryIsAligned());
+            Pointer alloc4_ = LibPointer.allocatedMemoryPointer();
+            kv_ = LibMemoryKV.setVal(kv_, k1_, v11_);
+            Pointer alloc5_ = LibPointer.allocatedMemoryPointer();
+            assertTrue(LibMemory.memoryIsAligned());
+            // No alloc on update.
+            assertTrue(Pointer.unwrap(alloc4_) == Pointer.unwrap(alloc5_));
 
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v00_));
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+        }
 
-        assertTrue(LibMemory.memoryIsAligned());
-        kv_ = LibMemoryKV.setVal(kv_, k0_, v01_);
-        assertTrue(LibMemory.memoryIsAligned());
+        {
+            assertTrue(LibMemory.memoryIsAligned());
+            Pointer alloc6_ = LibPointer.allocatedMemoryPointer();
 
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v01_));
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+            kv_ = LibMemoryKV.setVal(kv_, k0_, v01_);
+            Pointer alloc7_ = LibPointer.allocatedMemoryPointer();
+
+            assertTrue(LibMemory.memoryIsAligned());
+            // No alloc on update.
+            assertTrue(Pointer.unwrap(alloc6_) == Pointer.unwrap(alloc7_));
+
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k0_))), MemoryKVVal.unwrap(v01_));
+            assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(LibMemoryKV.getPtr(kv_, k1_))), MemoryKVVal.unwrap(v11_));
+        }
     }
 
     function testReadPtrValGas() public {
