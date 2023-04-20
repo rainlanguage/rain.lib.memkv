@@ -71,10 +71,12 @@ library LibMemoryKV {
     /// a pointer to `0`. If the pointer is non-zero the associated value can be
     /// read to a `MemoryKVVal` with `LibMemoryKV.readPtrVal`.
     function getPtr(MemoryKV kv_, MemoryKVKey k_) internal pure returns (MemoryKVPtr ptr_) {
-        uint256 mask_ = MASK_16BIT;
         assembly ("memory-safe") {
+            mstore(0, k_)
+            let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+
             // loop until k found or give up if ptr is zero
-            for { ptr_ := and(kv_, mask_) } iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } {
+            for { ptr_ := and(shr(bitOffset_, kv_), 0xFFFF) } iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } {
                 if eq(k_, mload(ptr_)) { break }
             }
         }
@@ -99,22 +101,28 @@ library LibMemoryKV {
         }
         // insert
         else {
-            uint256 mask_ = MASK_16BIT;
             assembly ("memory-safe") {
+                // Hash to spread inserts across internal lists.
+                mstore(0, k_)
+                let bitOffset_ := mul(mod(keccak256(0, 0x20), 8), 0x20)
+
                 // allocate new memory
                 ptr_ := mload(0x40)
                 mstore(0x40, add(ptr_, 0x60))
                 // set k/v/ptr
                 mstore(ptr_, k_)
                 mstore(add(ptr_, 0x20), v_)
-                mstore(add(ptr_, 0x40), and(kv_, mask_))
+                // let encoded_ := and(shr(bitOffset_, kv_), 0xFFFFFFFF)
+                // mstore(add(ptr_, 0x40), and(encoded_, 0xFFFF))
+                mstore(add(ptr_, 0x40), and(shr(bitOffset_, kv_), 0xFFFF))
+
                 // kv must point to new insertion and update array len
+                let len_ := add(shr(add(0x10, bitOffset_), kv_), 2)
                 kv_ :=
                     or(
-                        // inc len by 2
-                        shl(16, add(shr(16, kv_), 2)),
-                        // set ptr
-                        ptr_
+                        or(shl(add(0x10, bitOffset_), len_), shl(bitOffset_, ptr_)),
+                        // Mask out the 4 byte slot
+                        and(kv_, not(shl(bitOffset_, 0xFFFFFFFF)))
                     )
             }
         }
