@@ -1,1 +1,3 @@
-LibMemoryKVTest:testRoundTrip(uint256[]) (runs: 1024, μ: 97964, ~: 85087)
+LibMemoryKVTest:testReadPtrValInvalidPtrError(uint256) (runs: 1024, μ: 3212, ~: 3212)
+LibMemoryKVTest:testRoundTrip(uint256[]) (runs: 1024, μ: 98304, ~: 85151)
+LibMemoryKVTest:testSetReadVal(uint256,uint256) (runs: 1024, μ: 1038, ~: 1038)

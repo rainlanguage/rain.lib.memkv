@@ -3,9 +3,6 @@ pragma solidity ^0.8.18;
 
 import "sol.lib.binmaskflag/Binary.sol";
 
-/// Thrown when attempting to read a value from the other side of a zero pointer.
-error ZeroPtr();
-
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total length of
 /// the linked list is also encoded alongside the pointer to allow efficient O(1)
@@ -53,16 +50,11 @@ type MemoryKVVal is uint256;
 /// keys, values and pointers. Could be reimplemented in terms of an equivalent
 /// struct with key, value and pointer fields.
 library LibMemoryKV {
-    /// Reads the `MemoryKVVal` that some `MemoryKVPtr` is pointing to. It is an
-    /// error to call this if `ptr_` is `0`.
+    /// Reads the `MemoryKVVal` that some `MemoryKVPtr` is pointing to.
+    /// The caller MUST NOT provide a 0 pointer, i.e. if `getPtr` would say
+    /// the key DOES NOT exist then DO NOT use that pointer.
     /// @param ptr_ The pointer to read the value
     function readPtrVal(MemoryKVPtr ptr_) internal pure returns (MemoryKVVal v_) {
-        // This is ALWAYS a bug. It means the caller did not check if the ptr is
-        // nonzero before trying to read from it.
-        if (MemoryKVPtr.unwrap(ptr_) == 0) {
-            revert ZeroPtr();
-        }
-
         assembly ("memory-safe") {
             v_ := mload(add(ptr_, 0x20))
         }
@@ -99,7 +91,6 @@ library LibMemoryKV {
     /// resulted in an insert operation.
     function setVal(MemoryKV kv_, MemoryKVKey k_, MemoryKVVal v_) internal pure returns (MemoryKV) {
         MemoryKVPtr ptr_ = getPtr(kv_, k_);
-        uint256 mask_ = MASK_16BIT;
         // update
         if (MemoryKVPtr.unwrap(ptr_) > 0) {
             assembly ("memory-safe") {
@@ -108,6 +99,7 @@ library LibMemoryKV {
         }
         // insert
         else {
+            uint256 mask_ = MASK_16BIT;
             assembly ("memory-safe") {
                 // allocate new memory
                 ptr_ := mload(0x40)

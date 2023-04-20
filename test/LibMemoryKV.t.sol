@@ -7,35 +7,22 @@ import "../src/LibMemoryKV.sol";
 import "./LibMemoryKVSlow.sol";
 
 contract LibMemoryKVTest is Test {
-    function testReadPtrValInvalidPtrError(uint256 a_) public {
-        // Uninitialized ptr reads must error.
-        MemoryKVPtr ptr_;
-
-        vm.expectRevert(ZeroPtr.selector);
-        LibMemoryKV.readPtrVal(ptr_);
-
-        // Set 0 ptr reads must error.
-        MemoryKVPtr ptr0_ = MemoryKVPtr.wrap(0);
-
-        vm.expectRevert(ZeroPtr.selector);
-        LibMemoryKV.readPtrVal(ptr0_);
-    }
-
     function testSetReadVal(MemoryKVKey k_, MemoryKVVal v_) public {
         MemoryKV kv_ = MemoryKV.wrap(0);
 
         // Initially the key will return no pointer.
-        assertEq(0, MemoryKVPtr.unwrap(LibMemoryKV.getPtr(kv_, k_)));
+        MemoryKVPtr ptr0_ = LibMemoryKV.getPtr(kv_, k_);
+        assertEq(0, MemoryKVPtr.unwrap(ptr0_));
 
         kv_ = LibMemoryKV.setVal(kv_, k_, v_);
 
         assertTrue(MemoryKV.unwrap(kv_) > 0);
 
-        MemoryKVPtr ptr_ = LibMemoryKV.getPtr(kv_, k_);
+        MemoryKVPtr ptr1_ = LibMemoryKV.getPtr(kv_, k_);
 
-        assertTrue(MemoryKVPtr.unwrap(ptr_) > 0);
+        assertTrue(MemoryKVPtr.unwrap(ptr1_) > 0);
 
-        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr_)), MemoryKVVal.unwrap(v_));
+        assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v_));
     }
 
     function testRoundTrip(uint256[] memory kvs_) public {
