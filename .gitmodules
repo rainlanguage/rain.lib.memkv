@@ -1,6 +1,3 @@
-[submodule "lib/sol.lib.binmaskflag"]
-	path = lib/sol.lib.binmaskflag
-	url = https://github.com/rainprotocol/sol.lib.binmaskflag
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
@@ -8,3 +5,6 @@
 [submodule "lib/sol.lib.memory"]
 	path = lib/sol.lib.memory
 	url = https://github.com/rainprotocol/sol.lib.memory
+[submodule "lib/rain.lib.hash"]
+	path = lib/rain.lib.hash
+	url = https://github.com/rainprotocol/rain.lib.hash
