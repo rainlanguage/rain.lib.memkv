@@ -228,11 +228,11 @@ library LibMemoryKV {
                             let p101 := and(mask32, p10)
                             if iszero(iszero(p101)) {
                                 {
-                                    let p1010_ := shr(0x10, p101)
-                                    if iszero(iszero(p1010_)) { cursor := copyFromPtr(cursor, p1010_) }
+                                    let p1010 := shr(0x10, p101)
+                                    if iszero(iszero(p1010)) { cursor := copyFromPtr(cursor, p1010) }
                                 }
-                                let p1011_ := and(mask16, p101)
-                                if iszero(iszero(p1011_)) { cursor := copyFromPtr(cursor, p1011_) }
+                                let p1011 := and(mask16, p101)
+                                if iszero(iszero(p1011)) { cursor := copyFromPtr(cursor, p1011) }
                             }
                         }
                     }
