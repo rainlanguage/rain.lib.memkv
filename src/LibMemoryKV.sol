@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: CAL
 pragma solidity ^0.8.18;
 
-import "sol.lib.binmaskflag/Binary.sol";
-
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total length of
 /// the linked list is also encoded alongside the pointer to allow efficient O(1)
@@ -175,7 +173,7 @@ library LibMemoryKV {
                             {
                                 // This branch is a special case because we
                                 // already zeroed out the high bits which are
-                                // used by the length NOT a pointer.
+                                // used by the length and are NOT a pointer.
                                 // We can skip processing where the pointer would
                                 // have been if it were not the length, and do
                                 // not need to scrub the high bits to move from

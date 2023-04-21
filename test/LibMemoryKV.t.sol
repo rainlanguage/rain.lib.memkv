@@ -146,107 +146,53 @@ contract LibMemoryKVTest is Test {
         }
     }
 
-    function testReadPtrValGas() public {
+    function testReadPtrValGas() public pure {
         // This is an illegal read but it gives the cost without memory
         // expansion costs etc.
         LibMemoryKV.readPtrVal(MemoryKVPtr.wrap(0));
     }
 
-    function testGetPtrGas() public {
+    function testGetPtrGas() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         LibMemoryKV.getPtr(kv_, MemoryKVKey.wrap(0));
     }
 
-    function testSetValGas0() public {
+    function testSetValGas0() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
     }
 
-    function testSetValGas1() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-    }
-
-    function testSetValGas3() public {
+    function testSetValGas1() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
     }
 
-    function testSetValGas4() public {
+    function testSetValGas3() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
     }
 
-    function testSetValGas5() public {
+    function testSetValGas4() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
     }
 
-    function testSetValGas6() public {
+    function testSetValGas5() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
     }
 
-    function testUint256ArrayGas0() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
-    }
-
-    function testUint256ArrayGas1() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
-    }
-
-    function testUint256ArrayGas3() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
-    }
-
-    function testUint256ArrayGas4() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
-    }
-
-    function testUint256ArrayGas5() public {
-        MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
-    }
-
-    function testUint256ArrayGas6() public {
+    function testSetValGas6() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
@@ -258,7 +204,67 @@ contract LibMemoryKVTest is Test {
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
         kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+    }
+
+    function testUint256ArrayGas0() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
+    }
+
+    function testUint256ArrayGas1() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
+    }
+
+    function testUint256ArrayGas3() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
+    }
+
+    function testUint256ArrayGas4() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
+    }
+
+    function testUint256ArrayGas5() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
+    }
+
+    function testUint256ArrayGas6() public pure {
+        MemoryKV kv_ = MemoryKV.wrap(0);
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+        uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
+        (arr_);
     }
 
     function testRoundTrip(uint256[] memory kvs_) public {
