@@ -8,9 +8,6 @@ import "../src/LibMemoryKV.sol";
 import "./LibMemoryKVSlow.sol";
 
 contract LibMemoryKVTest is Test {
-
-
-
     function testSetGas0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
