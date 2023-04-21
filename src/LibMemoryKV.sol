@@ -125,7 +125,7 @@ library LibMemoryKV {
     /// @return array All the keys and values copied pairwise into a `uint256[]`.
     /// Slither is not wrong about the cyclomatic complexity but I don't know
     /// another way to implement the bisect and keep the gas savings.
-    //slither-disable-next-line incorrect-shift
+    //slither-disable-next-line cyclomatic-complexity
     function toUint256Array(MemoryKV kv) internal pure returns (uint256[] memory array) {
         uint256 mask16 = type(uint16).max;
         uint256 mask32 = type(uint32).max;
