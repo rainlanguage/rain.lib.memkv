@@ -57,9 +57,7 @@ library LibMemoryKVSlow {
             } lt(ptrCursor_, 0xf0) {
                 ptrCursor_ := add(ptrCursor_, 0x10)
                 ptr_ := and(shr(ptrCursor_, kv_), 0xFFFF)
-            } {
-                cursor_ := copyFromPtr(cursor_, ptr_)
-            }
+            } { cursor_ := copyFromPtr(cursor_, ptr_) }
         }
     }
 }
