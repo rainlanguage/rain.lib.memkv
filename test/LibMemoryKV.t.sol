@@ -17,7 +17,7 @@ contract LibMemoryKVTest is Test {
 
         assertTrue(LibMemory.memoryIsAligned());
         Pointer alloc0_ = LibPointer.allocatedMemoryPointer();
-        kv_ = LibMemoryKV.setVal(kv_, k_, v_);
+        kv_ = LibMemoryKV.set(kv_, k_, v_);
         Pointer alloc1_ = LibPointer.allocatedMemoryPointer();
         assertTrue(Pointer.unwrap(alloc1_) == Pointer.unwrap(alloc0_) + 0x60);
         assertTrue(LibMemory.memoryIsAligned());
@@ -35,18 +35,18 @@ contract LibMemoryKVTest is Test {
         MemoryKV kv_ = MemoryKV.wrap(0);
         MemoryKVKey k0_ = MemoryKVKey.wrap(1);
         MemoryKVVal v0_ = MemoryKVVal.wrap(2);
-        kv_ = LibMemoryKV.setVal(kv_, k0_, v0_);
+        kv_ = LibMemoryKV.set(kv_, k0_, v0_);
         MemoryKVPtr ptr0_ = LibMemoryKV.getPtr(kv_, k0_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr0_)), MemoryKVVal.unwrap(v0_));
 
         MemoryKVKey k1_ = MemoryKVKey.wrap(3);
         MemoryKVVal v1_ = MemoryKVVal.wrap(4);
-        kv_ = LibMemoryKV.setVal(kv_, k1_, v1_);
+        kv_ = LibMemoryKV.set(kv_, k1_, v1_);
         MemoryKVPtr ptr1_ = LibMemoryKV.getPtr(kv_, k1_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v1_));
 
         MemoryKVVal v2_ = MemoryKVVal.wrap(5);
-        kv_ = LibMemoryKV.setVal(kv_, k0_, v2_);
+        kv_ = LibMemoryKV.set(kv_, k0_, v2_);
         MemoryKVPtr ptr2_ = LibMemoryKV.getPtr(kv_, k0_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr2_)), MemoryKVVal.unwrap(v2_));
         MemoryKVPtr ptr3_ = LibMemoryKV.getPtr(kv_, k1_);
@@ -57,13 +57,13 @@ contract LibMemoryKVTest is Test {
         MemoryKV kv_ = MemoryKV.wrap(0);
         MemoryKVKey k0_ = MemoryKVKey.wrap(5808);
         MemoryKVVal v00_ = MemoryKVVal.wrap(720);
-        kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
+        kv_ = LibMemoryKV.set(kv_, k0_, v00_);
         MemoryKVPtr ptr0_ = LibMemoryKV.getPtr(kv_, k0_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr0_)), MemoryKVVal.unwrap(v00_));
 
         MemoryKVKey k1_ = MemoryKVKey.wrap(4571);
         MemoryKVVal v10_ = MemoryKVVal.wrap(4142);
-        kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
+        kv_ = LibMemoryKV.set(kv_, k1_, v10_);
         MemoryKVPtr ptr1_ = LibMemoryKV.getPtr(kv_, k0_);
         assertEq(MemoryKVVal.unwrap(LibMemoryKV.readPtrVal(ptr1_)), MemoryKVVal.unwrap(v00_));
         MemoryKVPtr ptr2_ = LibMemoryKV.getPtr(kv_, k1_);
@@ -96,7 +96,7 @@ contract LibMemoryKVTest is Test {
         {
             assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc0_ = LibPointer.allocatedMemoryPointer();
-            kv_ = LibMemoryKV.setVal(kv_, k0_, v00_);
+            kv_ = LibMemoryKV.set(kv_, k0_, v00_);
             Pointer alloc1_ = LibPointer.allocatedMemoryPointer();
             assertTrue(Pointer.unwrap(alloc1_) == Pointer.unwrap(alloc0_) + 0x60);
             assertTrue(LibMemory.memoryIsAligned());
@@ -108,7 +108,7 @@ contract LibMemoryKVTest is Test {
         {
             assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc2_ = LibPointer.allocatedMemoryPointer();
-            kv_ = LibMemoryKV.setVal(kv_, k1_, v10_);
+            kv_ = LibMemoryKV.set(kv_, k1_, v10_);
             Pointer alloc3_ = LibPointer.allocatedMemoryPointer();
             assertTrue(LibMemory.memoryIsAligned());
             assertTrue(Pointer.unwrap(alloc3_) == Pointer.unwrap(alloc2_) + 0x60);
@@ -120,7 +120,7 @@ contract LibMemoryKVTest is Test {
         {
             assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc4_ = LibPointer.allocatedMemoryPointer();
-            kv_ = LibMemoryKV.setVal(kv_, k1_, v11_);
+            kv_ = LibMemoryKV.set(kv_, k1_, v11_);
             Pointer alloc5_ = LibPointer.allocatedMemoryPointer();
             assertTrue(LibMemory.memoryIsAligned());
             // No alloc on update.
@@ -134,7 +134,7 @@ contract LibMemoryKVTest is Test {
             assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc6_ = LibPointer.allocatedMemoryPointer();
 
-            kv_ = LibMemoryKV.setVal(kv_, k0_, v01_);
+            kv_ = LibMemoryKV.set(kv_, k0_, v01_);
             Pointer alloc7_ = LibPointer.allocatedMemoryPointer();
 
             assertTrue(LibMemory.memoryIsAligned());
@@ -157,112 +157,112 @@ contract LibMemoryKVTest is Test {
         LibMemoryKV.getPtr(kv_, MemoryKVKey.wrap(0));
     }
 
-    function testSetValGas0() public pure {
+    function testSetGas0() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
     }
 
-    function testSetValGas1() public pure {
+    function testSetGas1() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
     }
 
-    function testSetValGas3() public pure {
+    function testSetGas3() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
     }
 
-    function testSetValGas4() public pure {
+    function testSetGas4() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
     }
 
-    function testSetValGas5() public pure {
+    function testSetGas5() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
     }
 
-    function testSetValGas6() public pure {
+    function testSetGas6() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
     }
 
     function testUint256ArrayGas0() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
 
     function testUint256ArrayGas1() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
 
     function testUint256ArrayGas3() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
 
     function testUint256ArrayGas4() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
 
     function testUint256ArrayGas5() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
 
     function testUint256ArrayGas6() public pure {
         MemoryKV kv_ = MemoryKV.wrap(0);
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
-        kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
+        kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
         uint256[] memory arr_ = LibMemoryKV.toUint256Array(kv_);
         (arr_);
     }
@@ -279,7 +279,7 @@ contract LibMemoryKVTest is Test {
             uint256 k_ = kvs_[i_];
             uint256 v_ = kvs_[i_ + 1];
 
-            kv_ = LibMemoryKV.setVal(kv_, MemoryKVKey.wrap(k_), MemoryKVVal.wrap(v_));
+            kv_ = LibMemoryKV.set(kv_, MemoryKVKey.wrap(k_), MemoryKVVal.wrap(v_));
             slowKVs_ = LibMemoryKVSlow.set(slowKVs_, k_, v_);
         }
 

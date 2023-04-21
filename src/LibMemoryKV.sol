@@ -89,11 +89,13 @@ library LibMemoryKV {
     /// @param v_ The value to associate with the upserted key.
     /// @return The final value of `kv_` as it MAY be modified if the upsert
     /// resulted in an insert operation.
-    function setVal(MemoryKV kv_, MemoryKVKey k_, MemoryKVVal v_) internal pure returns (MemoryKV) {
+    function set(MemoryKV kv_, MemoryKVKey k_, MemoryKVVal v_) internal pure returns (MemoryKV) {
         assembly ("memory-safe") {
             // Hash to spread inserts across internal lists.
+            // This MUST remain in sync with `get` logic.
             mstore(0, k_)
             let bitOffset_ := mul(mod(keccak256(0, 0x20), 15), 0x10)
+
             let startPtr_ := and(shr(bitOffset_, kv_), 0xFFFF)
             let ptr_ := startPtr_
             for {} iszero(iszero(ptr_)) { ptr_ := mload(add(ptr_, 0x40)) } { if eq(k_, mload(ptr_)) { break } }
