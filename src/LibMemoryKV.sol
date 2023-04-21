@@ -139,6 +139,9 @@ library LibMemoryKV {
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
+            // Known false positives in slither
+            // https://github.com/crytic/slither/issues/1815
+            //slither-disable-next-line naming-convention
             function copyFromPtr(cursor, pointer) -> end {
                 for {} iszero(iszero(pointer)) {
                     pointer := mload(add(pointer, 0x40))
