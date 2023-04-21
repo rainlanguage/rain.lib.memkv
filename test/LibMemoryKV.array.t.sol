@@ -122,4 +122,29 @@ contract LibMemoryKVArrayTest is Test {
             assertEq(slowVal, roundVal);
         }
     }
+
+    function testRoundTripLinear(uint256[] memory kvs) public {
+        vm.assume(kvs.length % 2 == 0);
+
+        MemoryKV kv = MemoryKV.wrap(0);
+
+        for (uint256 i = 0; i < kvs.length; i += 2) {
+            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));
+        }
+
+        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        uint256[] memory arrayLinear = LibMemoryKVSlow.toUint256ArrayLinear(kv);
+
+        assertEq(array.length, arrayLinear.length);
+
+        uint256 matches = 0;
+        for (uint256 i = 0; i < array.length; i += 2) {
+            for (uint256 j = 0; j < arrayLinear.length; j += 2) {
+                if (array[i] == arrayLinear[j] && array[i + 1] == arrayLinear[j + 1]) {
+                    matches += 1;
+                }
+            }
+        }
+        assertEq(matches, arrayLinear.length / 2);
+    }
 }
