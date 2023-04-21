@@ -144,6 +144,7 @@ contract LibMemoryKVGetSetTest is Test {
             assertEq(MemoryKVVal.unwrap(get4), MemoryKVVal.unwrap(value00));
 
             (uint256 expect5, MemoryKVVal get5) = LibMemoryKV.get(kv, key1);
+            assertEq(1, expect5);
             assertEq(MemoryKVVal.unwrap(get5), MemoryKVVal.unwrap(value11));
         }
 
