@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: CAL
+pragma solidity =0.8.18;
+
+import "forge-std/Test.sol";
+import "sol.lib.memory/LibUint256Array.sol";
+
+import "src/LibMemoryKV.sol";
+
+/// @title LibMemoryKVStorageParityTest
+/// The memory KV should behave the same as contract storage.
+contract LibMemoryKVStorageParityTest is Test {
+    mapping(uint256 => uint256) public sStorageKV;
+
+    /// A single get/set should behave the same as storage.
+    function testSingleGetSet(uint256 key, uint256 value) external {
+        MemoryKV kv = MemoryKV.wrap(0);
+        sStorageKV[key] = value;
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
+        (uint256 exists, MemoryKVVal get) = LibMemoryKV.get(kv, MemoryKVKey.wrap(key));
+
+        assertEq(1, exists, "exists");
+        assertEq(MemoryKVVal.unwrap(get), MemoryKVVal.unwrap(MemoryKVVal.wrap(value)), "value");
+        assertEq(sStorageKV[key], MemoryKVVal.unwrap(get), "storage");
+    }
+
+    /// A single get/set pair that we can fuzz.
+    /// @param key The key to set.
+    /// @param value The value to set.
+    struct KV {
+        uint256 key;
+        uint256 value;
+    }
+
+    /// A list of get/sets should behave the same as storage.
+    function testMultiGetSetSingle(KV[] memory kvs) external {
+        MemoryKV kv = MemoryKV.wrap(0);
+        for (uint256 i = 0; i < kvs.length; i++) {
+            sStorageKV[kvs[i].key] = kvs[i].value;
+            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i].key), MemoryKVVal.wrap(kvs[i].value));
+        }
+        uint256[] memory finalKVs = LibMemoryKV.toUint256Array(kv);
+        for (uint256 i = 0; i < finalKVs.length; i += 2) {
+            assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
+        }
+    }
+
+    /// Many KVs should all behave the same as storage in aggregate.
+    function testMultiGetSetDouble(KV[] memory kvsOne, KV[] memory kvsTwo) external {
+        uint256 endOne = kvsOne.length >= 10 ? 10 : kvsOne.length;
+        MemoryKV kv = MemoryKV.wrap(0);
+        for (uint256 i = 0; i < endOne; i++) {
+            sStorageKV[kvsOne[i].key] = kvsOne[i].value;
+            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvsOne[i].key), MemoryKVVal.wrap(kvsOne[i].value));
+        }
+        uint256[] memory finalKVs = LibMemoryKV.toUint256Array(kv);
+        for (uint256 i = 0; i < endOne; i += 2) {
+            assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
+        }
+
+        uint256 endTwo = kvsTwo.length >= 10 ? 10 : kvsTwo.length;
+        MemoryKV kvTwo = MemoryKV.wrap(0);
+        for (uint256 i = 0; i < endTwo; i++) {
+            sStorageKV[kvsTwo[i].key] = kvsTwo[i].value;
+            kvTwo = LibMemoryKV.set(kvTwo, MemoryKVKey.wrap(kvsTwo[i].key), MemoryKVVal.wrap(kvsTwo[i].value));
+        }
+        uint256[] memory finalKVsTwo = LibMemoryKV.toUint256Array(kvTwo);
+        for (uint256 i = 0; i < endTwo; i += 2) {
+            assertEq(sStorageKV[finalKVsTwo[i]], finalKVsTwo[i + 1], "storage");
+        }
+    }
+}
