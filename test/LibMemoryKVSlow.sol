@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CAL
-pragma solidity ^0.8.18;
+pragma solidity =0.8.18;
 
 import "sol.lib.memory/LibUint256Array.sol";
 import "../src/LibMemoryKV.sol";
