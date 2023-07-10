@@ -2,10 +2,10 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "sol.lib.memory/LibMemory.sol";
+import "rain.solmem/lib/LibMemory.sol";
 
-import "../src/LibMemoryKV.sol";
-import "./LibMemoryKVSlow.sol";
+import "src/lib/LibMemoryKV.sol";
+import "test/lib/LibMemoryKVSlow.sol";
 
 contract LibMemoryKVArrayTest is Test {
     using LibMemoryKV for MemoryKV;

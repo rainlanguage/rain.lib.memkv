@@ -2,9 +2,10 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "sol.lib.memory/LibMemory.sol";
 
-import "../src/LibMemoryKV.sol";
+import "rain.solmem/lib/LibMemory.sol";
+
+import "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetGasTest is Test {
     function testGetGas() public pure {

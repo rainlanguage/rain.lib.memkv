@@ -2,10 +2,11 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "rain.lib.hash/LibHashNoAlloc.sol";
-import "sol.lib.memory/LibMemory.sol";
 
-import "../src/LibMemoryKV.sol";
+import "rain.lib.hash/LibHashNoAlloc.sol";
+import "rain.solmem/lib/LibMemory.sol";
+
+import "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;

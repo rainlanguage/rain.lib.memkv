@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: CAL
 pragma solidity =0.8.18;
 
-import "sol.lib.memory/LibUint256Array.sol";
-import "../src/LibMemoryKV.sol";
+import "rain.solmem/lib/LibUint256Array.sol";
+
+import "src/lib/LibMemoryKV.sol";
 
 library LibMemoryKVSlow {
     function exists(uint256[] memory kvs_, uint256 k_) internal pure returns (bool, uint256) {

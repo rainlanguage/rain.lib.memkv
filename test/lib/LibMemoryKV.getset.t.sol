@@ -2,10 +2,10 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "sol.lib.memory/LibPointer.sol";
-import "sol.lib.memory/LibMemory.sol";
+import "rain.solmem/lib/LibPointer.sol";
+import "rain.solmem/lib/LibMemory.sol";
 
-import "../src/LibMemoryKV.sol";
+import "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetTest is Test {
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public {
