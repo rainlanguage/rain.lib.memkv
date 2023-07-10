@@ -5,3 +5,6 @@
 [submodule "lib/rain.lib.hash"]
 	path = lib/rain.lib.hash
 	url = https://github.com/rainprotocol/rain.lib.hash
+[submodule "lib/rain.solmem"]
+	path = lib/rain.solmem
+	url = https://github.com/rainprotocol/rain.solmem
