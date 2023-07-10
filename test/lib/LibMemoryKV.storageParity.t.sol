@@ -2,9 +2,10 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "sol.lib.memory/LibUint256Array.sol";
 
-import "src/LibMemoryKV.sol";
+import "rain.solmem/lib/LibUint256Array.sol";
+
+import "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.
