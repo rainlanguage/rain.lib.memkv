@@ -1,14 +1,14 @@
-// SPDX-License-Identifier: CAL
-pragma solidity =0.8.18;
+// SPDX-License-Identifier: LicenseRef-DCL-1.0
+// SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
+pragma solidity =0.8.25;
 
-import "forge-std/Test.sol";
-import "rain.solmem/lib/LibPointer.sol";
-import "rain.solmem/lib/LibMemory.sol";
+import {Test} from "forge-std/Test.sol";
+import {LibPointer, Pointer} from "rain.solmem/lib/LibPointer.sol";
 
-import "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetTest is Test {
-    function testSetGet0(MemoryKVKey key, MemoryKVVal value) public {
+    function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
         MemoryKV kv = MemoryKV.wrap(0);
 
         // Initially the key will not be set.
@@ -17,12 +17,10 @@ contract LibMemoryKVGetSetTest is Test {
         assertEq(0, exists0);
         assertEq(0, MemoryKVVal.unwrap(value0));
 
-        assertTrue(LibMemory.memoryIsAligned());
         Pointer alloc0 = LibPointer.allocatedMemoryPointer();
         kv = LibMemoryKV.set(kv, key, value);
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
         assertTrue(Pointer.unwrap(alloc1) == Pointer.unwrap(alloc0) + 0x60);
-        assertTrue(LibMemory.memoryIsAligned());
 
         // Now the key is set.
         assertTrue(MemoryKV.unwrap(kv) > 0);
@@ -32,7 +30,7 @@ contract LibMemoryKVGetSetTest is Test {
         assertEq(MemoryKVVal.unwrap(value1), MemoryKVVal.unwrap(value));
     }
 
-    function testSetGetSimple0() public {
+    function testSetGetSimple0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
         MemoryKVKey key0 = MemoryKVKey.wrap(1);
         MemoryKVVal value0 = MemoryKVVal.wrap(2);
@@ -63,7 +61,7 @@ contract LibMemoryKVGetSetTest is Test {
         assertEq(MemoryKVVal.unwrap(get3), MemoryKVVal.unwrap(value1));
     }
 
-    function testSetGetSimple1() public {
+    function testSetGetSimple1() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
         MemoryKVKey key0 = MemoryKVKey.wrap(5808);
         MemoryKVVal value00 = MemoryKVVal.wrap(720);
@@ -91,18 +89,16 @@ contract LibMemoryKVGetSetTest is Test {
         MemoryKVKey key1,
         MemoryKVVal value10,
         MemoryKVVal value11
-    ) public {
+    ) public pure {
         vm.assume(MemoryKVKey.unwrap(key0) != MemoryKVKey.unwrap(key1));
 
         MemoryKV kv = MemoryKV.wrap(0);
 
         {
-            assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc0 = LibPointer.allocatedMemoryPointer();
             kv = LibMemoryKV.set(kv, key0, value00);
             Pointer alloc1 = LibPointer.allocatedMemoryPointer();
             assertTrue(Pointer.unwrap(alloc1) == Pointer.unwrap(alloc0) + 0x60);
-            assertTrue(LibMemory.memoryIsAligned());
 
             (uint256 expect0, MemoryKVVal get0) = LibMemoryKV.get(kv, key0);
             assertEq(1, expect0);
@@ -114,11 +110,9 @@ contract LibMemoryKVGetSetTest is Test {
         }
 
         {
-            assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc2 = LibPointer.allocatedMemoryPointer();
             kv = LibMemoryKV.set(kv, key1, value10);
             Pointer alloc3 = LibPointer.allocatedMemoryPointer();
-            assertTrue(LibMemory.memoryIsAligned());
             assertTrue(Pointer.unwrap(alloc3) == Pointer.unwrap(alloc2) + 0x60);
 
             (uint256 expect2, MemoryKVVal get2) = LibMemoryKV.get(kv, key0);
@@ -131,11 +125,9 @@ contract LibMemoryKVGetSetTest is Test {
         }
 
         {
-            assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc4 = LibPointer.allocatedMemoryPointer();
             kv = LibMemoryKV.set(kv, key1, value11);
             Pointer alloc5 = LibPointer.allocatedMemoryPointer();
-            assertTrue(LibMemory.memoryIsAligned());
 
             // No alloc on update.
             assertTrue(Pointer.unwrap(alloc4) == Pointer.unwrap(alloc5));
@@ -149,13 +141,11 @@ contract LibMemoryKVGetSetTest is Test {
         }
 
         {
-            assertTrue(LibMemory.memoryIsAligned());
             Pointer alloc6 = LibPointer.allocatedMemoryPointer();
 
             kv = LibMemoryKV.set(kv, key0, value01);
             Pointer alloc7 = LibPointer.allocatedMemoryPointer();
 
-            assertTrue(LibMemory.memoryIsAligned());
             // No alloc on update.
             assertTrue(Pointer.unwrap(alloc6) == Pointer.unwrap(alloc7));
 

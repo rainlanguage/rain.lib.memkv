@@ -1,11 +1,13 @@
-// SPDX-License-Identifier: CAL
-pragma solidity =0.8.18;
+// SPDX-License-Identifier: LicenseRef-DCL-1.0
+// SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
+pragma solidity =0.8.25;
 
-import "forge-std/Test.sol";
-import "rain.solmem/lib/LibMemory.sol";
+import {Test} from "forge-std/Test.sol";
 
-import "src/lib/LibMemoryKV.sol";
-import "test/lib/LibMemoryKVSlow.sol";
+import {LibPointer, Pointer} from "rain.solmem/lib/LibPointer.sol";
+
+import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 contract LibMemoryKVArrayTest is Test {
     using LibMemoryKV for MemoryKV;
@@ -71,7 +73,7 @@ contract LibMemoryKVArrayTest is Test {
         (array);
     }
 
-    function testArrayAllocatedMemory(uint256[] memory kvs) public {
+    function testArrayAllocatedMemory(uint256[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
         MemoryKV kv = MemoryKV.wrap(0);
@@ -94,7 +96,7 @@ contract LibMemoryKVArrayTest is Test {
         assertEq(Pointer.unwrap(pointerAfter), Pointer.unwrap(pointerBefore) + 0x20 + (array.length * 0x20));
     }
 
-    function testRoundTrip(uint256[] memory kvs) public {
+    function testRoundTrip(uint256[] memory kvs) public pure {
         // We hit gas limits pretty easily in this test for "large" sets.
         vm.assume(kvs.length < 50);
         vm.assume(kvs.length % 2 == 0);
@@ -123,7 +125,7 @@ contract LibMemoryKVArrayTest is Test {
         }
     }
 
-    function testRoundTripLinear(uint256[] memory kvs) public {
+    function testRoundTripLinear(uint256[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
         MemoryKV kv = MemoryKV.wrap(0);

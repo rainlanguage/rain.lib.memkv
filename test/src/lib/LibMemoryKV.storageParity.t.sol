@@ -1,11 +1,12 @@
-// SPDX-License-Identifier: CAL
-pragma solidity =0.8.18;
+// SPDX-License-Identifier: LicenseRef-DCL-1.0
+// SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
+pragma solidity =0.8.25;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import "rain.solmem/lib/LibUint256Array.sol";
+import {LibUint256Array} from "rain.solmem/lib/LibUint256Array.sol";
 
-import "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.

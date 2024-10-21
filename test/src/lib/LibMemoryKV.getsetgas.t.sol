@@ -1,11 +1,10 @@
-// SPDX-License-Identifier: CAL
-pragma solidity =0.8.18;
+// SPDX-License-Identifier: LicenseRef-DCL-1.0
+// SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
+pragma solidity =0.8.25;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import "rain.solmem/lib/LibMemory.sol";
-
-import "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetGasTest is Test {
     function testGetGas() public pure {
