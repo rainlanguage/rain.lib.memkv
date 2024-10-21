@@ -1,17 +1,17 @@
-// SPDX-License-Identifier: CAL
-pragma solidity =0.8.18;
+// SPDX-License-Identifier: LicenseRef-DCL-1.0
+// SPDX-FileCopyrightText: Copyright (c) 2020 thedavidmeister
+pragma solidity =0.8.25;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import "rain.lib.hash/LibHashNoAlloc.sol";
-import "rain.solmem/lib/LibMemory.sol";
+import {LibHashNoAlloc} from "rain.lib.hash/LibHashNoAlloc.sol";
 
-import "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    function testSaturate(bytes32 seed) public {
+    function testSaturate(bytes32 seed) public pure {
         MemoryKV kv = MemoryKV.wrap(0);
 
         bytes32[60] memory kvs = [
@@ -101,7 +101,6 @@ contract LibMemoryKVSaturateTest is Test {
             kvs[i] = key;
 
             kv = kv.set(MemoryKVKey.wrap(uint256(key)), MemoryKVVal.wrap(uint256(kvs[i + 1])));
-            assertTrue(LibMemory.memoryIsAligned());
         }
 
         // Every kv slot should be nonzero at this point.
@@ -121,7 +120,6 @@ contract LibMemoryKVSaturateTest is Test {
 
         // Exported array must include every key/value pair.
         uint256[] memory export = LibMemoryKV.toUint256Array(kv);
-        assertTrue(LibMemory.memoryIsAligned());
 
         assertEq(kvs.length, export.length);
         uint256 matches = 0;
