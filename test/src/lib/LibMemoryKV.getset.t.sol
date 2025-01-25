@@ -32,23 +32,23 @@ contract LibMemoryKVGetSetTest is Test {
 
     function testSetGetSimple0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        MemoryKVKey key0 = MemoryKVKey.wrap(1);
-        MemoryKVVal value0 = MemoryKVVal.wrap(2);
+        MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(1)));
+        MemoryKVVal value0 = MemoryKVVal.wrap(bytes32(uint256(2)));
         kv = LibMemoryKV.set(kv, key0, value0);
         (uint256 exists0, MemoryKVVal get0) = LibMemoryKV.get(kv, key0);
 
         assertEq(1, exists0);
         assertEq(MemoryKVVal.unwrap(get0), MemoryKVVal.unwrap(value0));
 
-        MemoryKVKey key1 = MemoryKVKey.wrap(3);
-        MemoryKVVal value1 = MemoryKVVal.wrap(4);
+        MemoryKVKey key1 = MemoryKVKey.wrap(bytes32(uint256(3)));
+        MemoryKVVal value1 = MemoryKVVal.wrap(bytes32(uint256(4)));
         kv = LibMemoryKV.set(kv, key1, value1);
         (uint256 exists1, MemoryKVVal get1) = LibMemoryKV.get(kv, key1);
 
         assertEq(1, exists1);
         assertEq(MemoryKVVal.unwrap(get1), MemoryKVVal.unwrap(value1));
 
-        MemoryKVVal value2 = MemoryKVVal.wrap(5);
+        MemoryKVVal value2 = MemoryKVVal.wrap(bytes32(uint256(5)));
         kv = LibMemoryKV.set(kv, key0, value2);
         (uint256 exists2, MemoryKVVal get2) = LibMemoryKV.get(kv, key0);
 
@@ -63,15 +63,15 @@ contract LibMemoryKVGetSetTest is Test {
 
     function testSetGetSimple1() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        MemoryKVKey key0 = MemoryKVKey.wrap(5808);
-        MemoryKVVal value00 = MemoryKVVal.wrap(720);
+        MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(5808)));
+        MemoryKVVal value00 = MemoryKVVal.wrap(bytes32(uint256(720)));
         kv = LibMemoryKV.set(kv, key0, value00);
         (uint256 exists0, MemoryKVVal get0) = LibMemoryKV.get(kv, key0);
         assertEq(1, exists0);
         assertEq(MemoryKVVal.unwrap(get0), MemoryKVVal.unwrap(value00));
 
-        MemoryKVKey key1 = MemoryKVKey.wrap(4571);
-        MemoryKVVal value10 = MemoryKVVal.wrap(4142);
+        MemoryKVKey key1 = MemoryKVKey.wrap(bytes32(uint256(4571)));
+        MemoryKVVal value10 = MemoryKVVal.wrap(bytes32(uint256(4142)));
         kv = LibMemoryKV.set(kv, key1, value10);
         (uint256 exists1, MemoryKVVal get1) = LibMemoryKV.get(kv, key0);
         assertEq(1, exists1);

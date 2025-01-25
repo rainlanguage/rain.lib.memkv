@@ -100,7 +100,7 @@ contract LibMemoryKVSaturateTest is Test {
             }
             kvs[i] = key;
 
-            kv = kv.set(MemoryKVKey.wrap(uint256(key)), MemoryKVVal.wrap(uint256(kvs[i + 1])));
+            kv = kv.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(kvs[i + 1]));
         }
 
         // Every kv slot should be nonzero at this point.
@@ -113,19 +113,19 @@ contract LibMemoryKVSaturateTest is Test {
 
         // Every value must be gettable.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            (uint256 exists, MemoryKVVal value) = kv.get(MemoryKVKey.wrap(uint256(kvs[i])));
+            (uint256 exists, MemoryKVVal value) = kv.get(MemoryKVKey.wrap(kvs[i]));
             assertEq(1, exists);
-            assertEq(MemoryKVVal.unwrap(value), uint256(kvs[i + 1]));
+            assertEq(MemoryKVVal.unwrap(value), kvs[i + 1]);
         }
 
         // Exported array must include every key/value pair.
-        uint256[] memory export = LibMemoryKV.toUint256Array(kv);
+        bytes32[] memory export = LibMemoryKV.toBytes32Array(kv);
 
         assertEq(kvs.length, export.length);
         uint256 matches = 0;
         for (uint256 i = 0; i < kvs.length; i += 2) {
             for (uint256 j = 0; j < export.length; j += 2) {
-                if (uint256(kvs[i]) == export[j] && uint256(kvs[i + 1]) == export[j + 1]) {
+                if (kvs[i] == export[j] && kvs[i + 1] == export[j + 1]) {
                     matches += 1;
                 }
             }

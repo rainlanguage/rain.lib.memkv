@@ -11,10 +11,10 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.
 contract LibMemoryKVStorageParityTest is Test {
-    mapping(uint256 => uint256) public sStorageKV;
+    mapping(bytes32 => bytes32) public sStorageKV;
 
     /// A single get/set should behave the same as storage.
-    function testSingleGetSet(uint256 key, uint256 value) external {
+    function testSingleGetSet(bytes32 key, bytes32 value) external {
         MemoryKV kv = MemoryKV.wrap(0);
         sStorageKV[key] = value;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
@@ -29,8 +29,8 @@ contract LibMemoryKVStorageParityTest is Test {
     /// @param key The key to set.
     /// @param value The value to set.
     struct KV {
-        uint256 key;
-        uint256 value;
+        bytes32 key;
+        bytes32 value;
     }
 
     /// A list of get/sets should behave the same as storage.
@@ -40,7 +40,7 @@ contract LibMemoryKVStorageParityTest is Test {
             sStorageKV[kvs[i].key] = kvs[i].value;
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i].key), MemoryKVVal.wrap(kvs[i].value));
         }
-        uint256[] memory finalKVs = LibMemoryKV.toUint256Array(kv);
+        bytes32[] memory finalKVs = LibMemoryKV.toBytes32Array(kv);
         for (uint256 i = 0; i < finalKVs.length; i += 2) {
             assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
         }
@@ -54,7 +54,7 @@ contract LibMemoryKVStorageParityTest is Test {
             sStorageKV[kvsOne[i].key] = kvsOne[i].value;
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvsOne[i].key), MemoryKVVal.wrap(kvsOne[i].value));
         }
-        uint256[] memory finalKVs = LibMemoryKV.toUint256Array(kv);
+        bytes32[] memory finalKVs = LibMemoryKV.toBytes32Array(kv);
         for (uint256 i = 0; i < endOne; i += 2) {
             assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
         }
@@ -65,7 +65,7 @@ contract LibMemoryKVStorageParityTest is Test {
             sStorageKV[kvsTwo[i].key] = kvsTwo[i].value;
             kvTwo = LibMemoryKV.set(kvTwo, MemoryKVKey.wrap(kvsTwo[i].key), MemoryKVVal.wrap(kvsTwo[i].value));
         }
-        uint256[] memory finalKVsTwo = LibMemoryKV.toUint256Array(kvTwo);
+        bytes32[] memory finalKVsTwo = LibMemoryKV.toBytes32Array(kvTwo);
         for (uint256 i = 0; i < endTwo; i += 2) {
             assertEq(sStorageKV[finalKVsTwo[i]], finalKVsTwo[i + 1], "storage");
         }

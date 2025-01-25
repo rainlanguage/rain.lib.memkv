@@ -2,63 +2,63 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {LibUint256Array} from "rain.solmem/lib/LibUint256Array.sol";
+import {LibBytes32Array} from "rain.solmem/lib/LibBytes32Array.sol";
 import {MemoryKV} from "src/lib/LibMemoryKV.sol";
 
 library LibMemoryKVSlow {
-    function exists(uint256[] memory kvs_, uint256 k_) internal pure returns (bool, uint256) {
-        for (uint256 i_ = 0; i_ < kvs_.length; i_ += 2) {
-            if (kvs_[i_] == k_) {
-                return (true, i_);
+    function exists(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, uint256) {
+        for (uint256 i = 0; i < kvs.length; i += 2) {
+            if (kvs[i] == k) {
+                return (true, i);
             }
         }
         return (false, 0);
     }
 
-    function get(uint256[] memory kvs_, uint256 k_) internal pure returns (bool, uint256) {
-        (bool exists_, uint256 index_) = exists(kvs_, k_);
-        return (exists_, exists_ ? kvs_[index_] : 0);
+    function get(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, bytes32) {
+        (bool existsVal, uint256 index) = exists(kvs, k);
+        return (existsVal, existsVal ? kvs[index] : bytes32(uint256(0)));
     }
 
-    function set(uint256[] memory kvs_, uint256 k_, uint256 v_) internal pure returns (uint256[] memory) {
-        (bool exists_, uint256 index_) = exists(kvs_, k_);
-        if (exists_) {
-            kvs_[index_ + 1] = v_;
-            return kvs_;
+    function set(bytes32[] memory kvs, bytes32 k, bytes32 v) internal pure returns (bytes32[] memory) {
+        (bool existsVal, uint256 index) = exists(kvs, k);
+        if (existsVal) {
+            kvs[index + 1] = v;
+            return kvs;
         } else {
-            uint256[] memory kv_ = new uint256[](2);
-            kv_[0] = k_;
-            kv_[1] = v_;
-            return LibUint256Array.unsafeExtend(kvs_, kv_);
+            bytes32[] memory kv = new bytes32[](2);
+            kv[0] = k;
+            kv[1] = v;
+            return LibBytes32Array.unsafeExtend(kvs, kv);
         }
     }
 
-    function toUint256ArrayLinear(MemoryKV kv_) internal pure returns (uint256[] memory arr_) {
+    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory arr) {
         assembly ("memory-safe") {
-            arr_ := mload(0x40)
-            let len_ := shr(0xf0, kv_)
-            mstore(0x40, add(arr_, add(0x20, mul(len_, 0x20))))
-            mstore(arr_, len_)
+            arr := mload(0x40)
+            let len := shr(0xf0, kv)
+            mstore(0x40, add(arr, add(0x20, mul(len, 0x20))))
+            mstore(arr, len)
 
-            function copyFromPtr(cursor_, ptr_) -> end_ {
-                for {} iszero(iszero(ptr_)) {
-                    ptr_ := mload(add(ptr_, 0x40))
-                    cursor_ := add(cursor_, 0x40)
+            function copyFromPtr(cursor, ptr) -> end {
+                for {} iszero(iszero(ptr)) {
+                    ptr := mload(add(ptr, 0x40))
+                    cursor := add(cursor, 0x40)
                 } {
-                    mstore(cursor_, mload(ptr_))
-                    mstore(add(cursor_, 0x20), mload(add(ptr_, 0x20)))
+                    mstore(cursor, mload(ptr))
+                    mstore(add(cursor, 0x20), mload(add(ptr, 0x20)))
                 }
-                end_ := cursor_
+                end := cursor
             }
 
-            let cursor_ := add(arr_, 0x20)
+            let cursor := add(arr, 0x20)
             for {
-                let ptrCursor_ := 0
-                let ptr_ := and(kv_, 0xFFFF)
-            } lt(ptrCursor_, 0xf0) {
-                ptrCursor_ := add(ptrCursor_, 0x10)
-                ptr_ := and(shr(ptrCursor_, kv_), 0xFFFF)
-            } { cursor_ := copyFromPtr(cursor_, ptr_) }
+                let ptrCursor := 0
+                let ptr := and(kv, 0xFFFF)
+            } lt(ptrCursor, 0xf0) {
+                ptrCursor := add(ptrCursor, 0x10)
+                ptr := and(shr(ptrCursor, kv), 0xFFFF)
+            } { cursor := copyFromPtr(cursor, ptr) }
         }
     }
 }
