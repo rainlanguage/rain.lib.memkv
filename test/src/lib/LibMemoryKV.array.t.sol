@@ -12,68 +12,68 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 contract LibMemoryKVArrayTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    function testUint256ArrayGas0() public pure {
+    function testBytes32ArrayGas0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testUint256ArrayGas1() public pure {
+    function testBytes32ArrayGas1() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testUint256ArrayGas3() public pure {
+    function testBytes32ArrayGas3() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testUint256ArrayGas4() public pure {
+    function testBytes32ArrayGas4() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testUint256ArrayGas5() public pure {
+    function testBytes32ArrayGas5() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(9))), MemoryKVVal.wrap(bytes32(uint256(10))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testUint256ArrayGas6() public pure {
+    function testBytes32ArrayGas6() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(9))), MemoryKVVal.wrap(bytes32(uint256(10))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(10))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(30))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(50))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(70))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(90))), MemoryKVVal.wrap(bytes32(uint256(10))));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
-    function testArrayAllocatedMemory(uint256[] memory kvs) public pure {
+    function testArrayAllocatedMemory(bytes32[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
         MemoryKV kv = MemoryKV.wrap(0);
@@ -83,7 +83,7 @@ contract LibMemoryKVArrayTest is Test {
         }
 
         Pointer pointerBefore = LibPointer.allocatedMemoryPointer();
-        uint256[] memory array = kv.toUint256Array();
+        bytes32[] memory array = kv.toBytes32Array();
         Pointer pointerAfter = LibPointer.allocatedMemoryPointer();
 
         uint256 pointerArray;
@@ -96,29 +96,29 @@ contract LibMemoryKVArrayTest is Test {
         assertEq(Pointer.unwrap(pointerAfter), Pointer.unwrap(pointerBefore) + 0x20 + (array.length * 0x20));
     }
 
-    function testRoundTrip(uint256[] memory kvs) public pure {
+    function testRoundTrip(bytes32[] memory kvs) public pure {
         // We hit gas limits pretty easily in this test for "large" sets.
         vm.assume(kvs.length < 50);
         vm.assume(kvs.length % 2 == 0);
 
         MemoryKV kv = MemoryKV.wrap(0);
 
-        uint256[] memory slowKVs = new uint256[](0);
+        bytes32[] memory slowKVs = new bytes32[](0);
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            uint256 key = kvs[i];
-            uint256 value = kvs[i + 1];
+            bytes32 key = kvs[i];
+            bytes32 value = kvs[i + 1];
 
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
             slowKVs = LibMemoryKVSlow.set(slowKVs, key, value);
         }
 
-        uint256[] memory roundKVs = LibMemoryKV.toUint256Array(kv);
+        bytes32[] memory roundKVs = LibMemoryKV.toBytes32Array(kv);
         assertEq(slowKVs.length, roundKVs.length);
 
         for (uint256 i = 0; i < slowKVs.length; i += 2) {
-            uint256 key = slowKVs[i];
-            (bool slowExists, uint256 slowVal) = LibMemoryKVSlow.get(slowKVs, key);
-            (bool roundExists, uint256 roundVal) = LibMemoryKVSlow.get(roundKVs, key);
+            bytes32 key = slowKVs[i];
+            (bool slowExists, bytes32 slowVal) = LibMemoryKVSlow.get(slowKVs, key);
+            (bool roundExists, bytes32 roundVal) = LibMemoryKVSlow.get(roundKVs, key);
             assertEq(slowExists, true);
             assertEq(roundExists, true);
             assertEq(slowVal, roundVal);

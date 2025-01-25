@@ -5,14 +5,14 @@ pragma solidity ^0.8.18;
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
-/// memory allocation for a `uint256[]` in the case of a final snapshot/export.
+/// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
 type MemoryKV is uint256;
 
 /// The key associated with the value for each item in the store.
-type MemoryKVKey is uint256;
+type MemoryKVKey is bytes32;
 
 /// The value associated with the key for each item in the store.
-type MemoryKVVal is uint256;
+type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
@@ -123,11 +123,11 @@ library LibMemoryKV {
     /// mutated the built array will not reflect these mutations.
     ///
     /// @param kv The entrypoint into the key/value store.
-    /// @return array All the keys and values copied pairwise into a `uint256[]`.
+    /// @return array All the keys and values copied pairwise into a `bytes32[]`.
     /// Slither is not wrong about the cyclomatic complexity but I don't know
     /// another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
-    function toUint256Array(MemoryKV kv) internal pure returns (uint256[] memory array) {
+    function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         uint256 mask16 = type(uint16).max;
         uint256 mask32 = type(uint32).max;
         uint256 mask64 = type(uint64).max;
