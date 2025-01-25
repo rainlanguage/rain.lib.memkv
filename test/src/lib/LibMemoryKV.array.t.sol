@@ -125,7 +125,7 @@ contract LibMemoryKVArrayTest is Test {
         }
     }
 
-    function testRoundTripLinear(uint256[] memory kvs) public pure {
+    function testRoundTripLinear(bytes32[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
         MemoryKV kv = MemoryKV.wrap(0);
@@ -134,8 +134,8 @@ contract LibMemoryKVArrayTest is Test {
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));
         }
 
-        uint256[] memory array = LibMemoryKV.toUint256Array(kv);
-        uint256[] memory arrayLinear = LibMemoryKVSlow.toUint256ArrayLinear(kv);
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
+        bytes32[] memory arrayLinear = LibMemoryKVSlow.toBytes32ArrayLinear(kv);
 
         assertEq(array.length, arrayLinear.length);
 

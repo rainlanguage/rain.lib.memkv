@@ -33,32 +33,32 @@ library LibMemoryKVSlow {
         }
     }
 
-    function toUint256ArrayLinear(MemoryKV kv_) internal pure returns (uint256[] memory arr_) {
+    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory arr) {
         assembly ("memory-safe") {
-            arr_ := mload(0x40)
-            let len_ := shr(0xf0, kv_)
-            mstore(0x40, add(arr_, add(0x20, mul(len_, 0x20))))
-            mstore(arr_, len_)
+            arr := mload(0x40)
+            let len := shr(0xf0, kv)
+            mstore(0x40, add(arr, add(0x20, mul(len, 0x20))))
+            mstore(arr, len)
 
-            function copyFromPtr(cursor_, ptr_) -> end_ {
-                for {} iszero(iszero(ptr_)) {
-                    ptr_ := mload(add(ptr_, 0x40))
-                    cursor_ := add(cursor_, 0x40)
+            function copyFromPtr(cursor, ptr) -> end {
+                for {} iszero(iszero(ptr)) {
+                    ptr := mload(add(ptr, 0x40))
+                    cursor := add(cursor, 0x40)
                 } {
-                    mstore(cursor_, mload(ptr_))
-                    mstore(add(cursor_, 0x20), mload(add(ptr_, 0x20)))
+                    mstore(cursor, mload(ptr))
+                    mstore(add(cursor, 0x20), mload(add(ptr, 0x20)))
                 }
-                end_ := cursor_
+                end := cursor
             }
 
-            let cursor_ := add(arr_, 0x20)
+            let cursor := add(arr, 0x20)
             for {
-                let ptrCursor_ := 0
-                let ptr_ := and(kv_, 0xFFFF)
-            } lt(ptrCursor_, 0xf0) {
-                ptrCursor_ := add(ptrCursor_, 0x10)
-                ptr_ := and(shr(ptrCursor_, kv_), 0xFFFF)
-            } { cursor_ := copyFromPtr(cursor_, ptr_) }
+                let ptrCursor := 0
+                let ptr := and(kv, 0xFFFF)
+            } lt(ptrCursor, 0xf0) {
+                ptrCursor := add(ptrCursor, 0x10)
+                ptr := and(shr(ptrCursor, kv), 0xFFFF)
+            } { cursor := copyFromPtr(cursor, ptr) }
         }
     }
 }

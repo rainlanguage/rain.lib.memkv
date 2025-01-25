@@ -14,50 +14,50 @@ contract LibMemoryKVGetSetGasTest is Test {
 
     function testSetGas0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
     }
 
     function testSetGas1() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
     }
 
     function testSetGas3() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
     }
 
     function testSetGas4() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
     }
 
     function testSetGas5() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(9))), MemoryKVVal.wrap(bytes32(uint256(10))));
     }
 
     function testSetGas6() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(1), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(3), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(5), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(7), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(9), MemoryKVVal.wrap(10));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(10), MemoryKVVal.wrap(2));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(30), MemoryKVVal.wrap(4));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(50), MemoryKVVal.wrap(6));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(70), MemoryKVVal.wrap(8));
-        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(90), MemoryKVVal.wrap(10));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(7))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(9))), MemoryKVVal.wrap(bytes32(uint256(10))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(10))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(30))), MemoryKVVal.wrap(bytes32(uint256(4))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(50))), MemoryKVVal.wrap(bytes32(uint256(6))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(70))), MemoryKVVal.wrap(bytes32(uint256(8))));
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(90))), MemoryKVVal.wrap(bytes32(uint256(10))));
     }
 }
