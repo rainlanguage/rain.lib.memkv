@@ -1,4 +1,4 @@
-# raim.lib.memkv
+# rain.lib.memkv
 
 Docs at https://rainprotocol.github.io/rain.lib.memkv
 
