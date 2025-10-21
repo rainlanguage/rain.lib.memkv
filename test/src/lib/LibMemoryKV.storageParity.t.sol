@@ -4,13 +4,12 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std/Test.sol";
 
-import {LibUint256Array} from "rain.solmem/lib/LibUint256Array.sol";
-
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.
 contract LibMemoryKVStorageParityTest is Test {
+    //forge-lint: disable-next-line(mixed-case-variable)
     mapping(bytes32 => bytes32) public sStorageKV;
 
     /// A single get/set should behave the same as storage.
@@ -28,6 +27,7 @@ contract LibMemoryKVStorageParityTest is Test {
     /// A single get/set pair that we can fuzz.
     /// @param key The key to set.
     /// @param value The value to set.
+    //forge-lint: disable-next-line(pascal-case-struct)
     struct KV {
         bytes32 key;
         bytes32 value;
