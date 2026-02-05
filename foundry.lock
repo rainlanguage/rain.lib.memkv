@@ -1,6 +1,6 @@
 {
   "lib/forge-std": {
-    "rev": "b8f065fda83b8cd94a6b2fec8fcd911dc3b444fd"
+    "rev": "1801b0541f4fda118a10798fd3486bb7051c5dd6"
   },
   "lib/rain.lib.hash": {
     "rev": "a4f6df6fb74b7d14d94fb8f0477888cc23616bc3"
