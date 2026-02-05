@@ -99,12 +99,11 @@ library LibMemoryKV {
 
                 // kv must point to new insertion.
                 //slither-disable-next-line incorrect-shift
-                kv :=
-                    or(
-                        shl(bitOffset, pointer),
-                        // Mask out the old pointer
-                        and(kv, not(shl(bitOffset, 0xFFFF)))
-                    )
+                kv := or(
+                    shl(bitOffset, pointer),
+                    // Mask out the old pointer
+                    and(kv, not(shl(bitOffset, 0xFFFF)))
+                )
             }
         }
         return kv;
