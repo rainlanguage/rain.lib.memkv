@@ -55,7 +55,7 @@ contract LibMemoryKVStorageParityTest is Test {
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvsOne[i].key), MemoryKVVal.wrap(kvsOne[i].value));
         }
         bytes32[] memory finalKVs = LibMemoryKV.toBytes32Array(kv);
-        for (uint256 i = 0; i < endOne; i += 2) {
+        for (uint256 i = 0; i < finalKVs.length; i += 2) {
             assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
         }
 
@@ -66,7 +66,7 @@ contract LibMemoryKVStorageParityTest is Test {
             kvTwo = LibMemoryKV.set(kvTwo, MemoryKVKey.wrap(kvsTwo[i].key), MemoryKVVal.wrap(kvsTwo[i].value));
         }
         bytes32[] memory finalKVsTwo = LibMemoryKV.toBytes32Array(kvTwo);
-        for (uint256 i = 0; i < endTwo; i += 2) {
+        for (uint256 i = 0; i < finalKVsTwo.length; i += 2) {
             assertEq(sStorageKV[finalKVsTwo[i]], finalKVsTwo[i + 1], "storage");
         }
     }
