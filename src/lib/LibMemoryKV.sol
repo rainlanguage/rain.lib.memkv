@@ -2,8 +2,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.18;
 
-import {console2} from "forge-std/console2.sol";
-
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
