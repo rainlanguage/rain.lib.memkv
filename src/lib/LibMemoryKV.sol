@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.18;
 
+import {console2} from "forge-std/console2.sol";
+
 /// Entrypoint into the key/value store. Is a mutable pointer to the head of the
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
@@ -16,6 +18,11 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
+    /// Thrown when the memory allocation for a new key/value pair would exceed
+    /// the maximum pointer value of `0xFFFF` which would cause corruption of
+    /// the linked list and potentially overwriting of unrelated memory.
+    error MemoryKVOverflow(uint256 pointer);
+
     /// Gets the value associated with a given key.
     /// The value returned will be `0` if the key exists and was set to zero OR
     /// the key DOES NOT exist, i.e. was never set.
@@ -59,6 +66,7 @@ library LibMemoryKV {
     /// @return The final value of `kv` as it MAY be modified if the upsert
     /// resulted in an insert operation.
     function set(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) internal pure returns (MemoryKV) {
+        uint256 pointer;
         assembly ("memory-safe") {
             // Hash to spread inserts across internal lists.
             // This MUST remain in sync with `get` logic.
@@ -70,7 +78,7 @@ library LibMemoryKV {
             let startPointer := and(shr(bitOffset, kv), 0xFFFF)
 
             // Find a key match then break so that we populate a nonzero pointer.
-            let pointer := startPointer
+            pointer := startPointer
             for {} iszero(iszero(pointer)) { pointer := mload(add(pointer, 0x40)) } {
                 if eq(key, mload(pointer)) { break }
             }
@@ -105,6 +113,9 @@ library LibMemoryKV {
                     and(kv, not(shl(bitOffset, 0xFFFF)))
                 )
             }
+        }
+        if (pointer > 0xFFFF) {
+            revert MemoryKVOverflow(pointer);
         }
         return kv;
     }

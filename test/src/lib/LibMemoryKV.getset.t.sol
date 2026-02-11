@@ -8,6 +8,23 @@ import {LibPointer, Pointer} from "rain.solmem/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetTest is Test {
+    function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
+        assembly ("memory-safe") {
+            // Set the pointer past 0xFFFF to cause an overflow on the next
+            // insert.
+            mstore(0x40, 0x10000)
+        }
+
+        return LibMemoryKV.set(kv, key, value);
+    }
+
+    function testSetOverflow(MemoryKVKey key, MemoryKVVal value) external {
+        MemoryKV kv = MemoryKV.wrap(0);
+        // The next set should revert with a MemoryKVOverflow error.
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
+        this.setOverflowExternal(kv, key, value);
+    }
+
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
         MemoryKV kv = MemoryKV.wrap(0);
 
