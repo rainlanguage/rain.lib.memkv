@@ -1,9 +1,0 @@
-[submodule "lib/forge-std"]
-	path = lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/rain.solmem"]
-	path = lib/rain.solmem
-	url = https://github.com/rainlanguage/rain.solmem
-[submodule "lib/rain.lib.hash"]
-	path = lib/rain.lib.hash
-	url = https://github.com/rainlanguage/rain.lib.hash

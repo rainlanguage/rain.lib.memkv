@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std/Test.sol";
+import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibPointer, Pointer} from "rain.solmem/lib/LibPointer.sol";
+import {LibPointer, Pointer} from "rain-solmem-0.1.3/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
