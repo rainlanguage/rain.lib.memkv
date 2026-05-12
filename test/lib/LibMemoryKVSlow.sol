@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {LibBytes32Array} from "rain.solmem/lib/LibBytes32Array.sol";
+import {LibBytes32Array} from "rain-solmem-0.1.3/src/lib/LibBytes32Array.sol";
 import {MemoryKV} from "src/lib/LibMemoryKV.sol";
 
 library LibMemoryKVSlow {
