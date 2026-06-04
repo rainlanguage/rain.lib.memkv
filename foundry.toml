@@ -1,3 +1,7 @@
+[package]
+name = "rain-lib-memkv"
+version = "0.1.0"
+
 [profile.default]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
