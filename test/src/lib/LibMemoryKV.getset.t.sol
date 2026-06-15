@@ -25,6 +25,79 @@ contract LibMemoryKVGetSetTest is Test {
         this.setOverflowExternal(kv, key, value);
     }
 
+    /// Insert against an arbitrary free memory pointer so we can drive the
+    /// inserted list item's pointer (which `set` takes from the free memory
+    /// pointer) to an exact value and probe the overflow boundary precisely.
+    /// The returned `kv` encodes the pointer for the inserted slot, so the
+    /// caller can assert the exact pointer landed where expected. Note the node
+    /// is written into low memory and may subsequently be clobbered, so the
+    /// caller MUST NOT read the value back via `get`; the `kv` encoding and the
+    /// (non)revert are the observable facts here.
+    function setAtPointerExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePtr)
+        external
+        pure
+        returns (MemoryKV)
+    {
+        assembly ("memory-safe") {
+            mstore(0x40, freePtr)
+        }
+        return LibMemoryKV.set(kv, key, value);
+    }
+
+    /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert
+    /// landing exactly on it MUST succeed (NOT revert). This is the lower edge
+    /// of the overflow boundary: `pointer > 0xFFFF` reverts, so `0xFFFF` itself
+    /// must be accepted. Discriminates against off-by-one mutations of the
+    /// boundary (`>` -> `>=`, or `0xFFFF` -> `0xFFFE`), which would wrongly
+    /// revert on this exact-max insert.
+    function testSetPointerBoundaryMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
+        MemoryKV kv = MemoryKV.wrap(0);
+        // Insert with the free memory pointer at exactly the max valid pointer.
+        // This MUST NOT revert and MUST encode the pointer 0xFFFF.
+        kv = this.setAtPointerExternal(kv, key, value, 0xFFFF);
+
+        // The inserted list item must live at exactly 0xFFFF, so the slot for
+        // this key must encode the pointer 0xFFFF.
+        uint256 raw = MemoryKV.unwrap(kv);
+        bool found = false;
+        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
+            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFF) {
+                found = true;
+            }
+        }
+        assertTrue(found, "max pointer 0xFFFF must be encoded into kv");
+
+        // The length must be exactly 2 words (one key/value pair).
+        assertEq(raw >> 0xf0, 2, "length");
+    }
+
+    /// One below the max pointer (`0xFFFE`) must also be accepted and encode
+    /// the exact pointer. Guards the boundary from the other side so a
+    /// `0xFFFF` -> `0xFFFE` mutation (which would wrongly revert here) is killed.
+    function testSetPointerBoundaryBelowMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
+        MemoryKV kv = MemoryKV.wrap(0);
+        kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
+
+        uint256 raw = MemoryKV.unwrap(kv);
+        bool found = false;
+        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
+            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFE) {
+                found = true;
+            }
+        }
+        assertTrue(found, "pointer 0xFFFE must be encoded into kv");
+        assertEq(raw >> 0xf0, 2, "length");
+    }
+
+    /// The first pointer past the max (`0x10000`) MUST revert with the exact
+    /// overflowing pointer value. This is the upper edge of the boundary and
+    /// pins the exact revert payload so the boundary cannot silently move up.
+    function testSetPointerBoundaryOverflowReverts(MemoryKVKey key, MemoryKVVal value) external {
+        MemoryKV kv = MemoryKV.wrap(0);
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
+        this.setAtPointerExternal(kv, key, value, 0x10000);
+    }
+
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
         MemoryKV kv = MemoryKV.wrap(0);
 
