@@ -7,10 +7,10 @@ integrity = "60e55d10150354ca4a1e2985c5456c834b92b82ef85ab0e1d92a7786cddbd219"
 
 [[dependencies]]
 name = "rain-lib-hash"
-version = "0.1.0"
-url = "https://soldeer-revisions.s3.amazonaws.com/rain-lib-hash/0_1_0_12-05-2026_16:24:56_rain.lib.zip"
-checksum = "648f3e38b297dbd3ecb32b82c8b24c322f484e1734eb50fd393bc547c72b59b0"
-integrity = "91f5f679a0a27f096fdbc1e41195dd9f42cacfab15735efeb1101cc1b9215b47"
+version = "0.1.10"
+url = "https://soldeer-revisions.s3.amazonaws.com/rain-lib-hash/0_1_10_03-09-2026_17:15:25_rain.lib.zip"
+checksum = "80eb23760a6c11586ae920e745bb1c5d05956d30ca3d3fce5b41eed09875c796"
+integrity = "4e6e4f93372256209e9ad01c7532c92df980559a87a9919664a65e3d1efb5062"
 
 [[dependencies]]
 name = "rain-solmem"

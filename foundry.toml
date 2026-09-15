@@ -21,7 +21,7 @@ runs = 1024
 [dependencies]
 forge-std = "1.16.1"
 "rain-solmem" = "0.1.28"
-"rain-lib-hash" = "0.1.0"
+"rain-lib-hash" = "0.1.10"
 
 [soldeer]
 recursive_deps = false
