@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibHashNoAlloc} from "rain-lib-hash-0.1.0/src/LibHashNoAlloc.sol";
+import {LibHashNoAlloc} from "rain-lib-hash-0.1.10/src/LibHashNoAlloc.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
