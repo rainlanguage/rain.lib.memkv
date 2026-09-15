@@ -54,6 +54,25 @@ library LibMemoryKV {
         }
     }
 
+    /// Whether a key exists in the store.
+    ///
+    /// The same walk as `get`, answering only the half of it that says whether
+    /// the key is there. A caller asking membership wants a `bool` it can put
+    /// inside an expression, and `get` returns a tuple, which Solidity cannot
+    /// destructure inside one: every such caller otherwise writes a line to
+    /// unpack the answer before it can use it.
+    ///
+    /// A key SET TO ZERO exists. Existence is not the value, which is why `get`
+    /// reports them separately and why this reads the first of the two rather
+    /// than comparing the second against zero.
+    /// @param kv The entrypoint to the key/value store.
+    /// @param key The key to look for.
+    /// @return Whether the key is in the store.
+    function has(MemoryKV kv, MemoryKVKey key) internal pure returns (bool) {
+        (uint256 exists,) = get(kv, key);
+        return exists != 0;
+    }
+
     /// Upserts a value in the set by its key. I.e. if the key exists then the
     /// associated value will be mutated in place, else a new key/value pair will
     /// be inserted. The key/value store pointer will be mutated and returned as
