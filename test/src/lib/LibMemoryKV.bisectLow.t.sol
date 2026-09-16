@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// Pins the low half of the `toBytes32Array` bisect tree, which is the only
 /// path by which internal list slots 0..7 reach the exported array.
@@ -42,7 +42,7 @@ contract LibMemoryKVBisectLowTest is Test {
     /// zero word where the key belongs.
     function checkSoleSlot(uint256 slot, bytes32 seed, bytes32 value) internal pure {
         bytes32 key = keyForSlot(seed, slot);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
 
         assertTrue(pointerAt(kv, slot) > 0, "slot under test must be populated");
@@ -99,7 +99,7 @@ contract LibMemoryKVBisectLowTest is Test {
         bytes32 valA = keccak256(abi.encodePacked(seed, uint256(2)));
         bytes32 valB = keccak256(abi.encodePacked(seed, uint256(3)));
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(MemoryKVKey.wrap(keyA), MemoryKVVal.wrap(valA));
         kv = kv.set(MemoryKVKey.wrap(keyB), MemoryKVVal.wrap(valB));
 
@@ -142,7 +142,7 @@ contract LibMemoryKVBisectLowTest is Test {
     function testAllLowSlotsExport(bytes32 seed) public pure {
         bytes32[8] memory keys;
         bytes32[8] memory values;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < 8; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
@@ -180,7 +180,7 @@ contract LibMemoryKVBisectLowTest is Test {
 
         bytes32[8] memory keys;
         bytes32[8] memory values;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < 8; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));

@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVSetInsertTest
 /// The insert half of `set`, asserted against the documented SHAPE of the store
@@ -93,7 +93,7 @@ contract LibMemoryKVSetInsertTest is Test {
     /// an address the node is not at, or a next word that is not the old head
     /// is a different NUMBER here, not just a failed lookup.
     function testSetInsertWritesThreeWordsAtTheFreeMemoryPointer(MemoryKVKey key, MemoryKVVal value) external pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         uint256 nodePointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         kv = kv.set(key, value);
@@ -115,7 +115,7 @@ contract LibMemoryKVSetInsertTest is Test {
     /// lost" rests on.
     function testSetInsertPrependsWithinOneList() external pure {
         MemoryKVKey[] memory keys = keysInOneSlot(3);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         uint256 node0 = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         kv = kv.set(keys[0], MemoryKVVal.wrap(bytes32(uint256(0xA0))));
@@ -164,7 +164,7 @@ contract LibMemoryKVSetInsertTest is Test {
     /// (which preallocates from it) return a short array.
     function testSetInsertWordCountPastAByte() external pure {
         uint256 pairs = 200;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i * 7)));
         }
@@ -189,14 +189,14 @@ contract LibMemoryKVSetInsertTest is Test {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
 
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x12345));
-        this.setAtFreePointerExternal(MemoryKV.wrap(0), key, value, 0x12345);
+        this.setAtFreePointerExternal(MEMORY_KV_EMPTY, key, value, 0x12345);
     }
 
     /// A pointer with bits above the low twelve must reach the slot intact: the
     /// slot is sixteen bits wide and an insert at `0xF000` must record exactly
     /// `0xF000`, not a truncation of it.
     function testSetInsertRecordsTheFullSixteenBitPointer(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = this.setAtFreePointerExternal(MemoryKV.wrap(0), key, value, 0xF000);
+        MemoryKV kv = this.setAtFreePointerExternal(MEMORY_KV_EMPTY, key, value, 0xF000);
         assertEq(slotPointer(kv, key), 0xF000, "the whole 16 bit pointer reaches the slot");
         assertEq(wordCount(kv), 2, "one pair is two words");
     }

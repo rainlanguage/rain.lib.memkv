@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
@@ -97,7 +97,7 @@ contract LibMemoryKVGasClaimsTest is Test {
         MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             bytes32 key = keyForSlot(bytes32(slot + 1), slot);
-            kvs[slot] = LibMemoryKV.set(MemoryKV.wrap(0), MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
+            kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
@@ -121,7 +121,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// in memory, so the saving asserted here is the pessimistic one.
     function testExportGasBeatsLinearWalk() public view {
         for (uint256 pairs = 0; pairs <= BISECT_SAVING_MAX_PAIRS; pairs++) {
-            MemoryKV kv = MemoryKV.wrap(0);
+            MemoryKV kv = MEMORY_KV_EMPTY;
             for (uint256 i = 1; i <= pairs; i++) {
                 kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
             }
@@ -136,7 +136,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// The README's headline figures, on the uncontended insert and lookup that
     /// its "roughly O(1)" describes.
     function testGetSetGasMatchesReadme() public view {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
 
         padMemory();

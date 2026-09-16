@@ -8,6 +8,11 @@ pragma solidity ^0.8.18;
 /// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
 type MemoryKV is uint256;
 
+/// @dev The only valid starting value for a `MemoryKV`. A store MUST begin here
+/// and MUST only ever be advanced by `set`; any other value is undefined
+/// behaviour.
+MemoryKV constant MEMORY_KV_EMPTY = MemoryKV.wrap(0);
+
 /// The key associated with the value for each item in the store.
 type MemoryKVKey is bytes32;
 

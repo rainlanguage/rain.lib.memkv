@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetTest is Test {
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
@@ -19,7 +19,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetOverflow(MemoryKVKey key, MemoryKVVal value) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         // The next set should revert with a MemoryKVOverflow error.
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setOverflowExternal(kv, key, value);
@@ -58,7 +58,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// boundary (`>` -> `>=`, or `0xFFFF` -> `0xFFFE`), which would wrongly
     /// revert on this exact-max insert.
     function testSetPointerBoundaryMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         // Insert with the free memory pointer at exactly the max valid pointer.
         // This MUST NOT revert and MUST encode the pointer 0xFFFF.
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFF);
@@ -78,7 +78,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// the exact pointer. Guards the boundary from the other side so a
     /// `0xFFFF` -> `0xFFFE` mutation (which would wrongly revert here) is killed.
     function testSetPointerBoundaryBelowMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
 
         uint256 raw = MemoryKV.unwrap(kv);
@@ -90,13 +90,13 @@ contract LibMemoryKVGetSetTest is Test {
     /// overflowing pointer value. This is the upper edge of the boundary and
     /// pins the exact revert payload so the boundary cannot silently move up.
     function testSetPointerBoundaryOverflowReverts(MemoryKVKey key, MemoryKVVal value) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setAtPointerExternal(kv, key, value, 0x10000);
     }
 
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         // Initially the key will not be set.
         (uint256 exists0, MemoryKVVal value0) = LibMemoryKV.get(kv, key);
@@ -118,7 +118,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetGetSimple0() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKVVal value0 = MemoryKVVal.wrap(bytes32(uint256(2)));
         kv = LibMemoryKV.set(kv, key0, value0);
@@ -149,7 +149,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetGetSimple1() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(5808)));
         MemoryKVVal value00 = MemoryKVVal.wrap(bytes32(uint256(720)));
         kv = LibMemoryKV.set(kv, key0, value00);
@@ -179,7 +179,7 @@ contract LibMemoryKVGetSetTest is Test {
     ) public pure {
         vm.assume(MemoryKVKey.unwrap(key0) != MemoryKVKey.unwrap(key1));
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         {
             Pointer alloc0 = LibPointer.allocatedMemoryPointer();
