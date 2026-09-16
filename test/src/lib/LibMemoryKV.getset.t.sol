@@ -44,6 +44,13 @@ contract LibMemoryKVGetSetTest is Test {
         return LibMemoryKV.set(kv, key, value);
     }
 
+    /// The bit offset of the internal list `key` belongs to, recomputed from
+    /// the documented hash ("Hash logic MUST match set") rather than read back
+    /// out of `kv`, so a pointer landing in the WRONG slot is a failure here.
+    function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
+        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 15) * 0x10;
+    }
+
     /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert
     /// landing exactly on it MUST succeed (NOT revert). This is the lower edge
     /// of the overflow boundary: `pointer > 0xFFFF` reverts, so `0xFFFF` itself
@@ -59,13 +66,9 @@ contract LibMemoryKVGetSetTest is Test {
         // The inserted list item must live at exactly 0xFFFF, so the slot for
         // this key must encode the pointer 0xFFFF.
         uint256 raw = MemoryKV.unwrap(kv);
-        bool found = false;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFF) {
-                found = true;
-            }
-        }
-        assertTrue(found, "max pointer 0xFFFF must be encoded into kv");
+        assertEq(
+            (raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot"
+        );
 
         // The length must be exactly 2 words (one key/value pair).
         assertEq(raw >> 0xf0, 2, "length");
@@ -79,13 +82,7 @@ contract LibMemoryKVGetSetTest is Test {
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
 
         uint256 raw = MemoryKV.unwrap(kv);
-        bool found = false;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFE) {
-                found = true;
-            }
-        }
-        assertTrue(found, "pointer 0xFFFE must be encoded into kv");
+        assertEq((raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
         assertEq(raw >> 0xf0, 2, "length");
     }
 
