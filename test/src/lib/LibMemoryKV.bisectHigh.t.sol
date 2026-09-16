@@ -33,11 +33,19 @@ contract LibMemoryKVBisectHighTest is Test {
         return slot;
     }
 
-    /// Rehash `seed` until it lands in `slot`.
+    /// Rehash `seed` until it lands in `slot`. The search length is unbounded,
+    /// so it rehashes in scratch space rather than through `abi.encodePacked`,
+    /// which would allocate per attempt. `testAllHighSlotsHighPointerExport`
+    /// pads memory to within 16 bits of the pointer ceiling `set` enforces, so
+    /// a per-attempt allocation makes a long search overflow that ceiling and
+    /// revert on a seed the fuzzer reaches roughly once in 300k runs.
     function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (bytes32) {
         bytes32 key = seed;
         while (slotOf(key) != slot) {
-            key = keccak256(abi.encodePacked(key));
+            assembly ("memory-safe") {
+                mstore(0, key)
+                key := keccak256(0, 0x20)
+            }
         }
         return key;
     }
