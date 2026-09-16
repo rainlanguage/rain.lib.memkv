@@ -28,10 +28,14 @@ library LibMemoryKV {
     /// The caller MUST check the `exists` flag to disambiguate between zero
     /// values and unset keys.
     ///
+    /// Walks one internal list from its head and answers from the FIRST node
+    /// whose key matches. `set` stops at its first match too, so the node `set`
+    /// mutates in place is the node this reads.
+    ///
     /// @param kv The entrypoint to the key/value store.
     /// @param key The key to lookup a `value` for.
-    /// @return exists `0` if the key was not found. The `value` MUST NOT be
-    /// used if the `key` does not exist.
+    /// @return exists Exactly `1` if the key was found and `0` if it was not.
+    /// The `value` MUST NOT be used if the `key` does not exist.
     /// @return value The value for the `key`, if it exists, else `0`. MAY BE `0`
     /// even if the `key` exists. It is possible to set any key to a `0` value.
     function get(MemoryKV kv, MemoryKVKey key) internal pure returns (uint256 exists, MemoryKVVal value) {
