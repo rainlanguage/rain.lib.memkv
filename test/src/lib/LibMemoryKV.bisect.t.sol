@@ -23,17 +23,27 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 /// halves are pinned in one file rather than split across files that cannot see
 /// each other's assumptions.
 ///
-/// Which slots a store occupies is the tree's whole input. Every one of its
-/// twenty eight guards tests a window of `kv` against zero, and nothing it does
-/// branches on what a key or a value is. Fifteen slots is 32768 occupancy
-/// combinations, and these tests run all of them rather than sampling:
-/// `slotKeys` is one constant per slot, so a combination is reached by choosing
-/// keys rather than by searching for them, and the space is small enough to
-/// enumerate whole.
+/// Two layers, and both are wanted.
 ///
-/// Every node of every case is allocated from a free memory pointer that is
-/// rewound between cases. Unrewound, the 32768 cases walk that pointer past the
-/// `0xFFFF` ceiling `set` enforces after 115 of them.
+/// The named tests each occupy one known slot, or one known pair, or one known
+/// boundary. A store that populates many slots at once fails as "some pair is
+/// missing" with no indication of which; a store built from one named slot
+/// fails as that slot's key and value, and the test name says which slot.
+///
+/// The enumerations then run every combination of which slots are occupied.
+/// That is the tree's whole input: each of its twenty eight guards tests a
+/// window of `kv` against zero, and nothing it does branches on what a key or a
+/// value is. Fifteen slots is 32768 combinations, so the enumerations cover the
+/// named cases too, and nothing is sampled. The named cases are kept anyway,
+/// for the name on the failure.
+///
+/// `slotKeys` is what makes either affordable: one constant key per slot, so an
+/// occupancy is chosen rather than searched for, and no test in this file takes
+/// a fuzz input.
+///
+/// Every node of every case an enumeration builds is allocated from a free
+/// memory pointer that is rewound between cases. Unrewound, the 32768 cases
+/// walk that pointer past the `0xFFFF` ceiling `set` enforces after 115 of them.
 contract LibMemoryKVBisectTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -46,6 +56,12 @@ contract LibMemoryKVBisectTest is Test {
     /// Every slot occupied.
     uint256 constant OCCUPANCY_FULL = OCCUPANCY_COMBINATIONS - 1;
 
+    /// Slots 0..7, the half the root split routes out of `and(mask128, kv)`.
+    uint256 constant OCCUPANCY_LOW_HALF = 0x00FF;
+
+    /// Slots 8..14, the half the root split shifts the length out of.
+    uint256 constant OCCUPANCY_HIGH_HALF = 0x7F00;
+
     /// Bytes `set` allocates per inserted key/value pair.
     uint256 constant NODE_BYTES = 0x60;
 
@@ -57,16 +73,16 @@ contract LibMemoryKVBisectTest is Test {
     uint256 constant POINTER_HIGH_BIT = 0x8000;
 
     /// Enough padding to push the free memory pointer, and therefore every node
-    /// an enumeration inserts, above `POINTER_HIGH_BIT`.
+    /// inserted after it, above `POINTER_HIGH_BIT`.
     uint256 constant HIGH_POINTER_PAD = 0x9000;
 
     /// Stands for "no mask", which a 15 bit mask cannot collide with.
     uint256 constant NO_MASK = type(uint256).max;
 
     /// Values sit above every key, so a copy that reads the key where the value
-    /// belongs, or that reads another slot's value, is a different word. In an
-    /// enumeration a value is this base plus the slot it belongs to, which is
-    /// how `exportMatches` reads a pair's slot back out of it.
+    /// belongs, or that reads another slot's value, is a different word. A
+    /// value is this base plus the slot it belongs to, which is how
+    /// `exportMatches` reads a pair's slot back out of it.
     uint256 constant VALUE_BASE = 0x100;
 
     /// The internal list slot a key hashes into. MUST match `get`/`set`.
@@ -131,6 +147,17 @@ contract LibMemoryKVBisectTest is Test {
         return (mask >> slot) & 1 != 0;
     }
 
+    /// How many slots `mask` names.
+    function occupiedCount(uint256 mask) internal pure returns (uint256) {
+        uint256 count = 0;
+        for (uint256 slot = 0; slot < SLOTS; slot++) {
+            if (occupies(mask, slot)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     function pointerAt(MemoryKV kv, uint256 slot) internal pure returns (uint256) {
         return (MemoryKV.unwrap(kv) >> (slot * 0x10)) & POINTER_MAX;
     }
@@ -160,9 +187,7 @@ contract LibMemoryKVBisectTest is Test {
         return pointer;
     }
 
-    /// How many times `array` holds the pair `(key, value)`. For the one test
-    /// whose pairs all share a slot, so none of them names one and
-    /// `exportMatches` has nothing to read.
+    /// How many times `array` holds the pair `(key, value)`.
     function countPair(bytes32[] memory array, bytes32 key, bytes32 value) internal pure returns (uint256) {
         uint256 count = 0;
         for (uint256 i = 0; i < array.length; i += 2) {
@@ -184,6 +209,211 @@ contract LibMemoryKVBisectTest is Test {
         return kv;
     }
 
+    /// Exports the store and holds it to the pairs `mask` names, one pair per
+    /// named slot and each exported exactly once. A window that is too wide
+    /// duplicates a pair, one that is too narrow drops it, and a leaf that does
+    /// not carry the cursor forward is overwritten by the next one — all three
+    /// are a count other than one. Order is not checked, per `exportMatches`.
+    function checkExportedPairs(MemoryKV kv, uint256 mask, bytes32[SLOTS] memory keys) internal pure {
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
+        assertEq(array.length, occupiedCount(mask) * 2, "one pair per occupied slot");
+        for (uint256 slot = 0; slot < SLOTS; slot++) {
+            if (occupies(mask, slot)) {
+                assertEq(countPair(array, keys[slot], valueFor(slot)), 1, "occupied slot exported exactly once");
+            }
+        }
+    }
+
+    /// The store `mask` names, occupying exactly those slots and exporting
+    /// exactly their pairs.
+    function checkNamedOccupancy(uint256 mask) internal pure {
+        bytes32[SLOTS] memory keys = slotKeys();
+        MemoryKV kv = storeForOccupancy(mask, keys);
+        assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
+        checkExportedPairs(kv, mask, keys);
+    }
+
+    /// The store `mask` names, with every pointer in it above
+    /// `POINTER_HIGH_BIT`. A 16 bit pointer is valid all the way to
+    /// `POINTER_MAX`, so every mask and shift on the way down must carry bit 15.
+    function checkNamedOccupancyFromHighPointers(uint256 mask) internal pure {
+        bytes memory pad = new bytes(HIGH_POINTER_PAD);
+        (pad);
+
+        bytes32[SLOTS] memory keys = slotKeys();
+        MemoryKV kv = storeForOccupancy(mask, keys);
+        assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
+        for (uint256 slot = 0; slot < SLOTS; slot++) {
+            if (occupies(mask, slot)) {
+                assertGe(pointerAt(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
+                assertLe(pointerAt(kv, slot), POINTER_MAX, "pointer must stay 16 bit");
+            }
+        }
+        checkExportedPairs(kv, mask, keys);
+    }
+
+    /// A single key in `slot` and nothing else. The exported array must be
+    /// exactly that one pair, so a bisect that never visits `slot`, or that
+    /// reaches it with a mangled pointer, exports something other than the key
+    /// where the key belongs.
+    function checkSoleSlot(uint256 slot) internal pure {
+        bytes32[SLOTS] memory keys = slotKeys();
+        MemoryKV kv = storeForOccupancy(2 ** slot, keys);
+        assertEq(occupancyOf(kv), 2 ** slot, "only the slot under test is populated");
+
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
+        assertEq(array.length, 2, "one pair");
+        assertEq(array[0], keys[slot], "exported key");
+        assertEq(array[1], valueFor(slot), "exported value");
+    }
+
+    function testLowSlot0SoleExport() public pure {
+        checkSoleSlot(0);
+    }
+
+    function testLowSlot1SoleExport() public pure {
+        checkSoleSlot(1);
+    }
+
+    function testLowSlot2SoleExport() public pure {
+        checkSoleSlot(2);
+    }
+
+    function testLowSlot3SoleExport() public pure {
+        checkSoleSlot(3);
+    }
+
+    function testLowSlot4SoleExport() public pure {
+        checkSoleSlot(4);
+    }
+
+    function testLowSlot5SoleExport() public pure {
+        checkSoleSlot(5);
+    }
+
+    function testLowSlot6SoleExport() public pure {
+        checkSoleSlot(6);
+    }
+
+    function testLowSlot7SoleExport() public pure {
+        checkSoleSlot(7);
+    }
+
+    function testHighSlot8SoleExport() public pure {
+        checkSoleSlot(8);
+    }
+
+    function testHighSlot9SoleExport() public pure {
+        checkSoleSlot(9);
+    }
+
+    function testHighSlot10SoleExport() public pure {
+        checkSoleSlot(10);
+    }
+
+    function testHighSlot11SoleExport() public pure {
+        checkSoleSlot(11);
+    }
+
+    function testHighSlot12SoleExport() public pure {
+        checkSoleSlot(12);
+    }
+
+    function testHighSlot13SoleExport() public pure {
+        checkSoleSlot(13);
+    }
+
+    /// Slot 14 is the leaf the collapsed path reaches. Alone in the store its
+    /// 16 bits are the only nonzero bits of `p00`, so a shift of the wrong
+    /// distance yields a pointer into unwritten memory rather than the node.
+    function testHighSlot14SoleExport() public pure {
+        checkSoleSlot(14);
+    }
+
+    /// Two known slots and nothing else. A mask or shift that folds one onto
+    /// the other, or a window that covers one twice, changes how often a pair
+    /// appears rather than merely dropping it — which neither slot alone would
+    /// reveal.
+    function checkSlotPair(uint256 slotA, uint256 slotB) internal pure {
+        checkNamedOccupancy(2 ** slotA | 2 ** slotB);
+    }
+
+    /// Both children of one interior node of the low subtree.
+    function testLowSlots01Siblings() public pure {
+        checkSlotPair(0, 1);
+    }
+
+    function testLowSlots23Siblings() public pure {
+        checkSlotPair(2, 3);
+    }
+
+    function testLowSlots45Siblings() public pure {
+        checkSlotPair(4, 5);
+    }
+
+    function testLowSlots67Siblings() public pure {
+        checkSlotPair(6, 7);
+    }
+
+    /// Both children of one interior node of the high subtree.
+    function testHighSlots89Siblings() public pure {
+        checkSlotPair(8, 9);
+    }
+
+    function testHighSlots1011Siblings() public pure {
+        checkSlotPair(10, 11);
+    }
+
+    /// Slots 12 and 13 are the ordinary leaves under the same node as slot 14,
+    /// occupied while slot 14 is not. The collapsed path must read as empty
+    /// here: anything left in the bits above slot 14 turns into a pointer and
+    /// costs the store a pair.
+    function testHighSlots1213Siblings() public pure {
+        checkSlotPair(12, 13);
+    }
+
+    /// The two halves of the root split meet between slot 7 and slot 8. Slots 7
+    /// and 8 are not siblings — they are the outermost leaves of different
+    /// halves — so one key each side of that boundary is the discriminator for
+    /// the split itself: a window that overlaps exports one of them twice, and
+    /// a window that leaves a gap drops one.
+    function testRootSplitBoundarySlots7And8() public pure {
+        checkSlotPair(7, 8);
+    }
+
+    /// All three leaves below the node that holds slot 14, so the collapsed
+    /// path and the ordinary path run against each other. A mask that lets the
+    /// collapsed leaf through to the ordinary subtree, or the reverse, changes
+    /// how often a pair appears rather than merely dropping it.
+    function testHighSlot14WithBothOrdinaryLeaves() public pure {
+        checkNamedOccupancy(2 ** 12 | 2 ** 13 | 2 ** 14);
+    }
+
+    /// Every slot of one half populated and no slot of the other, so every leaf
+    /// of that half fires and each must fire exactly once.
+    function testAllLowSlotsExport() public pure {
+        checkNamedOccupancy(OCCUPANCY_LOW_HALF);
+    }
+
+    function testAllHighSlotsExport() public pure {
+        checkNamedOccupancy(OCCUPANCY_HIGH_HALF);
+    }
+
+    /// Every slot of one half again, holding pointers with bit 15 set.
+    function testAllLowSlotsHighPointerExport() public pure {
+        checkNamedOccupancyFromHighPointers(OCCUPANCY_LOW_HALF);
+    }
+
+    function testAllHighSlotsHighPointerExport() public pure {
+        checkNamedOccupancyFromHighPointers(OCCUPANCY_HIGH_HALF);
+    }
+
+    /// All fifteen slots at once. The two halves must be disjoint and must
+    /// between them reach every slot, so every pair appears exactly once.
+    function testEverySlotExportedExactlyOnce() public pure {
+        checkNamedOccupancy(OCCUPANCY_FULL);
+    }
+
     /// Whether `array` holds exactly the pairs `mask` must export, as a
     /// multiset. `toBytes32Array` documents its pair order as unspecified, so
     /// position is deliberately not checked: two blocks of the tree swapped
@@ -195,6 +425,10 @@ contract LibMemoryKVBisectTest is Test {
     /// multiset equality without a scan per pair: a slot exported twice is
     /// caught by its bit already being set, and one dropped, duplicated or
     /// invented by the bitsets differing.
+    ///
+    /// The named tests above check the same thing through `countPair`, which
+    /// costs a scan per pair but names the slot it checked. Here the whole
+    /// point is 32768 cases, so the check is the cheap one.
     function exportMatches(bytes32[] memory array, uint256 mask, bytes32[SLOTS] memory keys)
         internal
         pure
@@ -250,10 +484,10 @@ contract LibMemoryKVBisectTest is Test {
     }
 
     /// The fifteen key constants are the whole reason a combination can be
-    /// chosen rather than searched for, and every enumeration below reads its
-    /// result through the slot each key claims. Should the hash that `get` and
-    /// `set` share ever move, the keys stop naming the slots they claim and the
-    /// enumerations silently cover something other than what they report.
+    /// chosen rather than searched for, and every test below reads its result
+    /// through the slot each key claims. Should the hash that `get` and `set`
+    /// share ever move, the keys stop naming the slots they claim and the tests
+    /// silently cover something other than what they report.
     ///
     /// Occupying all fifteen at once is what makes them fifteen distinct slots
     /// rather than fifteen keys that each hash somewhere. `set` routes on the
@@ -297,8 +531,7 @@ contract LibMemoryKVBisectTest is Test {
     ///
     /// It is also the only list built longer than one node, so it is the only
     /// place the walk down a list is exercised at all. Which order it comes back
-    /// in is not checked, for the same reason the enumerations do not check
-    /// theirs.
+    /// in is not checked, for the same reason nothing else here checks theirs.
     function testLengthIsNotRoutedAsAPointer() public pure {
         bytes32[12] memory keys = slot0ChainKeys();
 
