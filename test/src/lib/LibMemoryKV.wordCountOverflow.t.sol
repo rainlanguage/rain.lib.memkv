@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -66,7 +66,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
         assembly ("memory-safe") {
             mstore(0x40, freePointer)
         }
-        MemoryKV kv = LibMemoryKV.set(MemoryKV.wrap(0), key, first);
+        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, key, first);
         kv = LibMemoryKV.set(withCount(kv, forced), key, second);
         // The node lives in this frame, so the lookup has to happen here too.
         (uint256 exists, MemoryKVVal value) = LibMemoryKV.get(kv, key);
@@ -79,7 +79,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     function testSetRevertsRatherThanWrappingTheWordCountToZero() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10000));
         this.setAtFreePointer(
-            withCount(MemoryKV.wrap(0), 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, 0xFFFE),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
@@ -92,7 +92,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     function testSetWordCountOverflowPayloadIsTheOffendingCountNotTheBound() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10001));
         this.setAtFreePointer(
-            withCount(MemoryKV.wrap(0), 0xFFFF),
+            withCount(MEMORY_KV_EMPTY, 0xFFFF),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
@@ -105,7 +105,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     function testSetAcceptsTheWidestWordCountThatFits() external view {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKV kv = this.setAtFreePointer(
-            withCount(MemoryKV.wrap(0), 0xFFFC), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
+            withCount(MEMORY_KV_EMPTY, 0xFFFC), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
         assertEq(count(kv), 0xFFFE, "the widest count that fits is written whole");
@@ -138,7 +138,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     function testSetReportsThePointerWhenBothOverflow() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x12345));
         this.setAtFreePointer(
-            withCount(MemoryKV.wrap(0), 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, 0xFFFE),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             0x12345
