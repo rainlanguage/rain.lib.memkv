@@ -21,7 +21,7 @@ contract LibMemoryKVBisectLowTest is Test {
     function slotOf(bytes32 key) internal pure returns (uint256 slot) {
         assembly ("memory-safe") {
             mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 15)
+            slot := mod(keccak256(0, 0x20), 0x0f)
         }
     }
 
