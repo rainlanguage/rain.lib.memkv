@@ -138,8 +138,8 @@ library LibMemoryKV {
     }
 
     /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `uint256[]`. Reads the total length to preallocate the
-    /// `uint256[]` then bisects the bits of the `kv` to find non-zero pointers
+    /// a standard `bytes32[]`. Reads the total length to preallocate the
+    /// `bytes32[]` then bisects the bits of the `kv` to find non-zero pointers
     /// to linked lists, walking each found list to the end to extract all
     /// values. As a single `kv` has 15 slots for pointers to linked lists it is
     /// likely for smallish structures that many slots can simply be skipped, so
@@ -151,8 +151,8 @@ library LibMemoryKV {
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
-    /// Slither is not wrong about the cyclomatic complexity but I don't know
-    /// another way to implement the bisect and keep the gas savings.
+    // Slither is not wrong about the cyclomatic complexity but I don't know
+    // another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
     function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         uint256 mask16 = type(uint16).max;
@@ -160,7 +160,7 @@ library LibMemoryKV {
         uint256 mask64 = type(uint64).max;
         uint256 mask128 = type(uint128).max;
         assembly ("memory-safe") {
-            // Manually create an `uint256[]`.
+            // Manually create a `bytes32[]`.
             // No need to zero out memory as we're about to write to it.
             array := mload(0x40)
             let length := shr(0xf0, kv)
