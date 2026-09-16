@@ -6,6 +6,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
 
+/// These tests assert nothing on purpose: each exists so that the gas report
+/// carries the cost of the gets or sets it performs and nothing else. The
+/// figures they illustrate are asserted in `LibMemoryKV.gasClaims.t.sol`.
 contract LibMemoryKVGetSetGasTest is Test {
     function testGetGas() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
