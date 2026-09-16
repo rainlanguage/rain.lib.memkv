@@ -21,6 +21,13 @@ library LibMemoryKV {
     /// the linked list and potentially overwriting of unrelated memory.
     error MemoryKVOverflow(uint256 pointer);
 
+    /// Thrown when an insert would push the 16 bit word count past `0xFFFF`.
+    /// The count is written by shifting into the top bits of `MemoryKV`, so
+    /// without this the sum silently loses its high bit, and `toBytes32Array`,
+    /// which sizes its allocation from the count, then copies every pair it
+    /// walks past the end of that array.
+    error MemoryKVLengthOverflow(uint256 length);
+
     /// Gets the value associated with a given key.
     /// The value returned will be `0` if the key exists and was set to zero OR
     /// the key DOES NOT exist, i.e. was never set.
@@ -84,6 +91,7 @@ library LibMemoryKV {
     /// resulted in an insert operation.
     function set(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) internal pure returns (MemoryKV) {
         uint256 pointer;
+        uint256 length;
         assembly ("memory-safe") {
             // Hash to spread inserts across internal lists.
             // This MUST remain in sync with `get` logic.
@@ -117,7 +125,7 @@ library LibMemoryKV {
                 mstore(add(pointer, 0x40), startPointer)
 
                 // Update total stored word count.
-                let length := add(shr(0xf0, kv), 2)
+                length := add(shr(0xf0, kv), 2)
 
                 //slither-disable-next-line incorrect-shift
                 kv := or(shl(0xf0, length), and(kv, not(shl(0xf0, 0xFFFF))))
@@ -131,8 +139,14 @@ library LibMemoryKV {
                 )
             }
         }
-        if (pointer > 0xFFFF) {
-            revert MemoryKVOverflow(pointer);
+        // Neither bound can be crossed without setting a bit above the low 16,
+        // so one comparison covers both and the nested test only runs once
+        // something has already overflowed.
+        if ((pointer | length) > 0xFFFF) {
+            if (pointer > 0xFFFF) {
+                revert MemoryKVOverflow(pointer);
+            }
+            revert MemoryKVLengthOverflow(length);
         }
         return kv;
     }
