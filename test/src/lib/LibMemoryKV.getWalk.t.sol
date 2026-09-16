@@ -26,7 +26,7 @@ contract LibMemoryKVGetWalkTest is Test {
     {
         assembly ("memory-safe") {
             mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 15), 0x10)
+            let bitOffset := mul(mod(keccak256(0, 0x20), 0x0f), 0x10)
 
             tail := mload(0x40)
             mstore(0x40, add(tail, 0x60))
@@ -41,7 +41,7 @@ contract LibMemoryKVGetWalkTest is Test {
             mstore(add(head, 0x40), tail)
 
             // Two pairs, and the head of the list in the slot for this key.
-            kv := or(shl(0xf0, 4), shl(bitOffset, head))
+            kv := or(shl(0xf0, 0x04), shl(bitOffset, head))
         }
         require(head <= 0xFFFF, "crafted head pointer must fit 16 bits");
         require(tail <= 0xFFFF, "crafted tail pointer must fit 16 bits");
@@ -104,7 +104,7 @@ contract LibMemoryKVGetWalkTest is Test {
         assembly ("memory-safe") {
             for {} 1 {} {
                 mstore(0, key)
-                if eq(mod(keccak256(0, 0x20), 15), slot) { break }
+                if eq(mod(keccak256(0, 0x20), 0x0f), slot) { break }
                 mstore(0, key)
                 key := keccak256(0, 0x20)
             }
