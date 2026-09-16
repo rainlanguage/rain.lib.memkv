@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -25,7 +25,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         assembly ("memory-safe") {
             mstore(0x40, 0x80)
         }
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }
@@ -40,7 +40,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         pure
         returns (uint256, bytes32)
     {
-        MemoryKV kv = MemoryKV.wrap(0).set(key, first);
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, first);
         assembly ("memory-safe") {
             mstore(0x40, 0x20000)
         }

@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
@@ -16,7 +16,7 @@ contract LibMemoryKVSaturateTest is Test {
     uint256 internal constant LENGTH_BIT_OFFSET = LIST_COUNT * LIST_POINTER_BITS;
 
     function testSaturate(bytes32 seed) public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         bytes32[60] memory kvs = [
             LibHashNoAlloc.combineHashes(seed, bytes32(uint256(0))),

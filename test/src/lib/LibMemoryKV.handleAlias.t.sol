@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVHandleAliasTest
 /// A `MemoryKV` is a value type, so every assignment of one copies it and
@@ -42,7 +42,7 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// update, whose own bits never changed. The older handle reads 999 even
     /// though 111 is the only value it ever saw written.
     function testUpdateIsVisibleThroughAnOlderHandle() external pure {
-        MemoryKV a = MemoryKV.wrap(0).set(keyFor(1), val(111));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(111));
         uint256 aBits = MemoryKV.unwrap(a);
         assertValue(a, keyFor(1), 111, "a before");
 
@@ -63,7 +63,7 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// handle keeps the value and the word count it had, and does not see the
     /// new key at all.
     function testInsertIsVisibleOnlyThroughTheReturnedHandle() external pure {
-        MemoryKV a = MemoryKV.wrap(0).set(keyFor(1), val(10));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(10));
         MemoryKV b = a.set(keyFor(2), val(20));
 
         assertValue(b, keyFor(1), 10, "b old key");
@@ -80,7 +80,7 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// exploring two paths would be exposed to. The keys each branch inserted
     /// stay private to it.
     function testUpdateCrossesBetweenBranchedHandles() external pure {
-        MemoryKV a = MemoryKV.wrap(0).set(keyFor(1), val(1));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(1));
         MemoryKV left = a.set(keyFor(2), val(2));
         MemoryKV right = a.set(keyFor(3), val(3));
 
@@ -96,7 +96,7 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// move what the array holds. This is the difference between an export and
     /// a retained handle: the handle below moves to 999, the array does not.
     function testExportedArrayDoesNotMoveUnderALaterUpdate() external pure {
-        MemoryKV a = MemoryKV.wrap(0).set(keyFor(1), val(111));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(111));
         bytes32[] memory snapshot = a.toBytes32Array();
         assertEq(snapshot.length, 2, "snapshot length");
         assertEq(uint256(snapshot[0]), 1, "snapshot key");
@@ -122,7 +122,7 @@ contract LibMemoryKVHandleAliasTest is Test {
         vm.assume(MemoryKVKey.unwrap(first) != MemoryKVKey.unwrap(second));
         vm.assume(MemoryKVVal.unwrap(initial) != MemoryKVVal.unwrap(updated));
 
-        MemoryKV a = MemoryKV.wrap(0).set(first, initial);
+        MemoryKV a = MEMORY_KV_EMPTY.set(first, initial);
         uint256 aBits = MemoryKV.unwrap(a);
 
         MemoryKV b = a.set(second, updated).set(first, updated);

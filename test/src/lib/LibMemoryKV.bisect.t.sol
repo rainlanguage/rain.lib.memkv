@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
@@ -84,7 +84,7 @@ contract LibMemoryKVBisectTest is Test {
     /// where the key belongs.
     function checkSoleSlot(uint256 slot, bytes32 seed, bytes32 value) internal pure {
         bytes32 key = keyForSlot(seed, slot);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
 
         assertTrue(pointerAt(kv, slot) > 0, "slot under test must be populated");
@@ -173,7 +173,7 @@ contract LibMemoryKVBisectTest is Test {
         bytes32 valA = keccak256(abi.encodePacked(seed, uint256(2)));
         bytes32 valB = keccak256(abi.encodePacked(seed, uint256(3)));
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(MemoryKVKey.wrap(keyA), MemoryKVVal.wrap(valA));
         kv = kv.set(MemoryKVKey.wrap(keyB), MemoryKVVal.wrap(valB));
 
@@ -235,7 +235,7 @@ contract LibMemoryKVBisectTest is Test {
         bytes32[3] memory keys;
         bytes32[3] memory values;
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < slots.length; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), slots[i]);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
@@ -259,7 +259,7 @@ contract LibMemoryKVBisectTest is Test {
     function checkHalfExport(uint256 firstSlot, uint256 slotCount, bytes32 seed) internal pure {
         bytes32[] memory keys = new bytes32[](slotCount);
         bytes32[] memory values = new bytes32[](slotCount);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < slotCount; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), firstSlot + i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
@@ -291,7 +291,7 @@ contract LibMemoryKVBisectTest is Test {
 
         bytes32[] memory keys = new bytes32[](slotCount);
         bytes32[] memory values = new bytes32[](slotCount);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < slotCount; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), firstSlot + i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
@@ -333,7 +333,7 @@ contract LibMemoryKVBisectTest is Test {
     function testEverySlotExportedExactlyOnce(bytes32 seed) public pure {
         bytes32[15] memory keys;
         bytes32[15] memory values;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 slot = 0; slot < 15; slot++) {
             keys[slot] = keyForSlot(keccak256(abi.encodePacked(seed, slot)), slot);
             values[slot] = keccak256(abi.encodePacked(seed, slot, uint256(1)));
@@ -355,7 +355,7 @@ contract LibMemoryKVBisectTest is Test {
     function testLengthIsNotRoutedAsAPointer(bytes32 seed) public pure {
         bytes32[12] memory keys;
         bytes32[12] memory values;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < 12; i++) {
             keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), 0);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
