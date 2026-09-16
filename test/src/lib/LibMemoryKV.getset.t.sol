@@ -51,6 +51,49 @@ contract LibMemoryKVGetSetTest is Test {
         return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
     }
 
+    /// Insert at an exact free memory pointer and read the key back inside the
+    /// SAME call frame, as the node only exists in that frame's memory.
+    function setAtPointerThenGetExternal(MemoryKVKey key, MemoryKVVal value, uint256 freePtr)
+        external
+        pure
+        returns (uint256, MemoryKVVal)
+    {
+        assembly ("memory-safe") {
+            mstore(0x40, freePtr)
+        }
+        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, key, value);
+        return LibMemoryKV.get(kv, key);
+    }
+
+    /// Insert `first` normally, then `second` at an exact free memory pointer
+    /// so that one list holds both with `second` at its head, and read `first`
+    /// back inside the SAME call frame.
+    function insertPairThenGetFirstExternal(MemoryKVKey first, MemoryKVKey second, MemoryKVVal value, uint256 headPtr)
+        external
+        pure
+        returns (uint256, MemoryKVVal)
+    {
+        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, first, value);
+        assembly ("memory-safe") {
+            mstore(0x40, headPtr)
+        }
+        kv = LibMemoryKV.set(kv, second, MemoryKVVal.wrap(0));
+        return LibMemoryKV.get(kv, first);
+    }
+
+    /// A key hashing into the same internal list as `key`, so one list holds
+    /// both and `get` has to follow a next pointer to cross between them.
+    function collidingKey(MemoryKVKey key) internal pure returns (MemoryKVKey) {
+        uint256 bitOffset = slotBitOffset(key);
+        for (uint256 i = 1; i <= 10000; i++) {
+            MemoryKVKey candidate = MemoryKVKey.wrap(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key), i)));
+            if (slotBitOffset(candidate) == bitOffset) {
+                return candidate;
+            }
+        }
+        revert("collidingKey: candidate limit hit before a colliding key");
+    }
+
     /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert
     /// landing exactly on it MUST succeed (NOT revert). This is the lower edge
     /// of the overflow boundary: `pointer > 0xFFFF` reverts, so `0xFFFF` itself
@@ -93,6 +136,30 @@ contract LibMemoryKVGetSetTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setAtPointerExternal(kv, key, value, 0x10000);
+    }
+
+    /// The bound is on the node's HEAD pointer alone. A node inserted at the
+    /// maximum head pointer `0xFFFF` holds its value word at `0x1001F`, above
+    /// the bound, and `get` MUST still read it: node fields are reached by full
+    /// width arithmetic from the head, not through 16 bit pointers. A `get`
+    /// that truncated a field address to 16 bits is indistinguishable from a
+    /// correct one for every node that fits entirely under the bound.
+    function testGetReadsAValueWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
+        (uint256 exists, MemoryKVVal got) = this.setAtPointerThenGetExternal(key, value, 0xFFFF);
+
+        assertEq(exists, 1, "a node at the maximum head pointer exists");
+        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the value word above 0xFFFF reads back");
+    }
+
+    /// The same for the next pointer word. The second node's head is `0xFFC0`,
+    /// which fits the bound, so its next word lands at exactly `0x10000` and
+    /// the walk from that node down to the first one has to read across the
+    /// bound to find it.
+    function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
+        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, collidingKey(key), value, 0xFFC0);
+
+        assertEq(exists, 1, "the walk reaches the first key through a next word at 0x10000");
+        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");
     }
 
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
