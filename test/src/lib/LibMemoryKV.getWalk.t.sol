@@ -97,15 +97,43 @@ contract LibMemoryKVGetWalkTest is Test {
         assertEq(MemoryKVVal.unwrap(value), bytes32(uint256(33)), "get reads the node set wrote");
     }
 
+    /// Rehashes `seed` until the key it yields hashes into `slot`, so a test
+    /// can put two DIFFERENT keys on one internal list.
+    function keyInSlot(bytes32 seed, uint256 slot) internal pure returns (MemoryKVKey) {
+        bytes32 key = seed;
+        assembly ("memory-safe") {
+            for {} 1 {} {
+                mstore(0, key)
+                if eq(mod(keccak256(0, 0x20), 15), slot) { break }
+                mstore(0, key)
+                key := keccak256(0, 0x20)
+            }
+        }
+        return MemoryKVKey.wrap(key);
+    }
+
     /// A node deeper in the list that is NOT the head still answers, and it
-    /// answers with its own value rather than the head's.
+    /// answers with its own value rather than the head's. Both keys are forced
+    /// onto ONE internal list, because two keys in different slots are two
+    /// one-node lists and never exercise the walk at all.
     function testGetReadsATailNodeWhenOnlyItMatches() external pure {
-        MemoryKVKey headKey = MemoryKVKey.wrap(bytes32(uint256(1)));
-        MemoryKVKey tailKey = MemoryKVKey.wrap(bytes32(uint256(2)));
+        MemoryKVKey tailKey = keyInSlot(bytes32(uint256(1)), 5);
+        MemoryKVKey headKey = keyInSlot(bytes32(uint256(2)), 5);
+        assertTrue(MemoryKVKey.unwrap(headKey) != MemoryKVKey.unwrap(tailKey), "the two keys must be different keys");
 
         MemoryKV kv = MemoryKV.wrap(0);
         kv = kv.set(tailKey, MemoryKVVal.wrap(bytes32(uint256(222))));
         kv = kv.set(headKey, MemoryKVVal.wrap(bytes32(uint256(111))));
+
+        // One list holds both, so exactly one of the 15 slots is occupied and
+        // the tail is only reachable by walking past the head.
+        uint256 occupied = 0;
+        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
+            if (((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF) != 0) {
+                occupied++;
+            }
+        }
+        assertEq(occupied, 1, "both keys share one internal list");
 
         (uint256 tailExists, MemoryKVVal tailValue) = kv.get(tailKey);
         assertEq(tailExists, 1, "tail exists");
