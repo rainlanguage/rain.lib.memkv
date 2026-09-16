@@ -19,6 +19,11 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 contract LibMemoryKVSetInsertTest is Test {
     using LibMemoryKV for MemoryKV;
 
+    /// How many candidate keys `keysInOneSlot` tries before giving up. One key
+    /// in 15 lands in any given list, so this is far more than the counts
+    /// asked for here need, and it bounds a search that otherwise cannot end.
+    uint256 internal constant CANDIDATE_LIMIT = 10000;
+
     /// The bit offset of the list a key belongs to. Recomputed here from the
     /// documented hash ("Hash logic MUST match set") in Solidity, so the
     /// expectation is not the implementation's own expression read back.
@@ -50,16 +55,17 @@ contract LibMemoryKVSetInsertTest is Test {
     function keysInOneSlot(uint256 count) internal pure returns (MemoryKVKey[] memory keys) {
         keys = new MemoryKVKey[](count);
         MemoryKVKey first = MemoryKVKey.wrap(bytes32(uint256(1)));
-        uint256 slot = slotBitOffset(first);
+        uint256 bitOffset = slotBitOffset(first);
         keys[0] = first;
         uint256 found = 1;
-        for (uint256 i = 2; found < count; i++) {
+        for (uint256 i = 2; found < count && i <= CANDIDATE_LIMIT; i++) {
             MemoryKVKey candidate = MemoryKVKey.wrap(bytes32(i));
-            if (slotBitOffset(candidate) == slot) {
+            if (slotBitOffset(candidate) == bitOffset) {
                 keys[found] = candidate;
                 found++;
             }
         }
+        require(found == count, "keysInOneSlot: candidate limit hit before enough colliding keys");
     }
 
     /// Insert against an arbitrary free memory pointer so the inserted node's
@@ -163,7 +169,7 @@ contract LibMemoryKVSetInsertTest is Test {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i * 7)));
         }
 
-        assertEq(wordCount(kv), pairs * 2, "400 words, not 400 modulo 256");
+        assertEq(wordCount(kv), pairs * 2, "400 words, not a count truncated to a byte on each insert");
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, pairs * 2, "export is preallocated from the full count");
