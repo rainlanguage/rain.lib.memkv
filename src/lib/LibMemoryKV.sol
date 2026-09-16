@@ -13,6 +13,15 @@ pragma solidity ^0.8.18;
 /// that holds the key, including handles copied before the update, while an
 /// insert is visible only through the handle `set` returned. Keep exactly one
 /// live handle per store, or snapshot with `toBytes32Array`.
+///
+/// A handle is valid ONLY inside the call frame that created it. The pointers
+/// it packs are offsets into that frame's memory. Being a `uint256` it crosses
+/// an external call unchanged while the list items it names do not, so a
+/// `MemoryKV` MUST NOT be returned from or passed into an external call. In
+/// another frame those same offsets name whatever that frame holds at them, so
+/// a read answers with unrelated memory, or follows a junk word as a pointer
+/// and expands memory until the gas is gone. Cross a call boundary with
+/// `toBytes32Array` instead.
 type MemoryKV is uint256;
 
 /// The key associated with the value for each item in the store.
@@ -100,6 +109,14 @@ library LibMemoryKV {
     /// An update writes through a shared list item, so it is visible to every
     /// handle that holds the key, including handles copied before this call. An
     /// insert is visible only through the returned handle.
+    ///
+    /// Reverts `MemoryKVOverflow` when an INSERT would allocate its node above
+    /// `0xFFFF`, the widest head pointer a list slot can hold. An update
+    /// allocates nothing and so never reverts. The ceiling is on the frame's
+    /// free memory pointer rather than on a pair count: the node takes its
+    /// address from there, so every unrelated allocation in the frame lowers
+    /// how many pairs still fit, which is 682 for a frame that allocates
+    /// nothing else.
     /// @param kv The key/value store pointer to modify.
     /// @param key The key to upsert against.
     /// @param value The value to associate with the upserted key.
