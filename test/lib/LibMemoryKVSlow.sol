@@ -19,6 +19,8 @@ library LibMemoryKVSlow {
 
     function get(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, bytes32) {
         (bool existsVal, uint256 index) = exists(kvs, k);
+        // `exists` reports the index of the KEY, and the value it is paired
+        // with is the word after it.
         return (existsVal, existsVal ? kvs[index + 1] : bytes32(uint256(0)));
     }
 
