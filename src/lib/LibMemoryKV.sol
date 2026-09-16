@@ -6,6 +6,20 @@ pragma solidity ^0.8.18;
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
 /// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
+///
+/// A `MemoryKV` MUST have come from `MemoryKV.wrap(0)` and MUST only ever have
+/// been advanced by `set`. The word count and the list pointers packed into
+/// this word are written together by `set` and are read back as if they agree;
+/// nothing in this library reconciles the two. Solidity exposes `wrap` on every
+/// user defined value type, so this is a precondition no compiler can enforce
+/// and no runtime check here recovers from.
+///
+/// Any other value is undefined behaviour, NOT a defensible error. `get`, `has`
+/// and `set` read whatever the pointers address as if it were a list item.
+/// `toBytes32Array` sizes its allocation from the count and fills it by walking
+/// the lists, so a count that overstates the lists hands back memory the export
+/// never wrote, and a count that understates them writes past the array it
+/// allocated.
 type MemoryKV is uint256;
 
 /// The key associated with the value for each item in the store.
@@ -117,6 +131,12 @@ library LibMemoryKV {
                 mstore(add(pointer, 0x40), startPointer)
 
                 // Update total stored word count.
+                // The count is a 16 bit field and is not bounded here. It
+                // cannot overflow for a `kv` that started at
+                // `MemoryKV.wrap(0)`, because the pointer bound below fires
+                // first: an item is 0x60 bytes and must begin at or below
+                // `0xFFFF`, which saturates a store at 1364 words against the
+                // field's 65535.
                 let length := add(shr(0xf0, kv), 2)
 
                 //slither-disable-next-line incorrect-shift
@@ -148,6 +168,12 @@ library LibMemoryKV {
     ///
     /// Note this is a one time export, if the key/value store is subsequently
     /// mutated the built array will not reflect these mutations.
+    ///
+    /// The allocation is sized from the word count in `kv` while the copy that
+    /// fills it is driven by walking the lists to their ends, with no bound of
+    /// its own. The `memory-safe` annotation therefore holds only for a `kv`
+    /// that satisfies the `MemoryKV` precondition, which is the only thing that
+    /// puts the count and the lists in agreement.
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
