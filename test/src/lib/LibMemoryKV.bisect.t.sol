@@ -6,21 +6,29 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
-/// Pins the high half of the `toBytes32Array` bisect tree and the root split
-/// that carves it out of `kv`.
+/// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
+/// halves below it, which are together the only path by which internal list
+/// slots 0..14 reach the exported array.
 ///
-/// The high half routes internal list slots 8..14. It is seven leaves where
-/// the low half is eight, because the 16 bit length field occupies the bits an
-/// eighth leaf would need and `shr(0x90, shl(0x10, kv))` shifts it out before
-/// the tree runs. Slot 14 is then reached by `shr(0x20, p00)`, which collapses
-/// an interior node and omits the 16 bit scrub the mirroring leaf of the low
-/// half performs. That omission is sound only while the length is zeroed, so
-/// the two are pinned together here.
+/// The two halves are not mirror images, and the root split is the reason. The
+/// low half is eight leaves under four interior nodes, routing slots 0..7 out
+/// of `and(mask128, kv)`. The high half is seven, because the 16 bit length
+/// field occupies the lane an eighth leaf would need: `shr(0x90, shl(0x10, kv))`
+/// shifts the length out first, so `p0` lane j is slot 8+j for j in 0..6 and
+/// lane 7 is structurally zero. The tree then collapses the node that would
+/// have covered that zero lane — slot 14 is reached by `shr(0x20, p00)` with no
+/// `and(mask16, ...)` scrub, where the mirroring leaf of the low half has one.
+/// That omission is sound only while the root split has already zeroed the
+/// length, a coupling between two lines twelve apart, so the split and both
+/// halves are pinned in one file rather than split across files that cannot see
+/// each other's assumptions.
 ///
-/// Each test occupies one known slot, or one known sibling pair, so a branch
-/// that drops or misroutes a slot fails as that slot's key and value rather
-/// than as a missing pair somewhere in a large store.
-contract LibMemoryKVBisectHighTest is Test {
+/// The pre-existing suite only ever exports stores that populate many slots at
+/// once, so a slot the bisect drops or misroutes shows up as "some pair is
+/// missing" with no indication of which. Each test here occupies one known
+/// slot, or one known pair, so the observable failure is the exported key and
+/// value of a named slot.
+contract LibMemoryKVBisectTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The internal list slot a key hashes into. MUST match `get`/`set`.
@@ -35,10 +43,11 @@ contract LibMemoryKVBisectHighTest is Test {
 
     /// Rehash `seed` until it lands in `slot`. The search length is unbounded,
     /// so it rehashes in scratch space rather than through `abi.encodePacked`,
-    /// which would allocate per attempt. `testAllHighSlotsHighPointerExport`
-    /// pads memory to within 16 bits of the pointer ceiling `set` enforces, so
-    /// a per-attempt allocation makes a long search overflow that ceiling and
-    /// revert on a seed the fuzzer reaches roughly once in 300k runs.
+    /// which would allocate per attempt. `testAllLowSlotsHighPointerExport` and
+    /// `testAllHighSlotsHighPointerExport` pad memory to within 16 bits of the
+    /// pointer ceiling `set` enforces, so a per-attempt allocation makes a long
+    /// search overflow that ceiling and revert on a seed the fuzzer reaches
+    /// roughly once in 300k runs.
     function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (bytes32) {
         bytes32 key = seed;
         while (slotOf(key) != slot) {
@@ -91,6 +100,38 @@ contract LibMemoryKVBisectHighTest is Test {
         assertEq(array[1], value, "exported value");
     }
 
+    function testLowSlot0SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(0, seed, value);
+    }
+
+    function testLowSlot1SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(1, seed, value);
+    }
+
+    function testLowSlot2SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(2, seed, value);
+    }
+
+    function testLowSlot3SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(3, seed, value);
+    }
+
+    function testLowSlot4SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(4, seed, value);
+    }
+
+    function testLowSlot5SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(5, seed, value);
+    }
+
+    function testLowSlot6SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(6, seed, value);
+    }
+
+    function testLowSlot7SoleExport(bytes32 seed, bytes32 value) public pure {
+        checkSoleSlot(7, seed, value);
+    }
+
     function testHighSlot8SoleExport(bytes32 seed, bytes32 value) public pure {
         checkSoleSlot(8, seed, value);
     }
@@ -122,10 +163,11 @@ contract LibMemoryKVBisectHighTest is Test {
         checkSoleSlot(14, seed, value);
     }
 
-    /// Both children of one interior node of the high subtree, and nothing
-    /// else. A mask or shift that folds one sibling onto the other loses a
-    /// pair here even though each sibling alone would still be found.
-    function checkSiblingSlots(uint256 slotA, uint256 slotB, bytes32 seed) internal pure {
+    /// Two known slots and nothing else. A mask or shift that folds one onto
+    /// the other, or a window that covers one twice, changes how often a pair
+    /// appears rather than merely dropping it — which neither slot alone would
+    /// reveal.
+    function checkSlotPair(uint256 slotA, uint256 slotB, bytes32 seed) internal pure {
         bytes32 keyA = keyForSlot(keccak256(abi.encodePacked(seed, uint256(0))), slotA);
         bytes32 keyB = keyForSlot(keccak256(abi.encodePacked(seed, uint256(1))), slotB);
         bytes32 valA = keccak256(abi.encodePacked(seed, uint256(2)));
@@ -137,16 +179,34 @@ contract LibMemoryKVBisectHighTest is Test {
 
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         assertEq(array.length, 4, "two pairs");
-        assertEq(countPair(array, keyA, valA), 1, "first sibling exported exactly once");
-        assertEq(countPair(array, keyB, valB), 1, "second sibling exported exactly once");
+        assertEq(countPair(array, keyA, valA), 1, "first slot of the pair exported exactly once");
+        assertEq(countPair(array, keyB, valB), 1, "second slot of the pair exported exactly once");
     }
 
+    /// Both children of one interior node of the low subtree.
+    function testLowSlots01Siblings(bytes32 seed) public pure {
+        checkSlotPair(0, 1, seed);
+    }
+
+    function testLowSlots23Siblings(bytes32 seed) public pure {
+        checkSlotPair(2, 3, seed);
+    }
+
+    function testLowSlots45Siblings(bytes32 seed) public pure {
+        checkSlotPair(4, 5, seed);
+    }
+
+    function testLowSlots67Siblings(bytes32 seed) public pure {
+        checkSlotPair(6, 7, seed);
+    }
+
+    /// Both children of one interior node of the high subtree.
     function testHighSlots89Siblings(bytes32 seed) public pure {
-        checkSiblingSlots(8, 9, seed);
+        checkSlotPair(8, 9, seed);
     }
 
     function testHighSlots1011Siblings(bytes32 seed) public pure {
-        checkSiblingSlots(10, 11, seed);
+        checkSlotPair(10, 11, seed);
     }
 
     /// Slots 12 and 13 are the ordinary leaves under the same node as slot 14,
@@ -154,7 +214,16 @@ contract LibMemoryKVBisectHighTest is Test {
     /// here: anything left in the bits above slot 14 turns into a pointer and
     /// costs the store a pair.
     function testHighSlots1213Siblings(bytes32 seed) public pure {
-        checkSiblingSlots(12, 13, seed);
+        checkSlotPair(12, 13, seed);
+    }
+
+    /// The two halves of the root split meet between slot 7 and slot 8. Slots 7
+    /// and 8 are not siblings — they are the outermost leaves of different
+    /// halves — so one key each side of that boundary is the discriminator for
+    /// the split itself: a window that overlaps exports one of them twice, and
+    /// a window that leaves a gap drops one.
+    function testRootSplitBoundarySlots7And8(bytes32 seed) public pure {
+        checkSlotPair(7, 8, seed);
     }
 
     /// All three leaves below the node that holds slot 14, so the collapsed
@@ -184,81 +253,77 @@ contract LibMemoryKVBisectHighTest is Test {
         }
     }
 
-    /// Every high slot populated and no low slot, so all seven leaves of the
-    /// high subtree fire and each must fire exactly once. A leaf that copies
+    /// Every slot of one half populated and no slot of the other, so every leaf
+    /// of that half fires and each must fire exactly once. A leaf that copies
     /// without carrying the cursor forward is overwritten by the next one.
-    function testAllHighSlotsExport(bytes32 seed) public pure {
-        bytes32[7] memory keys;
-        bytes32[7] memory values;
+    function checkHalfExport(uint256 firstSlot, uint256 slotCount, bytes32 seed) internal pure {
+        bytes32[] memory keys = new bytes32[](slotCount);
+        bytes32[] memory values = new bytes32[](slotCount);
         MemoryKV kv = MemoryKV.wrap(0);
-        for (uint256 i = 0; i < 7; i++) {
-            keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), i + 8);
+        for (uint256 i = 0; i < slotCount; i++) {
+            keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), firstSlot + i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(values[i]));
         }
 
-        for (uint256 i = 0; i < 8; i++) {
-            assertEq(pointerAt(kv, i), 0, "low slot empty");
-        }
-        for (uint256 i = 8; i < 15; i++) {
-            assertTrue(pointerAt(kv, i) > 0, "high slot populated");
+        for (uint256 slot = 0; slot < 15; slot++) {
+            if (slot >= firstSlot && slot < firstSlot + slotCount) {
+                assertTrue(pointerAt(kv, slot) > 0, "slot of the half under test populated");
+            } else {
+                assertEq(pointerAt(kv, slot), 0, "slot of the other half empty");
+            }
         }
 
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
-        assertEq(array.length, 14, "seven pairs");
-        for (uint256 i = 0; i < 7; i++) {
-            assertEq(countPair(array, keys[i], values[i]), 1, "each high slot exported exactly once");
+        assertEq(array.length, slotCount * 2, "one pair per slot of the half");
+        for (uint256 i = 0; i < slotCount; i++) {
+            assertEq(countPair(array, keys[i], values[i]), 1, "each slot of the half exported exactly once");
         }
     }
 
-    /// Every high slot holding a pointer with its top bit set. A 16 bit
-    /// pointer is valid all the way to `0xFFFF`, so every mask and shift on
-    /// the way down the high subtree must carry bit 15. Padding memory first
-    /// pushes the free memory pointer, and therefore every inserted node,
-    /// above `0x8000`.
-    function testAllHighSlotsHighPointerExport(bytes32 seed) public pure {
+    /// Every slot of one half holding a pointer with its top bit set. A 16 bit
+    /// pointer is valid all the way to `0xFFFF`, so every mask and shift on the
+    /// way down must carry bit 15. Padding memory first pushes the free memory
+    /// pointer, and therefore every inserted node, above `0x8000`.
+    function checkHalfHighPointerExport(uint256 firstSlot, uint256 slotCount, bytes32 seed) internal pure {
         bytes memory pad = new bytes(0x9000);
         (pad);
 
-        bytes32[7] memory keys;
-        bytes32[7] memory values;
+        bytes32[] memory keys = new bytes32[](slotCount);
+        bytes32[] memory values = new bytes32[](slotCount);
         MemoryKV kv = MemoryKV.wrap(0);
-        for (uint256 i = 0; i < 7; i++) {
-            keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), i + 8);
+        for (uint256 i = 0; i < slotCount; i++) {
+            keys[i] = keyForSlot(keccak256(abi.encodePacked(seed, i)), firstSlot + i);
             values[i] = keccak256(abi.encodePacked(seed, i, uint256(1)));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(values[i]));
         }
 
-        for (uint256 i = 8; i < 15; i++) {
-            assertTrue(pointerAt(kv, i) >= 0x8000, "pointer must have bit 15 set");
-            assertTrue(pointerAt(kv, i) <= 0xFFFF, "pointer must stay 16 bit");
+        for (uint256 slot = firstSlot; slot < firstSlot + slotCount; slot++) {
+            assertTrue(pointerAt(kv, slot) >= 0x8000, "pointer must have bit 15 set");
+            assertTrue(pointerAt(kv, slot) <= 0xFFFF, "pointer must stay 16 bit");
         }
 
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
-        assertEq(array.length, 14, "seven pairs");
-        for (uint256 i = 0; i < 7; i++) {
+        assertEq(array.length, slotCount * 2, "one pair per slot of the half");
+        for (uint256 i = 0; i < slotCount; i++) {
             assertEq(countPair(array, keys[i], values[i]), 1, "each high pointer slot exported exactly once");
         }
     }
 
-    /// The two halves of the root split meet between slot 7 and slot 8. One
-    /// key on each side of that boundary and nothing else: a window that
-    /// overlaps exports one of them twice, and a window that leaves a gap
-    /// drops one.
-    function testRootSplitBoundarySlots7And8(bytes32 seed) public pure {
-        bytes32 keyLow = keyForSlot(keccak256(abi.encodePacked(seed, uint256(0))), 7);
-        bytes32 keyHigh = keyForSlot(keccak256(abi.encodePacked(seed, uint256(1))), 8);
-        bytes32 valLow = keccak256(abi.encodePacked(seed, uint256(2)));
-        bytes32 valHigh = keccak256(abi.encodePacked(seed, uint256(3)));
+    function testAllLowSlotsExport(bytes32 seed) public pure {
+        checkHalfExport(0, 8, seed);
+    }
 
-        MemoryKV kv = MemoryKV.wrap(0);
-        kv = kv.set(MemoryKVKey.wrap(keyLow), MemoryKVVal.wrap(valLow));
-        kv = kv.set(MemoryKVKey.wrap(keyHigh), MemoryKVVal.wrap(valHigh));
+    function testAllHighSlotsExport(bytes32 seed) public pure {
+        checkHalfExport(8, 7, seed);
+    }
 
-        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
-        assertEq(array.length, 4, "two pairs");
-        assertEq(countPair(array, keyLow, valLow), 1, "slot 7 exported exactly once");
-        assertEq(countPair(array, keyHigh, valHigh), 1, "slot 8 exported exactly once");
+    function testAllLowSlotsHighPointerExport(bytes32 seed) public pure {
+        checkHalfHighPointerExport(0, 8, seed);
+    }
+
+    function testAllHighSlotsHighPointerExport(bytes32 seed) public pure {
+        checkHalfHighPointerExport(8, 7, seed);
     }
 
     /// All fifteen slots at once. The two halves must be disjoint and must
