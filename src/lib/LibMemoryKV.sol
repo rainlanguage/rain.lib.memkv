@@ -6,6 +6,13 @@ pragma solidity ^0.8.18;
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
 /// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
+///
+/// A `MemoryKV` is a handle into shared memory, not a snapshot, although
+/// Solidity silently copies it as a value type. Handles derived from the same
+/// store share its list items, so an update is visible through every handle
+/// that holds the key, including handles copied before the update, while an
+/// insert is visible only through the handle `set` returned. Keep exactly one
+/// live handle per store, or snapshot with `toBytes32Array`.
 type MemoryKV is uint256;
 
 /// The key associated with the value for each item in the store.
@@ -83,6 +90,10 @@ library LibMemoryKV {
     /// associated value will be mutated in place, else a new key/value pair will
     /// be inserted. The key/value store pointer will be mutated and returned as
     /// it MAY point to a new list item in memory.
+    ///
+    /// An update writes through a shared list item, so it is visible to every
+    /// handle that holds the key, including handles copied before this call. An
+    /// insert is visible only through the returned handle.
     /// @param kv The key/value store pointer to modify.
     /// @param key The key to upsert against.
     /// @param value The value to associate with the upserted key.
