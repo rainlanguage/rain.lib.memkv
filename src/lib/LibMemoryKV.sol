@@ -16,9 +16,15 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
-    /// Thrown when the memory allocation for a new key/value pair would exceed
-    /// the maximum pointer value of `0xFFFF` which would cause corruption of
-    /// the linked list and potentially overwriting of unrelated memory.
+    /// Thrown when an insert would allocate its node at a pointer above
+    /// `0xFFFF`, which is the widest head pointer a list slot can hold, so the
+    /// slot would truncate it and the bits above the slot would overwrite the
+    /// neighbouring slots and the word count.
+    ///
+    /// Only the head is bounded: the node's three words MAY extend above
+    /// `0xFFFF`, as every field is reached by full width arithmetic from the
+    /// head. An update allocates nothing, so it never throws this.
+    /// @param pointer The offending pointer, not the bound it crossed.
     error MemoryKVOverflow(uint256 pointer);
 
     /// Gets the value associated with a given key.
@@ -138,8 +144,8 @@ library LibMemoryKV {
     }
 
     /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `uint256[]`. Reads the total length to preallocate the
-    /// `uint256[]` then bisects the bits of the `kv` to find non-zero pointers
+    /// a standard `bytes32[]`. Reads the total length to preallocate the
+    /// `bytes32[]` then bisects the bits of the `kv` to find non-zero pointers
     /// to linked lists, walking each found list to the end to extract all
     /// values. As a single `kv` has 15 slots for pointers to linked lists it is
     /// likely for smallish structures that many slots can simply be skipped, so
@@ -151,8 +157,8 @@ library LibMemoryKV {
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
-    /// Slither is not wrong about the cyclomatic complexity but I don't know
-    /// another way to implement the bisect and keep the gas savings.
+    // Slither is not wrong about the cyclomatic complexity but I don't know
+    // another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
     function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         uint256 mask16 = type(uint16).max;
@@ -160,7 +166,7 @@ library LibMemoryKV {
         uint256 mask64 = type(uint64).max;
         uint256 mask128 = type(uint128).max;
         assembly ("memory-safe") {
-            // Manually create an `uint256[]`.
+            // Manually create a `bytes32[]`.
             // No need to zero out memory as we're about to write to it.
             array := mload(0x40)
             let length := shr(0xf0, kv)

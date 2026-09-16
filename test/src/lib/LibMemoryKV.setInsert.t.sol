@@ -12,7 +12,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 /// rather than against a round trip through `get`.
 ///
 /// "Internally represented as 15 linked lists and 1x 16bit overall word count
-/// that facilitates O(1) allocation ... of an export `uint256[]`" (README), and
+/// that facilitates O(1) allocation ... of an export `bytes32[]`" (README), and
 /// the count is "The total word count of all inserts ... encoded alongside the
 /// pointer" (`MemoryKV`). So an insert must place a three word key/value/next
 /// node, prepend it to its list, and add two to a SIXTEEN bit count.
