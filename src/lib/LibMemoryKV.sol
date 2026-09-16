@@ -16,9 +16,15 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
-    /// Thrown when the memory allocation for a new key/value pair would exceed
-    /// the maximum pointer value of `0xFFFF` which would cause corruption of
-    /// the linked list and potentially overwriting of unrelated memory.
+    /// Thrown when an insert would allocate its node at a pointer above
+    /// `0xFFFF`, which is the widest head pointer a list slot can hold, so the
+    /// slot would truncate it and the bits above the slot would overwrite the
+    /// neighbouring slots and the word count.
+    ///
+    /// Only the head is bounded: the node's three words MAY extend above
+    /// `0xFFFF`, as every field is reached by full width arithmetic from the
+    /// head. An update allocates nothing, so it never throws this.
+    /// @param pointer The offending pointer, not the bound it crossed.
     error MemoryKVOverflow(uint256 pointer);
 
     /// Gets the value associated with a given key.
