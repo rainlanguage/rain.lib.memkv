@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 contract LibMemoryKVArrayTest is Test {
@@ -17,14 +17,14 @@ contract LibMemoryKVArrayTest is Test {
     // else. The claims those numbers illustrate are asserted in
     // `LibMemoryKV.gasClaims.t.sol`.
     function testBytes32ArrayGas0() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         (array);
     }
 
     function testBytes32ArrayGas1() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
@@ -32,7 +32,7 @@ contract LibMemoryKVArrayTest is Test {
     }
 
     function testBytes32ArrayGas3() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
@@ -41,7 +41,7 @@ contract LibMemoryKVArrayTest is Test {
     }
 
     function testBytes32ArrayGas4() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
@@ -51,7 +51,7 @@ contract LibMemoryKVArrayTest is Test {
     }
 
     function testBytes32ArrayGas5() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
@@ -62,7 +62,7 @@ contract LibMemoryKVArrayTest is Test {
     }
 
     function testBytes32ArrayGas6() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(3))), MemoryKVVal.wrap(bytes32(uint256(4))));
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(5))), MemoryKVVal.wrap(bytes32(uint256(6))));
@@ -80,7 +80,7 @@ contract LibMemoryKVArrayTest is Test {
     function testArrayAllocatedMemory(bytes32[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         for (uint256 i = 0; i < kvs.length; i += 2) {
             kv = kv.set(MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));
@@ -105,7 +105,7 @@ contract LibMemoryKVArrayTest is Test {
         vm.assume(kvs.length < 50);
         vm.assume(kvs.length % 2 == 0);
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         bytes32[] memory slowKVs = new bytes32[](0);
         for (uint256 i = 0; i < kvs.length; i += 2) {
@@ -132,7 +132,7 @@ contract LibMemoryKVArrayTest is Test {
     function testRoundTripLinear(bytes32[] memory kvs) public pure {
         vm.assume(kvs.length % 2 == 0);
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         for (uint256 i = 0; i < kvs.length; i += 2) {
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));

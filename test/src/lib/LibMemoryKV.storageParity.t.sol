@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.
@@ -14,7 +14,7 @@ contract LibMemoryKVStorageParityTest is Test {
 
     /// A single get/set should behave the same as storage.
     function testSingleGetSet(bytes32 key, bytes32 value) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         sStorageKV[key] = value;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
         (uint256 exists, MemoryKVVal get) = LibMemoryKV.get(kv, MemoryKVKey.wrap(key));
@@ -35,7 +35,7 @@ contract LibMemoryKVStorageParityTest is Test {
 
     /// A list of get/sets should behave the same as storage.
     function testMultiGetSetSingle(KV[] memory kvs) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < kvs.length; i++) {
             sStorageKV[kvs[i].key] = kvs[i].value;
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i].key), MemoryKVVal.wrap(kvs[i].value));
@@ -49,7 +49,7 @@ contract LibMemoryKVStorageParityTest is Test {
     /// Many KVs should all behave the same as storage in aggregate.
     function testMultiGetSetDouble(KV[] memory kvsOne, KV[] memory kvsTwo) external {
         uint256 endOne = kvsOne.length >= 10 ? 10 : kvsOne.length;
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < endOne; i++) {
             sStorageKV[kvsOne[i].key] = kvsOne[i].value;
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvsOne[i].key), MemoryKVVal.wrap(kvsOne[i].value));
@@ -60,7 +60,7 @@ contract LibMemoryKVStorageParityTest is Test {
         }
 
         uint256 endTwo = kvsTwo.length >= 10 ? 10 : kvsTwo.length;
-        MemoryKV kvTwo = MemoryKV.wrap(0);
+        MemoryKV kvTwo = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < endTwo; i++) {
             sStorageKV[kvsTwo[i].key] = kvsTwo[i].value;
             kvTwo = LibMemoryKV.set(kvTwo, MemoryKVKey.wrap(kvsTwo[i].key), MemoryKVVal.wrap(kvsTwo[i].value));

@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
@@ -200,7 +200,7 @@ contract LibMemoryKVBisectTest is Test {
 
     /// The store holding one key in each slot `mask` names.
     function storeForOccupancy(uint256 mask, bytes32[SLOTS] memory keys) internal pure returns (MemoryKV) {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             if (occupies(mask, slot)) {
                 kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(valueFor(slot)));
@@ -534,7 +534,7 @@ contract LibMemoryKVBisectTest is Test {
     function testLengthIsNotRoutedAsAPointer() public pure {
         bytes32[12] memory keys = slot0ChainKeys();
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(valueFor(i)));
         }
