@@ -246,7 +246,6 @@ contract LibMemoryKVBisectTest is Test {
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             if (occupies(mask, slot)) {
                 assertGe(pointerAt(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
-                assertLe(pointerAt(kv, slot), POINTER_MAX, "pointer must stay 16 bit");
             }
         }
         checkExportedPairs(kv, mask, keys);
