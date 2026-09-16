@@ -95,6 +95,9 @@ library LibMemoryKV {
             let startPointer := and(shr(bitOffset, kv), 0xFFFF)
 
             // Find a key match then break so that we populate a nonzero pointer.
+            // The zero guard is the only terminator, and no test says so: `0x00`
+            // still holds `key` from the hash above, so a walk that ran past the
+            // guard would match scratch and break on the zero a miss leaves.
             pointer := startPointer
             for {} iszero(iszero(pointer)) { pointer := mload(add(pointer, 0x40)) } {
                 if eq(key, mload(pointer)) { break }
