@@ -42,7 +42,7 @@ contract LibMemoryKVExportAllocTest is Test {
         assembly ("memory-safe") {
             for {} 1 {} {
                 mstore(0, key)
-                if eq(mod(keccak256(0, 0x20), 15), slot) { break }
+                if eq(mod(keccak256(0, 0x20), 0x0f), slot) { break }
                 mstore(0, key)
                 key := keccak256(0, 0x20)
             }
