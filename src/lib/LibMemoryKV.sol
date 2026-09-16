@@ -6,6 +6,22 @@ pragma solidity ^0.8.18;
 /// linked list. Initially points to `0` for an empty list. The total word count
 /// of all inserts is also encoded alongside the pointer to allow efficient O(1)
 /// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
+///
+/// A `MemoryKV` is a handle into shared memory, not a snapshot, although
+/// Solidity silently copies it as a value type. Handles derived from the same
+/// store share its list items, so an update is visible through every handle
+/// that holds the key, including handles copied before the update, while an
+/// insert is visible only through the handle `set` returned. Keep exactly one
+/// live handle per store, or snapshot with `toBytes32Array`.
+///
+/// A handle is valid ONLY inside the call frame that created it. The pointers
+/// it packs are offsets into that frame's memory. Being a `uint256` it crosses
+/// an external call unchanged while the list items it names do not, so a
+/// `MemoryKV` MUST NOT be returned from or passed into an external call. In
+/// another frame those same offsets name whatever that frame holds at them, so
+/// a read answers with unrelated memory, or follows a junk word as a pointer
+/// and expands memory until the gas is gone. Cross a call boundary with
+/// `toBytes32Array` instead.
 type MemoryKV is uint256;
 
 /// The key associated with the value for each item in the store.
@@ -16,9 +32,15 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
-    /// Thrown when the memory allocation for a new key/value pair would exceed
-    /// the maximum pointer value of `0xFFFF` which would cause corruption of
-    /// the linked list and potentially overwriting of unrelated memory.
+    /// Thrown when an insert would allocate its node at a pointer above
+    /// `0xFFFF`, which is the widest head pointer a list slot can hold, so the
+    /// slot would truncate it and the bits above the slot would overwrite the
+    /// neighbouring slots and the word count.
+    ///
+    /// Only the head is bounded: the node's three words MAY extend above
+    /// `0xFFFF`, as every field is reached by full width arithmetic from the
+    /// head. An update allocates nothing, so it never throws this.
+    /// @param pointer The offending pointer, not the bound it crossed.
     error MemoryKVOverflow(uint256 pointer);
 
     /// Thrown when an insert would push the 16 bit word count past `0xFFFF`.
@@ -82,8 +104,26 @@ library LibMemoryKV {
 
     /// Upserts a value in the set by its key. I.e. if the key exists then the
     /// associated value will be mutated in place, else a new key/value pair will
-    /// be inserted. The key/value store pointer will be mutated and returned as
-    /// it MAY point to a new list item in memory.
+    /// be inserted. The key/value store pointer is returned rather than mutated
+    /// in place, as it MAY point to a new list item in memory.
+    ///
+    /// `kv` is a value, so an insert's new head pointer exists only in the
+    /// return. The caller MUST assign the return back over the `kv` it passed
+    /// in, or the inserted pair is discarded with no revert. A dropped return
+    /// on an update path appears to work only because that pair is already
+    /// reachable from the unchanged pointer, which is not a guarantee.
+    ///
+    /// An update writes through a shared list item, so it is visible to every
+    /// handle that holds the key, including handles copied before this call. An
+    /// insert is visible only through the returned handle.
+    ///
+    /// Reverts `MemoryKVOverflow` when an INSERT would allocate its node above
+    /// `0xFFFF`, the widest head pointer a list slot can hold. An update
+    /// allocates nothing and so never reverts. The ceiling is on the frame's
+    /// free memory pointer rather than on a pair count: the node takes its
+    /// address from there, so every unrelated allocation in the frame lowers
+    /// how many pairs still fit, which is 682 for a frame that allocates
+    /// nothing else.
     /// @param kv The key/value store pointer to modify.
     /// @param key The key to upsert against.
     /// @param value The value to associate with the upserted key.
@@ -152,8 +192,8 @@ library LibMemoryKV {
     }
 
     /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `uint256[]`. Reads the total length to preallocate the
-    /// `uint256[]` then bisects the bits of the `kv` to find non-zero pointers
+    /// a standard `bytes32[]`. Reads the total length to preallocate the
+    /// `bytes32[]` then bisects the bits of the `kv` to find non-zero pointers
     /// to linked lists, walking each found list to the end to extract all
     /// values. As a single `kv` has 15 slots for pointers to linked lists it is
     /// likely for smallish structures that many slots can simply be skipped, so
@@ -165,8 +205,8 @@ library LibMemoryKV {
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
-    /// Slither is not wrong about the cyclomatic complexity but I don't know
-    /// another way to implement the bisect and keep the gas savings.
+    // Slither is not wrong about the cyclomatic complexity but I don't know
+    // another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
     function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         uint256 mask16 = type(uint16).max;
@@ -174,7 +214,7 @@ library LibMemoryKV {
         uint256 mask64 = type(uint64).max;
         uint256 mask128 = type(uint128).max;
         assembly ("memory-safe") {
-            // Manually create an `uint256[]`.
+            // Manually create a `bytes32[]`.
             // No need to zero out memory as we're about to write to it.
             array := mload(0x40)
             let length := shr(0xf0, kv)
