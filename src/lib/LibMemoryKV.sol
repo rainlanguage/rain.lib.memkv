@@ -75,8 +75,14 @@ library LibMemoryKV {
 
     /// Upserts a value in the set by its key. I.e. if the key exists then the
     /// associated value will be mutated in place, else a new key/value pair will
-    /// be inserted. The key/value store pointer will be mutated and returned as
-    /// it MAY point to a new list item in memory.
+    /// be inserted. The key/value store pointer is returned rather than mutated
+    /// in place, as it MAY point to a new list item in memory.
+    ///
+    /// `kv` is a value, so an insert's new head pointer exists only in the
+    /// return. The caller MUST assign the return back over the `kv` it passed
+    /// in, or the inserted pair is discarded with no revert. A dropped return
+    /// on an update path appears to work only because that pair is already
+    /// reachable from the unchanged pointer, which is not a guarantee.
     /// @param kv The key/value store pointer to modify.
     /// @param key The key to upsert against.
     /// @param value The value to associate with the upserted key.
