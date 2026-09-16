@@ -9,15 +9,19 @@ library LibMemoryKVSlow {
     function exists(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, uint256) {
         for (uint256 i = 0; i < kvs.length; i += 2) {
             if (kvs[i] == k) {
+                //forge-lint: disable-next-line(boolean-cst)
                 return (true, i);
             }
         }
+        //forge-lint: disable-next-line(boolean-cst)
         return (false, 0);
     }
 
     function get(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, bytes32) {
         (bool existsVal, uint256 index) = exists(kvs, k);
-        return (existsVal, existsVal ? kvs[index] : bytes32(uint256(0)));
+        // `exists` reports the index of the KEY, and the value it is paired
+        // with is the word after it.
+        return (existsVal, existsVal ? kvs[index + 1] : bytes32(uint256(0)));
     }
 
     function set(bytes32[] memory kvs, bytes32 k, bytes32 v) internal pure returns (bytes32[] memory) {
