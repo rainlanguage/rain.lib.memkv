@@ -48,7 +48,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// the documented hash ("Hash logic MUST match set") rather than read back
     /// out of `kv`, so a pointer landing in the WRONG slot is a failure here.
     function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
-        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 15) * 0x10;
+        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
     }
 
     /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert

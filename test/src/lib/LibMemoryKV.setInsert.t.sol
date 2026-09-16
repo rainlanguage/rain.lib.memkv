@@ -23,7 +23,7 @@ contract LibMemoryKVSetInsertTest is Test {
     /// documented hash ("Hash logic MUST match set") in Solidity, so the
     /// expectation is not the implementation's own expression read back.
     function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
-        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 15) * 0x10;
+        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
     }
 
     /// The head pointer `kv` records for the list that `key` belongs to.
