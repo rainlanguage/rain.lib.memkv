@@ -12,6 +12,10 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 contract LibMemoryKVArrayTest is Test {
     using LibMemoryKV for MemoryKV;
 
+    // The `Gas` tests assert nothing on purpose: each exists so that the gas
+    // report carries the cost of exporting a store of that size and nothing
+    // else. The claims those numbers illustrate are asserted in
+    // `LibMemoryKV.gasClaims.t.sol`.
     function testBytes32ArrayGas0() public pure {
         MemoryKV kv = MemoryKV.wrap(0);
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
