@@ -23,7 +23,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     function slotOf(MemoryKVKey key) internal pure returns (uint256 slot) {
         assembly ("memory-safe") {
             mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 15)
+            slot := mod(keccak256(0, 0x20), 0x0f)
         }
     }
 
@@ -110,9 +110,9 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// runs, or that compares the wrong word, writes the value onto whichever
     /// node it stopped at instead.
     function testUpdateFindsTheRightNodeAmongColliders() external pure {
-        MemoryKVKey a = keyForSlot(bytes32(uint256(0xA)), 7);
-        MemoryKVKey b = keyForSlot(bytes32(uint256(0xB)), 7);
-        MemoryKVKey c = keyForSlot(bytes32(uint256(0xC)), 7);
+        MemoryKVKey a = keyForSlot(bytes32(uint256(0xA)), 0x07);
+        MemoryKVKey b = keyForSlot(bytes32(uint256(0xB)), 0x07);
+        MemoryKVKey c = keyForSlot(bytes32(uint256(0xC)), 0x07);
 
         MemoryKV kv = MemoryKV.wrap(0).set(a, val(1)).set(b, val(2)).set(c, val(3));
         assertEq(lengthOf(kv), 6, "length before");
@@ -136,7 +136,7 @@ contract LibMemoryKVSetUpdateTest is Test {
         MemoryKVKey[] memory keys = new MemoryKVKey[](count);
         MemoryKV kv = MemoryKV.wrap(0);
         for (uint256 i = 0; i < count; i++) {
-            keys[i] = keyForSlot(bytes32(0xD0 + i), 3);
+            keys[i] = keyForSlot(bytes32(0xD0 + i), 0x03);
             kv = kv.set(keys[i], val(i + 1));
         }
         assertEq(lengthOf(kv), count * 2, "length before");
