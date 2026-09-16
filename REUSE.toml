@@ -13,7 +13,6 @@ path = [
   "foundry.toml",
   "slither.config.json",
   "REUSE.toml",
-  "foundry.lock",
   "soldeer.lock",
   ".soldeerignore",
 ]
