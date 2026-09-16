@@ -4,12 +4,12 @@ Docs at https://rainprotocol.github.io/rain.lib.memkv
 
 ## Key/Value store
 
-Implements an in-memory key/value store that can be snapshotted/exported to an
-`uint256[]` of pairwise keys/values as its items.
+Implements an in-memory key/value store that can be snapshotted/exported to a
+`bytes32[]` of pairwise keys/values as its items.
 
 Internally represented as 15 linked lists and 1x 16bit overall word count that
 facilitates O(1) allocation (excluding memory expansion costs) of an export
-`uint256[]`.
+`bytes32[]`.
 
 Roughly O(1) for gets and sets for the amounts of data commonly handled in
 Solidity. A key alone in its list costs ~240 gas to get and ~400 gas to insert.
