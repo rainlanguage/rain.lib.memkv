@@ -122,14 +122,16 @@ contract LibMemoryKVSaturateTest is Test {
         bytes32[] memory export = LibMemoryKV.toBytes32Array(kv);
 
         assertEq(kvs.length, export.length);
-        uint256 matches = 0;
+        // Counted over every pair at once, a pair exported twice pays for a
+        // pair not exported at all, so each pair is counted on its own.
         for (uint256 i = 0; i < kvs.length; i += 2) {
+            uint256 matches = 0;
             for (uint256 j = 0; j < export.length; j += 2) {
                 if (kvs[i] == export[j] && kvs[i + 1] == export[j + 1]) {
                     matches += 1;
                 }
             }
+            assertEq(matches, 1, "each pair exported exactly once");
         }
-        assertEq(matches, 30);
     }
 }
