@@ -200,4 +200,39 @@ contract LibMemoryKVSetInsertTest is Test {
         assertEq(slotPointer(kv, key), 0xF000, "the whole 16 bit pointer reaches the slot");
         assertEq(wordCount(kv), 2, "one pair is two words");
     }
+
+    /// The head pointer an insert produces exists ONLY in the returned store,
+    /// which is why `set` documents that the return MUST be assigned back. The
+    /// node is allocated and written either way, so a caller that drops the
+    /// return is left holding the word it already had and the pair is reachable
+    /// from nothing -- no revert, no short array, just a missing key.
+    function testSetInsertIsUnreachableWhenTheReturnIsDropped(
+        MemoryKVKey keyA,
+        MemoryKVKey keyB,
+        MemoryKVVal valueA,
+        MemoryKVVal valueB
+    ) external pure {
+        vm.assume(MemoryKVKey.unwrap(keyA) != MemoryKVKey.unwrap(keyB));
+
+        MemoryKV kv = MemoryKV.wrap(0).set(keyA, valueA);
+        uint256 dropped = MemoryKV.unwrap(kv);
+
+        uint256 nodeB = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+        MemoryKV returned = kv.set(keyB, valueB);
+
+        (bytes32 nodeKey, bytes32 nodeValue,) = readNode(nodeB);
+        assertEq(nodeKey, MemoryKVKey.unwrap(keyB), "the node was written");
+        assertEq(nodeValue, MemoryKVVal.unwrap(valueB), "with the value");
+
+        assertEq(MemoryKV.unwrap(kv), dropped, "the dropped store is the word it already had");
+        assertEq(wordCount(kv), 2, "the dropped store still counts one pair");
+        assertEq(kv.toBytes32Array().length, 2, "and exports one pair");
+        assertFalse(kv.has(keyB), "the insert is unreachable from the dropped store");
+
+        assertEq(slotPointer(returned, keyB), nodeB, "the returned store heads the new node");
+        assertEq(wordCount(returned), 4, "the returned store counts two pairs");
+        (uint256 exists, MemoryKVVal value) = returned.get(keyB);
+        assertEq(exists, 1, "the returned store has the key");
+        assertEq(MemoryKVVal.unwrap(value), MemoryKVVal.unwrap(valueB), "and the value");
+    }
 }
