@@ -9,9 +9,11 @@ library LibMemoryKVSlow {
     function exists(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, uint256) {
         for (uint256 i = 0; i < kvs.length; i += 2) {
             if (kvs[i] == k) {
+                //forge-lint: disable-next-line(boolean-cst)
                 return (true, i);
             }
         }
+        //forge-lint: disable-next-line(boolean-cst)
         return (false, 0);
     }
 

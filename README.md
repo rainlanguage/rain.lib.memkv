@@ -15,4 +15,5 @@ facilitates O(1) allocation (excluding memory expansion costs) of an export
 `uint256[]`.
 
 The key/value store can differentiate between a key that is set to `0` and a key
-that is unset for gets. However it is NOT possible to unset a key once it is set.
+that is unset for gets. However it is NOT possible to unset a key once it is
+set.
