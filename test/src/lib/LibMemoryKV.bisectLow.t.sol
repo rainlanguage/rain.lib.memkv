@@ -18,19 +18,22 @@ contract LibMemoryKVBisectLowTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The internal list slot a key hashes into. MUST match `get`/`set`.
-    function slotOf(bytes32 key) internal pure returns (uint256 slot) {
+    function slotOf(bytes32 key) internal pure returns (uint256) {
+        uint256 slot;
         assembly ("memory-safe") {
             mstore(0, key)
             slot := mod(keccak256(0, 0x20), 0x0f)
         }
+        return slot;
     }
 
     /// Rehash `seed` until it lands in `slot`.
-    function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (bytes32 key) {
-        key = seed;
+    function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (bytes32) {
+        bytes32 key = seed;
         while (slotOf(key) != slot) {
             key = keccak256(abi.encodePacked(key));
         }
+        return key;
     }
 
     function pointerAt(MemoryKV kv, uint256 slot) internal pure returns (uint256) {

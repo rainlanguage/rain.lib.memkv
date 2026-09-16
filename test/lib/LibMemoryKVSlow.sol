@@ -37,7 +37,8 @@ library LibMemoryKVSlow {
         }
     }
 
-    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory arr) {
+    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory) {
+        bytes32[] memory arr;
         assembly ("memory-safe") {
             arr := mload(0x40)
             let len := shr(0xf0, kv)
@@ -64,5 +65,6 @@ library LibMemoryKVSlow {
                 ptr := and(shr(ptrCursor, kv), 0xFFFF)
             } { cursor := copyFromPtr(cursor, ptr) }
         }
+        return arr;
     }
 }

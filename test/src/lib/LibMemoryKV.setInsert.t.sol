@@ -42,18 +42,22 @@ contract LibMemoryKVSetInsertTest is Test {
     }
 
     /// The three words of a list node as written by an insert.
-    function readNode(uint256 pointer) internal pure returns (bytes32 nodeKey, bytes32 nodeValue, uint256 next) {
+    function readNode(uint256 pointer) internal pure returns (bytes32, bytes32, uint256) {
+        bytes32 nodeKey;
+        bytes32 nodeValue;
+        uint256 next;
         assembly ("memory-safe") {
             nodeKey := mload(pointer)
             nodeValue := mload(add(pointer, 0x20))
             next := mload(add(pointer, 0x40))
         }
+        return (nodeKey, nodeValue, next);
     }
 
     /// `count` distinct keys that all hash into ONE of the 15 lists, so a
     /// second and third insert into the SAME list are observable.
-    function keysInOneSlot(uint256 count) internal pure returns (MemoryKVKey[] memory keys) {
-        keys = new MemoryKVKey[](count);
+    function keysInOneSlot(uint256 count) internal pure returns (MemoryKVKey[] memory) {
+        MemoryKVKey[] memory keys = new MemoryKVKey[](count);
         MemoryKVKey first = MemoryKVKey.wrap(bytes32(uint256(1)));
         uint256 bitOffset = slotBitOffset(first);
         keys[0] = first;
@@ -66,6 +70,7 @@ contract LibMemoryKVSetInsertTest is Test {
             }
         }
         require(found == count, "keysInOneSlot: candidate limit hit before enough colliding keys");
+        return keys;
     }
 
     /// Insert against an arbitrary free memory pointer so the inserted node's

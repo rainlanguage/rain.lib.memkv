@@ -22,8 +22,11 @@ contract LibMemoryKVGetWalkTest is Test {
     function craftDuplicateKeyList(MemoryKVKey key, MemoryKVVal first, MemoryKVVal second)
         internal
         pure
-        returns (MemoryKV kv, uint256 head, uint256 tail)
+        returns (MemoryKV, uint256, uint256)
     {
+        MemoryKV kv;
+        uint256 head;
+        uint256 tail;
         assembly ("memory-safe") {
             mstore(0, key)
             let bitOffset := mul(mod(keccak256(0, 0x20), 0x0f), 0x10)
@@ -45,6 +48,7 @@ contract LibMemoryKVGetWalkTest is Test {
         }
         require(head <= 0xFFFF, "crafted head pointer must fit 16 bits");
         require(tail <= 0xFFFF, "crafted tail pointer must fit 16 bits");
+        return (kv, head, tail);
     }
 
     /// The walk stops at the first match, so the head node's value is what

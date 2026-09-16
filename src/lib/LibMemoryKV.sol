@@ -25,16 +25,18 @@ library LibMemoryKV {
     /// The value returned will be `0` if the key exists and was set to zero OR
     /// the key DOES NOT exist, i.e. was never set.
     ///
-    /// The caller MUST check the `exists` flag to disambiguate between zero
-    /// values and unset keys.
+    /// The caller MUST check the first return value to disambiguate between
+    /// zero values and unset keys.
     ///
     /// @param kv The entrypoint to the key/value store.
-    /// @param key The key to lookup a `value` for.
-    /// @return exists `0` if the key was not found. The `value` MUST NOT be
-    /// used if the `key` does not exist.
-    /// @return value The value for the `key`, if it exists, else `0`. MAY BE `0`
-    /// even if the `key` exists. It is possible to set any key to a `0` value.
-    function get(MemoryKV kv, MemoryKVKey key) internal pure returns (uint256 exists, MemoryKVVal value) {
+    /// @param key The key to lookup a value for.
+    /// @return `0` if the key was not found. The value MUST NOT be used if the
+    /// `key` does not exist.
+    /// @return The value for the `key`, if it exists, else `0`. MAY BE `0` even
+    /// if the `key` exists. It is possible to set any key to a `0` value.
+    function get(MemoryKV kv, MemoryKVKey key) internal pure returns (uint256, MemoryKVVal) {
+        uint256 exists;
+        MemoryKVVal value;
         assembly ("memory-safe") {
             // Hash to find the internal linked list to walk.
             // Hash logic MUST match set.
@@ -52,6 +54,7 @@ library LibMemoryKV {
                 }
             }
         }
+        return (exists, value);
     }
 
     /// Whether a key exists in the store.
@@ -150,11 +153,12 @@ library LibMemoryKV {
     /// mutated the built array will not reflect these mutations.
     ///
     /// @param kv The entrypoint into the key/value store.
-    /// @return array All the keys and values copied pairwise into a `bytes32[]`.
+    /// @return All the keys and values copied pairwise into a `bytes32[]`.
     /// Slither is not wrong about the cyclomatic complexity but I don't know
     /// another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
-    function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
+    function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory) {
+        bytes32[] memory array;
         uint256 mask16 = type(uint16).max;
         uint256 mask32 = type(uint32).max;
         uint256 mask64 = type(uint64).max;
@@ -301,5 +305,6 @@ library LibMemoryKV {
                 }
             }
         }
+        return array;
     }
 }

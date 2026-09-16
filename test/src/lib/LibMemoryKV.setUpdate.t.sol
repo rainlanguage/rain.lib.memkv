@@ -20,11 +20,13 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// The internal list a key belongs to. This is the store's own hash, which
     /// `get` and `set` MUST both use, restated here so the tests can aim keys at
     /// a chosen list rather than hoping a fuzzer collides two.
-    function slotOf(MemoryKVKey key) internal pure returns (uint256 slot) {
+    function slotOf(MemoryKVKey key) internal pure returns (uint256) {
+        uint256 slot;
         assembly ("memory-safe") {
             mstore(0, key)
             slot := mod(keccak256(0, 0x20), 0x0f)
         }
+        return slot;
     }
 
     /// Rehash `seed` until the key lands in `slot`.
