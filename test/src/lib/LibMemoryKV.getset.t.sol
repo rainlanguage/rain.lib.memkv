@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 contract LibMemoryKVGetSetTest is Test {
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
@@ -19,7 +19,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetOverflow(MemoryKVKey key, MemoryKVVal value) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         // The next set should revert with a MemoryKVOverflow error.
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setOverflowExternal(kv, key, value);
@@ -44,6 +44,56 @@ contract LibMemoryKVGetSetTest is Test {
         return LibMemoryKV.set(kv, key, value);
     }
 
+    /// The bit offset of the internal list `key` belongs to, recomputed from
+    /// the documented hash ("Hash logic MUST match set") rather than read back
+    /// out of `kv`, so a pointer landing in the WRONG slot is a failure here.
+    function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
+        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
+    }
+
+    /// Insert at an exact free memory pointer and read the key back inside the
+    /// SAME call frame, as the node only exists in that frame's memory.
+    function setAtPointerThenGetExternal(MemoryKVKey key, MemoryKVVal value, uint256 freePtr)
+        external
+        pure
+        returns (uint256, MemoryKVVal)
+    {
+        assembly ("memory-safe") {
+            mstore(0x40, freePtr)
+        }
+        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, key, value);
+        return LibMemoryKV.get(kv, key);
+    }
+
+    /// Insert `first` normally, then `second` at an exact free memory pointer
+    /// so that one list holds both with `second` at its head, and read `first`
+    /// back inside the SAME call frame.
+    function insertPairThenGetFirstExternal(MemoryKVKey first, MemoryKVKey second, MemoryKVVal value, uint256 headPtr)
+        external
+        pure
+        returns (uint256, MemoryKVVal)
+    {
+        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, first, value);
+        assembly ("memory-safe") {
+            mstore(0x40, headPtr)
+        }
+        kv = LibMemoryKV.set(kv, second, MemoryKVVal.wrap(0));
+        return LibMemoryKV.get(kv, first);
+    }
+
+    /// A key hashing into the same internal list as `key`, so one list holds
+    /// both and `get` has to follow a next pointer to cross between them.
+    function collidingKey(MemoryKVKey key) internal pure returns (MemoryKVKey) {
+        uint256 bitOffset = slotBitOffset(key);
+        for (uint256 i = 1; i <= 10000; i++) {
+            MemoryKVKey candidate = MemoryKVKey.wrap(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key), i)));
+            if (slotBitOffset(candidate) == bitOffset) {
+                return candidate;
+            }
+        }
+        revert("collidingKey: candidate limit hit before a colliding key");
+    }
+
     /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert
     /// landing exactly on it MUST succeed (NOT revert). This is the lower edge
     /// of the overflow boundary: `pointer > 0xFFFF` reverts, so `0xFFFF` itself
@@ -51,7 +101,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// boundary (`>` -> `>=`, or `0xFFFF` -> `0xFFFE`), which would wrongly
     /// revert on this exact-max insert.
     function testSetPointerBoundaryMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         // Insert with the free memory pointer at exactly the max valid pointer.
         // This MUST NOT revert and MUST encode the pointer 0xFFFF.
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFF);
@@ -59,13 +109,9 @@ contract LibMemoryKVGetSetTest is Test {
         // The inserted list item must live at exactly 0xFFFF, so the slot for
         // this key must encode the pointer 0xFFFF.
         uint256 raw = MemoryKV.unwrap(kv);
-        bool found = false;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFF) {
-                found = true;
-            }
-        }
-        assertTrue(found, "max pointer 0xFFFF must be encoded into kv");
+        assertEq(
+            (raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot"
+        );
 
         // The length must be exactly 2 words (one key/value pair).
         assertEq(raw >> 0xf0, 2, "length");
@@ -75,17 +121,11 @@ contract LibMemoryKVGetSetTest is Test {
     /// the exact pointer. Guards the boundary from the other side so a
     /// `0xFFFF` -> `0xFFFE` mutation (which would wrongly revert here) is killed.
     function testSetPointerBoundaryBelowMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
 
         uint256 raw = MemoryKV.unwrap(kv);
-        bool found = false;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((raw >> bitOffset) & 0xFFFF) == 0xFFFE) {
-                found = true;
-            }
-        }
-        assertTrue(found, "pointer 0xFFFE must be encoded into kv");
+        assertEq((raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
         assertEq(raw >> 0xf0, 2, "length");
     }
 
@@ -93,13 +133,37 @@ contract LibMemoryKVGetSetTest is Test {
     /// overflowing pointer value. This is the upper edge of the boundary and
     /// pins the exact revert payload so the boundary cannot silently move up.
     function testSetPointerBoundaryOverflowReverts(MemoryKVKey key, MemoryKVVal value) external {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setAtPointerExternal(kv, key, value, 0x10000);
     }
 
+    /// The bound is on the node's HEAD pointer alone. A node inserted at the
+    /// maximum head pointer `0xFFFF` holds its value word at `0x1001F`, above
+    /// the bound, and `get` MUST still read it: node fields are reached by full
+    /// width arithmetic from the head, not through 16 bit pointers. A `get`
+    /// that truncated a field address to 16 bits is indistinguishable from a
+    /// correct one for every node that fits entirely under the bound.
+    function testGetReadsAValueWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
+        (uint256 exists, MemoryKVVal got) = this.setAtPointerThenGetExternal(key, value, 0xFFFF);
+
+        assertEq(exists, 1, "a node at the maximum head pointer exists");
+        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the value word above 0xFFFF reads back");
+    }
+
+    /// The same for the next pointer word. The second node's head is `0xFFC0`,
+    /// which fits the bound, so its next word lands at exactly `0x10000` and
+    /// the walk from that node down to the first one has to read across the
+    /// bound to find it.
+    function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
+        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, collidingKey(key), value, 0xFFC0);
+
+        assertEq(exists, 1, "the walk reaches the first key through a next word at 0x10000");
+        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");
+    }
+
     function testSetGet0(MemoryKVKey key, MemoryKVVal value) public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         // Initially the key will not be set.
         (uint256 exists0, MemoryKVVal value0) = LibMemoryKV.get(kv, key);
@@ -121,7 +185,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetGetSimple0() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKVVal value0 = MemoryKVVal.wrap(bytes32(uint256(2)));
         kv = LibMemoryKV.set(kv, key0, value0);
@@ -152,7 +216,7 @@ contract LibMemoryKVGetSetTest is Test {
     }
 
     function testSetGetSimple1() public pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey key0 = MemoryKVKey.wrap(bytes32(uint256(5808)));
         MemoryKVVal value00 = MemoryKVVal.wrap(bytes32(uint256(720)));
         kv = LibMemoryKV.set(kv, key0, value00);
@@ -182,7 +246,7 @@ contract LibMemoryKVGetSetTest is Test {
     ) public pure {
         vm.assume(MemoryKVKey.unwrap(key0) != MemoryKVKey.unwrap(key1));
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
 
         {
             Pointer alloc0 = LibPointer.allocatedMemoryPointer();

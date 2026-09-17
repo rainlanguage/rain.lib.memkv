@@ -1,7 +1,3 @@
-[package]
-name = "rain-lib-memkv"
-version = "0.1.2"
-
 [profile.default]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
@@ -21,7 +17,7 @@ runs = 1024
 [dependencies]
 forge-std = "1.16.1"
 "rain-solmem" = "0.1.28"
-"rain-lib-hash" = "0.1.10"
+"rain-lib-hash" = "0.1.27"
 
 [soldeer]
 recursive_deps = false
