@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every
@@ -72,7 +72,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// and nothing else: exactly 0x20 bytes.
     function testExportEmptyAllocatesOnlyTheHeader() external pure {
         Pointer before = LibPointer.allocatedMemoryPointer();
-        bytes32[] memory array = LibMemoryKV.toBytes32Array(MemoryKV.wrap(0));
+        bytes32[] memory array = LibMemoryKV.toBytes32Array(MEMORY_KV_EMPTY);
         Pointer afterPointer = LibPointer.allocatedMemoryPointer();
 
         assertEq(array.length, 0);
@@ -85,7 +85,7 @@ contract LibMemoryKVExportAllocTest is Test {
         vm.assume(kvs.length < 40);
         vm.assume(kvs.length % 2 == 0);
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < kvs.length; i += 2) {
             kv = kv.set(MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));
         }
@@ -106,7 +106,7 @@ contract LibMemoryKVExportAllocTest is Test {
         vm.assume(kvs.length < 40);
         vm.assume(kvs.length % 2 == 0);
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < kvs.length; i += 2) {
             kv = kv.set(MemoryKVKey.wrap(kvs[i]), MemoryKVVal.wrap(kvs[i + 1]));
         }
@@ -129,7 +129,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// Exporting must not touch anything already allocated. A live array sat
     /// immediately below the export keeps every word it had.
     function testExportDoesNotClobberLiveMemory(bytes32 fill) external pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= 6; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i * 1000)));
         }
@@ -154,7 +154,7 @@ contract LibMemoryKVExportAllocTest is Test {
     function testExportWritesEveryAllocatedWord(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= 10; i++) {
             kv = kv.set(MemoryKVKey.wrap(keccak256(abi.encode(seed, i))), MemoryKVVal.wrap(bytes32(i)));
         }
@@ -175,7 +175,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32 key = bytes32(uint256(0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA));
         bytes32 value = bytes32(uint256(0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB));
 
-        MemoryKV kv = MemoryKV.wrap(0).set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
+        MemoryKV kv = MEMORY_KV_EMPTY.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
         bytes32[] memory array = kv.toBytes32Array();
 
         assertEq(array.length, 2);
@@ -190,7 +190,7 @@ contract LibMemoryKVExportAllocTest is Test {
         slot = bound(slot, 0, 14);
 
         bytes32[] memory keys = new bytes32[](5);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             keys[i] = keyForSlot(keccak256(abi.encode(seed, i)), slot);
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
@@ -226,7 +226,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// pair rather than merely reorder them.
     function testExportAppendsAcrossLists(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](4);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             keys[i] = keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : 14);
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
@@ -252,7 +252,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// merely a short array.
     function testExportReachesEverySlot(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](15);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 slot = 0; slot < 15; slot++) {
             keys[slot] = keyForSlot(keccak256(abi.encode(seed, slot)), slot);
             kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(bytes32(slot + 1)));
@@ -281,7 +281,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// the nodes it walks, and only as a side effect of exporting twice.
     function testExportLeavesTheStoreIntact(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](7);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             keys[i] = keccak256(abi.encode(seed, i));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
@@ -306,7 +306,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// allocated NEXT sits past the end of the array and the array keeps every
     /// word it was given.
     function testExportedArraySurvivesLaterAllocation(bytes32 fill) external pure {
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= 5; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i * 7)));
         }
