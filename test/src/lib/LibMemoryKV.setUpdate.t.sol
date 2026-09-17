@@ -286,13 +286,11 @@ contract LibMemoryKVSetUpdateTest is Test {
         assertEq(kv.toBytes32Array().length, distinct * 2, "array length");
     }
 
-    /// The match compares the whole 256 bit key word, so two keys that differ
-    /// in a single bit are two keys. The pairs below differ at the top and at
-    /// the bottom of the word, the ends a narrowed comparison drops first, and
-    /// both keys of a pair share one internal list so the comparison is the
-    /// only thing between them. A comparison that ignored the differing bit
-    /// would stop at the first key's node and overwrite its value instead of
-    /// inserting the second key, leaving one pair where there must be two.
+    /// The match compares the whole 256 bit key word. Each pair below shares
+    /// one internal list and differs in a single bit, at the top and at the
+    /// bottom of the word, so a comparison narrowed at either end would stop at
+    /// the first key's node and overwrite its value instead of inserting the
+    /// second key, leaving one pair where there must be two.
     function testSetDistinguishesKeysDifferingInOneBit() external pure {
         uint256[2] memory bits = [uint256(0), 0xff];
         for (uint256 i = 0; i < bits.length; i++) {
