@@ -80,8 +80,10 @@ library LibMemoryKVTestKeys {
     /// first has the bit clear and the second has it set. `seed` picks which
     /// such pair: the low key is `keccak256(seed, tries)` with the bit cleared
     /// for the first `tries` from zero whose pair shares a list. Reverts if
-    /// none of the first `CANDIDATE_LIMIT` does.
+    /// none of the first `CANDIDATE_LIMIT` does, and if `bit` is not a bit of a
+    /// 256 bit key.
     function collidingPairDifferingInBit(uint256 seed, uint256 bit) internal pure returns (MemoryKVKey, MemoryKVKey) {
+        require(bit < 256, "bit must be below 256");
         uint256 mask = uint256(1) << bit;
         for (uint256 tries = 0; tries < CANDIDATE_LIMIT; tries++) {
             bytes32 candidate;
