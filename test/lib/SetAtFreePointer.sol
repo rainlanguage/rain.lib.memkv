@@ -8,10 +8,8 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 /// Inherited by tests that need `set` to place its node at an exact address.
 abstract contract SetAtFreePointer {
     /// `LibMemoryKV.set` with the free memory pointer first moved to
-    /// `freePointer`, so the inserted node's address is exactly `freePointer`.
-    /// External so a test calls it via `this.` and `vm.expectRevert` sees a real
-    /// call; the node lives in this frame's memory, so only the returned `kv`
-    /// and the (non)revert reach the caller.
+    /// `freePointer`, so the node lands exactly there. External so a test calls
+    /// it via `this.` and `vm.expectRevert` sees a real call.
     function setAtFreePointer(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePointer)
         external
         pure
