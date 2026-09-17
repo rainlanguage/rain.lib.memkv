@@ -69,8 +69,13 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// An empty store exports an empty array and allocates the length header
-    /// and nothing else: exactly 0x20 bytes.
+    /// and nothing else: exactly 0x20 bytes. The zero length is WRITTEN, not
+    /// inherited from memory that happened to be zero, so the header word is
+    /// dirtied first: an export that wrote no header would hand back the
+    /// sentinel as the length.
     function testExportEmptyAllocatesOnlyTheHeader() external pure {
+        dirtyFreeMemory(bytes32(type(uint256).max), 1);
+
         Pointer before = LibPointer.allocatedMemoryPointer();
         bytes32[] memory array = LibMemoryKV.toBytes32Array(MEMORY_KV_EMPTY);
         Pointer afterPointer = LibPointer.allocatedMemoryPointer();
