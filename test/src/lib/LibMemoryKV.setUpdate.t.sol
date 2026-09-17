@@ -39,6 +39,18 @@ contract LibMemoryKVSetUpdateTest is Test {
         revert("no key for slot");
     }
 
+    /// Two keys that share an internal list and differ in exactly one bit.
+    function collidingPairDifferingInBit(uint256 bit) internal pure returns (MemoryKVKey, MemoryKVKey) {
+        for (uint256 i = 1; i < 10000; i++) {
+            bytes32 first = keccak256(abi.encodePacked(i));
+            bytes32 second = first ^ bytes32(uint256(1) << bit);
+            if (slotOf(MemoryKVKey.wrap(first)) == slotOf(MemoryKVKey.wrap(second))) {
+                return (MemoryKVKey.wrap(first), MemoryKVKey.wrap(second));
+            }
+        }
+        revert("no colliding pair");
+    }
+
     /// The word count the store carries in its top 16 bits.
     function lengthOf(MemoryKV kv) internal pure returns (uint256) {
         return MemoryKV.unwrap(kv) >> 0xf0;
@@ -272,5 +284,27 @@ contract LibMemoryKVSetUpdateTest is Test {
         assertEq(MemoryKV.unwrap(kv), before, "kv word");
         assertEq(lengthOf(kv), distinct * 2, "length after");
         assertEq(kv.toBytes32Array().length, distinct * 2, "array length");
+    }
+
+    /// The match compares the whole 256 bit key word, so two keys that differ
+    /// in a single bit are two keys. The pairs below differ at the top and at
+    /// the bottom of the word, the ends a narrowed comparison drops first, and
+    /// both keys of a pair share one internal list so the comparison is the
+    /// only thing between them. A comparison that ignored the differing bit
+    /// would stop at the first key's node and overwrite its value instead of
+    /// inserting the second key, leaving one pair where there must be two.
+    function testSetDistinguishesKeysDifferingInOneBit() external pure {
+        uint256[2] memory bits = [uint256(0), 0xff];
+        for (uint256 i = 0; i < bits.length; i++) {
+            (MemoryKVKey first, MemoryKVKey second) = collidingPairDifferingInBit(bits[i]);
+            assertEq(slotOf(first), slotOf(second), "one list");
+
+            MemoryKV kv = MEMORY_KV_EMPTY.set(first, val(11)).set(second, val(22));
+
+            assertEq(lengthOf(kv), 4, "both keys stored");
+            assertValue(kv, first, 11, "first");
+            assertValue(kv, second, 22, "second");
+            assertEq(kv.toBytes32Array().length, 4, "array length");
+        }
     }
 }
