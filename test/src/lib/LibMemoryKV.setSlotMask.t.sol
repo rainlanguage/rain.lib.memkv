@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {keyForSlot, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetSlotMaskTest
 /// An insert clears its list's head slot and writes the new head into it, and
@@ -27,34 +28,6 @@ contract LibMemoryKVSetSlotMaskTest is Test {
 
     /// An even node address clear of the three words at `ODD_POINTER`.
     uint256 internal constant EVEN_POINTER = 0x180;
-
-    /// The list a key belongs to, restated from the store's own documented hash
-    /// so the expectation is not the implementation's expression read back.
-    function slotOf(MemoryKVKey key) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f;
-    }
-
-    /// Rehash `seed` until the key lands in `slot`.
-    function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (MemoryKVKey) {
-        bytes32 key = seed;
-        for (uint256 i = 0; i < 10000; i++) {
-            if (slotOf(MemoryKVKey.wrap(key)) == slot) {
-                return MemoryKVKey.wrap(key);
-            }
-            key = keccak256(abi.encodePacked(key));
-        }
-        revert("no key for slot");
-    }
-
-    /// The 16 bit head pointer the store holds for `slot`.
-    function headOf(MemoryKV kv, uint256 slot) internal pure returns (uint256) {
-        return (MemoryKV.unwrap(kv) >> (slot * 0x10)) & 0xFFFF;
-    }
-
-    /// The word count the store carries in its top 16 bits.
-    function lengthOf(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
 
     /// Insert `first` at `firstPointer`, then `second` at `secondPointer`, and
     /// read `first` back in the frame that owns both nodes. The nodes die with

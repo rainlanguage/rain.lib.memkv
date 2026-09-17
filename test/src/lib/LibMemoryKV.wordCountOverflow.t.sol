@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -32,10 +33,6 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     /// Somewhere low enough that the inserted node's address cannot be what
     /// overflows, and clear of the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
-
-    function count(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> COUNT_BIT_OFFSET;
-    }
 
     function withCount(MemoryKV kv, uint256 newCount) internal pure returns (MemoryKV) {
         return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
@@ -112,7 +109,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             withCount(MEMORY_KV_EMPTY, 0xFFFC), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
-        assertEq(count(kv), 0xFFFE, "the widest count that fits is written whole");
+        assertEq(lengthOf(kv), 0xFFFE, "the widest count that fits is written whole");
 
         uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
         assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");
@@ -131,7 +128,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             LOW_FREE_POINTER
         );
 
-        assertEq(count(kv), COUNT_MAX, "an update leaves the count alone");
+        assertEq(lengthOf(kv), COUNT_MAX, "an update leaves the count alone");
         assertEq(exists, 1, "the key is still there");
         assertEq(uint256(value), 3, "the update took effect");
     }
@@ -160,7 +157,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             withCount(MEMORY_KV_EMPTY, 0xFFFD), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
-        assertEq(count(kv), 0xFFFF, "a count of exactly the bound is written whole");
+        assertEq(lengthOf(kv), 0xFFFF, "a count of exactly the bound is written whole");
 
         uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
         assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");

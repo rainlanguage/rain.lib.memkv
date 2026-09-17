@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
@@ -26,10 +27,8 @@ contract LibMemoryKVGetMatchTest is Test {
     {
         MemoryKV kv;
         uint256 node;
+        uint256 bitOffset = slotOf(MemoryKVKey.unwrap(queryKey)) * 0x10;
         assembly ("memory-safe") {
-            mstore(0, queryKey)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 0x0f), 0x10)
-
             node := mload(0x40)
             mstore(0x40, add(node, 0x60))
             mstore(node, nodeKey)
@@ -48,21 +47,6 @@ contract LibMemoryKVGetMatchTest is Test {
         assembly ("memory-safe") {
             mstore(node, key)
         }
-    }
-
-    /// Rehashes `seed` until the key it yields hashes into `slot`, so a case
-    /// can drive several keys onto one internal list.
-    function keyInSlot(bytes32 seed, uint256 slot) internal pure returns (MemoryKVKey) {
-        bytes32 key = seed;
-        assembly ("memory-safe") {
-            for {} 1 {} {
-                mstore(0, key)
-                if eq(mod(keccak256(0, 0x20), 0x0f), slot) { break }
-                mstore(0, key)
-                key := keccak256(0, 0x20)
-            }
-        }
-        return MemoryKVKey.wrap(key);
     }
 
     /// The match is equality across the whole 256 bit word: a node key one bit
@@ -98,9 +82,9 @@ contract LibMemoryKVGetMatchTest is Test {
     /// three keys are driven onto one list rather than left to collide by
     /// chance, which two arbitrary keys do one time in fifteen.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
-        MemoryKVKey head = keyInSlot(bytes32(uint256(1)), 5);
-        MemoryKVKey tail = keyInSlot(bytes32(uint256(2)), 5);
-        MemoryKVKey absent = keyInSlot(bytes32(uint256(3)), 5);
+        MemoryKVKey head = keyForSlot(bytes32(uint256(1)), 5);
+        MemoryKVKey tail = keyForSlot(bytes32(uint256(2)), 5);
+        MemoryKVKey absent = keyForSlot(bytes32(uint256(3)), 5);
         assertTrue(MemoryKVKey.unwrap(head) != MemoryKVKey.unwrap(tail), "head and tail are different keys");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(head), "absent is not the head key");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(tail), "absent is not the tail key");

@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {keyForSlot, lengthOf, assertValue} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two claims about a `MemoryKV` handle that no mutation of the library can
@@ -22,28 +23,6 @@ contract LibMemoryKVCrossFunctionTest is Test {
     /// argument so the nodes cannot land on it, and low enough that fifteen
     /// nodes all fit under the `0xFFFF` head pointer bound.
     uint256 internal constant SATURATED_BASE = 0x300;
-
-    /// Rehash `key` until it lands in internal list `slot`.
-    function keyForSlot(bytes32 key, uint256 slot) internal pure returns (bytes32) {
-        while (uint256(keccak256(abi.encodePacked(key))) % LIST_COUNT != slot) {
-            key = keccak256(abi.encodePacked(key));
-        }
-        return key;
-    }
-
-    function bitOffsetOf(bytes32 key) internal pure returns (uint256) {
-        return (uint256(keccak256(abi.encodePacked(key))) % LIST_COUNT) * SLOT_BITS;
-    }
-
-    function lengthOf(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
-
-    function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory err) internal pure {
-        (uint256 exists, MemoryKVVal got) = kv.get(key);
-        assertEq(exists, 1, string.concat(err, " exists"));
-        assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
-    }
 
     /// Build a store holding one key in each of the fifteen internal lists,
     /// from a free memory pointer this frame fixes, and hand back only the
@@ -69,7 +48,7 @@ contract LibMemoryKVCrossFunctionTest is Test {
         bytes32[] memory keys = new bytes32[](LIST_COUNT);
         uint256 expected = (LIST_COUNT * 2) << 0xf0;
         for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
-            keys[slot] = keyForSlot(keccak256(abi.encode(seed, slot)), slot);
+            keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             expected |= (SATURATED_BASE + slot * NODE_SIZE) << (slot * SLOT_BITS);
         }
 

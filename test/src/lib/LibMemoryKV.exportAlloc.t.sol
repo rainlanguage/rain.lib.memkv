@@ -6,6 +6,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
+import {slotOf, keyForSlot, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every
@@ -20,35 +22,6 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// `array.length` would only restate whatever the implementation wrote.
 contract LibMemoryKVExportAllocTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// Fill `words` words of memory from the free memory pointer up with a
-    /// sentinel, WITHOUT allocating them. Anything an export subsequently
-    /// hands back that still reads as the sentinel is memory the export
-    /// claimed but never wrote.
-    function dirtyFreeMemory(bytes32 sentinel, uint256 words) internal pure {
-        assembly ("memory-safe") {
-            let cursor := mload(0x40)
-            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                mstore(cursor, sentinel)
-                cursor := add(cursor, 0x20)
-            }
-        }
-    }
-
-    /// Rehash `key` until it lands in internal list `slot`. Mirrors the hash
-    /// `get`/`set` use so a test can put several keys into ONE linked list and
-    /// force the walk to take more than one step.
-    function keyForSlot(bytes32 key, uint256 slot) internal pure returns (bytes32) {
-        assembly ("memory-safe") {
-            for {} 1 {} {
-                mstore(0, key)
-                if eq(mod(keccak256(0, 0x20), 0x0f), slot) { break }
-                mstore(0, key)
-                key := keccak256(0, 0x20)
-            }
-        }
-        return key;
-    }
 
     /// Number of distinct keys in a pairwise `kvs`, counted by the test rather
     /// than by the thing under test.
@@ -225,12 +198,12 @@ contract LibMemoryKVExportAllocTest is Test {
     function testExportCopiesZeroKey(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
         bytes32 zeroKeyValue = keccak256(abi.encode(seed, "zero key value"));
-        uint256 slot = uint256(keccak256(abi.encodePacked(bytes32(0)))) % 15;
+        uint256 slot = slotOf(bytes32(0));
 
         MemoryKV kv = MEMORY_KV_EMPTY;
         bytes32[] memory behind = new bytes32[](4);
         for (uint256 i = 0; i < behind.length; i++) {
-            behind[i] = keyForSlot(keccak256(abi.encode(seed, i)), slot);
+            behind[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), slot));
             kv = kv.set(MemoryKVKey.wrap(behind[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
         kv = kv.set(MemoryKVKey.wrap(bytes32(0)), MemoryKVVal.wrap(zeroKeyValue));
@@ -250,13 +223,7 @@ contract LibMemoryKVExportAllocTest is Test {
         assertTrue(found, "the zero key was exported");
 
         for (uint256 i = 0; i < behind.length; i++) {
-            bool alsoFound = false;
-            for (uint256 j = 0; j < array.length; j += 2) {
-                if (array[j] == behind[i] && array[j + 1] == bytes32(i + 1)) {
-                    alsoFound = true;
-                }
-            }
-            assertTrue(alsoFound, "the walk did not stop at the zero key");
+            assertTrue(countPair(array, behind[i], bytes32(i + 1)) != 0, "the walk did not stop at the zero key");
         }
     }
 
@@ -293,7 +260,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](5);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
-            keys[i] = keyForSlot(keccak256(abi.encode(seed, i)), slot);
+            keys[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), slot));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
@@ -329,7 +296,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](4);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
-            keys[i] = keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : 14);
+            keys[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : 14));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
@@ -338,11 +305,7 @@ contract LibMemoryKVExportAllocTest is Test {
 
         uint256 matched = 0;
         for (uint256 i = 0; i < keys.length; i++) {
-            for (uint256 j = 0; j < array.length; j += 2) {
-                if (array[j] == keys[i] && array[j + 1] == bytes32(i + 1)) {
-                    matched += 1;
-                }
-            }
+            matched += countPair(array, keys[i], bytes32(i + 1));
         }
         assertEq(matched, keys.length, "every pair from both lists, exactly once");
     }
@@ -355,7 +318,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](15);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 slot = 0; slot < 15; slot++) {
-            keys[slot] = keyForSlot(keccak256(abi.encode(seed, slot)), slot);
+            keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(bytes32(slot + 1)));
         }
 
