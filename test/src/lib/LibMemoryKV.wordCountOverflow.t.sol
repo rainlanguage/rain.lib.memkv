@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -24,19 +24,9 @@ import {lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 /// two values meet at `0xFFFF` is here too: what that comparison still accepts,
 /// and which of the two an overflow is reported as.
 contract LibMemoryKVWordCountOverflowTest is Test {
-    /// The bit offset of the word count in `MemoryKV`.
-    uint256 internal constant COUNT_BIT_OFFSET = 0xf0;
-
-    /// The widest count the field holds.
-    uint256 internal constant COUNT_MAX = 0xFFFF;
-
     /// Somewhere low enough that the inserted node's address cannot be what
     /// overflows, and clear of the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
-
-    function withCount(MemoryKV kv, uint256 newCount) internal pure returns (MemoryKV) {
-        return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
-    }
 
     /// Insert against a chosen free memory pointer so the node's address is a
     /// known value rather than wherever this test frame happens to have reached.

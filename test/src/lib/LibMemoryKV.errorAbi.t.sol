@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVErrorAbiTest
 /// Every other test that expects one of these errors builds the expectation
@@ -15,12 +16,6 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// expected returndata from that string, pinning each error to exactly one
 /// `uint256` argument and to a selector the other error does not share.
 contract LibMemoryKVErrorAbiTest is Test {
-    /// The bit offset of the word count in `MemoryKV`.
-    uint256 internal constant COUNT_BIT_OFFSET = 0xf0;
-
-    /// The widest count the field holds.
-    uint256 internal constant COUNT_MAX = 0xFFFF;
-
     /// A node address low enough that it cannot be what overflows, and clear of
     /// the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
@@ -28,10 +23,6 @@ contract LibMemoryKVErrorAbiTest is Test {
     /// A node address above the widest head pointer a list slot holds, and
     /// distinct from both that bound and one past it.
     uint256 internal constant HIGH_FREE_POINTER = 0x12345;
-
-    function withCount(MemoryKV kv, uint256 newCount) internal pure returns (MemoryKV) {
-        return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
-    }
 
     /// Insert against a chosen free memory pointer so the node's address is a
     /// known value rather than wherever this test frame happens to have
