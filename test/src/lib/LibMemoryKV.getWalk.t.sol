@@ -14,6 +14,9 @@ import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
 /// public API can build a list holding one key twice, so the only way to state
 /// that agreement as an observable value is to hand both functions a list that
 /// does, which these tests build directly in memory.
+///
+/// The walk is also a read: crossing a list leaves every allocated byte and the
+/// free memory pointer where they were.
 contract LibMemoryKVGetWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -126,5 +129,71 @@ contract LibMemoryKVGetWalkTest is Test {
         (uint256 headExists, MemoryKVVal headValue) = kv.get(headKey);
         assertEq(headExists, 1, "head exists");
         assertEq(MemoryKVVal.unwrap(headValue), bytes32(uint256(111)), "head value");
+    }
+
+    /// Three keys forced onto ONE internal list, the first one set ending up at
+    /// the tail because `set` prepends, plus a fourth key on that same list
+    /// that was never set. A lookup for either returned key crosses the whole
+    /// list rather than answering from the head.
+    function threeKeysInOneList() internal pure returns (MemoryKV, MemoryKVKey, MemoryKVKey) {
+        MemoryKVKey deepest = keyInSlot(bytes32(uint256(1)), 9);
+        MemoryKVKey middle = keyInSlot(bytes32(uint256(2)), 9);
+        MemoryKVKey head = keyInSlot(bytes32(uint256(3)), 9);
+        MemoryKVKey absent = keyInSlot(bytes32(uint256(4)), 9);
+
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        kv = kv.set(deepest, MemoryKVVal.wrap(bytes32(uint256(111))));
+        kv = kv.set(middle, MemoryKVVal.wrap(bytes32(uint256(222))));
+        kv = kv.set(head, MemoryKVVal.wrap(bytes32(uint256(333))));
+
+        // Six words is three inserts, so the three keys are distinct and the
+        // list is three nodes deep rather than one node updated twice.
+        require(MemoryKV.unwrap(kv) >> 0xf0 == 6, "three distinct keys on one list");
+
+        return (kv, deepest, absent);
+    }
+
+    /// Hashes every allocated byte, and the free memory pointer that bounds
+    /// them, without allocating: taking it either side of a call measures that
+    /// call alone.
+    function allocatedMemory() internal pure returns (bytes32, uint256) {
+        bytes32 digest;
+        uint256 freeMemoryPointer;
+        assembly ("memory-safe") {
+            freeMemoryPointer := mload(0x40)
+            digest := keccak256(0x60, sub(freeMemoryPointer, 0x60))
+        }
+        return (digest, freeMemoryPointer);
+    }
+
+    /// A hit at the tail crosses every node in front of it and leaves memory
+    /// exactly as it was. A walk that wrote through the pointers it follows, or
+    /// that allocated as it went, would corrupt or leak once per lookup while
+    /// still returning the right pair, so the returned pair cannot state this.
+    function testGetHitLeavesMemoryUntouched() external pure {
+        (MemoryKV kv, MemoryKVKey deepest,) = threeKeysInOneList();
+
+        (bytes32 digestBefore, uint256 freeBefore) = allocatedMemory();
+        (uint256 exists, MemoryKVVal value) = kv.get(deepest);
+        (bytes32 digestAfter, uint256 freeAfter) = allocatedMemory();
+
+        assertEq(exists, 1, "tail key exists");
+        assertEq(MemoryKVVal.unwrap(value), bytes32(uint256(111)), "tail value");
+        assertEq(freeAfter, freeBefore, "free memory pointer");
+        assertEq(digestAfter, digestBefore, "allocated memory");
+    }
+
+    /// The same for a miss, which crosses every node and then the terminator.
+    function testGetMissLeavesMemoryUntouched() external pure {
+        (MemoryKV kv,, MemoryKVKey absent) = threeKeysInOneList();
+
+        (bytes32 digestBefore, uint256 freeBefore) = allocatedMemory();
+        (uint256 exists, MemoryKVVal value) = kv.get(absent);
+        (bytes32 digestAfter, uint256 freeAfter) = allocatedMemory();
+
+        assertEq(exists, 0, "absent key");
+        assertEq(MemoryKVVal.unwrap(value), bytes32(0), "absent value");
+        assertEq(freeAfter, freeBefore, "free memory pointer");
+        assertEq(digestAfter, digestBefore, "allocated memory");
     }
 }

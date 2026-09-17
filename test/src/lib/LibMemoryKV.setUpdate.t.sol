@@ -7,7 +7,15 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {keyForSlot, lengthOf, headOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {
+    keyForSlot,
+    slotOf,
+    collidingPairDifferingInBit,
+    lengthOf,
+    headOf,
+    assertValue,
+    val
+} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetUpdateTest
 /// `set` hashes the key to one of 15 internal lists, walks that list for a
@@ -230,5 +238,25 @@ contract LibMemoryKVSetUpdateTest is Test {
         assertEq(MemoryKV.unwrap(kv), before, "kv word");
         assertEq(lengthOf(kv), distinct * 2, "length after");
         assertEq(kv.toBytes32Array().length, distinct * 2, "array length");
+    }
+
+    /// The match compares the whole 256 bit key word. Each pair below shares
+    /// one internal list and differs in a single bit, at the top and at the
+    /// bottom of the word, so a comparison narrowed at either end would stop at
+    /// the first key's node and overwrite its value instead of inserting the
+    /// second key, leaving one pair where there must be two.
+    function testSetDistinguishesKeysDifferingInOneBit() external pure {
+        uint256[2] memory bits = [uint256(0), 0xff];
+        for (uint256 i = 0; i < bits.length; i++) {
+            (MemoryKVKey first, MemoryKVKey second) = collidingPairDifferingInBit(0, bits[i]);
+            assertEq(slotOf(MemoryKVKey.unwrap(first)), slotOf(MemoryKVKey.unwrap(second)), "one list");
+
+            MemoryKV kv = MEMORY_KV_EMPTY.set(first, val(11)).set(second, val(22));
+
+            assertEq(lengthOf(kv), 4, "both keys stored");
+            assertValue(kv, first, 11, "first");
+            assertValue(kv, second, 22, "second");
+            assertEq(kv.toBytes32Array().length, 4, "array length");
+        }
     }
 }
