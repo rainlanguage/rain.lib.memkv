@@ -136,10 +136,10 @@ contract LibMemoryKVGetWalkTest is Test {
     /// that was never set. A lookup for either returned key crosses the whole
     /// list rather than answering from the head.
     function threeKeysInOneList() internal pure returns (MemoryKV, MemoryKVKey, MemoryKVKey) {
-        MemoryKVKey deepest = keyInSlot(bytes32(uint256(1)), 9);
-        MemoryKVKey middle = keyInSlot(bytes32(uint256(2)), 9);
-        MemoryKVKey head = keyInSlot(bytes32(uint256(3)), 9);
-        MemoryKVKey absent = keyInSlot(bytes32(uint256(4)), 9);
+        MemoryKVKey deepest = keyForSlot(bytes32(uint256(1)), 9);
+        MemoryKVKey middle = keyForSlot(bytes32(uint256(2)), 9);
+        MemoryKVKey head = keyForSlot(bytes32(uint256(3)), 9);
+        MemoryKVKey absent = keyForSlot(bytes32(uint256(4)), 9);
 
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(deepest, MemoryKVVal.wrap(bytes32(uint256(111))));
