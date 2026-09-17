@@ -5,6 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
@@ -14,6 +16,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// nothing about the comparison.
 contract LibMemoryKVGetMatchTest is Test {
     using LibMemoryKV for MemoryKV;
+    using LibMemoryKVTestHandle for MemoryKV;
 
     /// A one node list holding `nodeKey`, hung off the internal list that
     /// `queryKey` hashes to, so a `get` for `queryKey` reaches that node
@@ -50,21 +53,6 @@ contract LibMemoryKVGetMatchTest is Test {
         }
     }
 
-    /// Rehashes `seed` until the key it yields hashes into `slot`, so a case
-    /// can drive several keys onto one internal list.
-    function keyInSlot(bytes32 seed, uint256 slot) internal pure returns (MemoryKVKey) {
-        bytes32 key = seed;
-        assembly ("memory-safe") {
-            for {} 1 {} {
-                mstore(0, key)
-                if eq(mod(keccak256(0, 0x20), 0x0f), slot) { break }
-                mstore(0, key)
-                key := keccak256(0, 0x20)
-            }
-        }
-        return MemoryKVKey.wrap(key);
-    }
-
     /// The match is equality across the whole 256 bit word: a node key one bit
     /// away from the query key is a different key, whichever of the 256 bits it
     /// is. A comparison narrower than the word would answer for a neighbouring
@@ -98,9 +86,9 @@ contract LibMemoryKVGetMatchTest is Test {
     /// three keys are driven onto one list rather than left to collide by
     /// chance, which two arbitrary keys do one time in fifteen.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
-        MemoryKVKey head = keyInSlot(bytes32(uint256(1)), 5);
-        MemoryKVKey tail = keyInSlot(bytes32(uint256(2)), 5);
-        MemoryKVKey absent = keyInSlot(bytes32(uint256(3)), 5);
+        MemoryKVKey head = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 5);
+        MemoryKVKey tail = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(2)), 5);
+        MemoryKVKey absent = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(3)), 5);
         assertTrue(MemoryKVKey.unwrap(head) != MemoryKVKey.unwrap(tail), "head and tail are different keys");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(head), "absent is not the head key");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(tail), "absent is not the tail key");
@@ -108,8 +96,8 @@ contract LibMemoryKVGetMatchTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(tail, MemoryKVVal.wrap(bytes32(uint256(0x222))));
         kv = kv.set(head, MemoryKVVal.wrap(bytes32(uint256(0x111))));
-        assertTrue(((MemoryKV.unwrap(kv) >> 0x50) & 0xFFFF) != 0, "the absent key's list is occupied");
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "both pairs are in the store");
+        assertTrue(kv.headOf(5) != 0, "the absent key's list is occupied");
+        assertEq(kv.lengthOf(), 4, "both pairs are in the store");
 
         (uint256 exists, MemoryKVVal value) = kv.get(absent);
         assertEq(exists, 0, "the absent key is not in the store");

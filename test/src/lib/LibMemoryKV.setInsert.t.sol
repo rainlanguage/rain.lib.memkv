@@ -6,6 +6,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 
 /// @title LibMemoryKVSetInsertTest
 /// The insert half of `set`, asserted against the documented SHAPE of the store
@@ -18,28 +20,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// node, prepend it to its list, and add two to a SIXTEEN bit count.
 contract LibMemoryKVSetInsertTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// How many candidate keys `keysInOneSlot` tries before giving up. One key
-    /// in 15 lands in any given list, so this is far more than the counts
-    /// asked for here need, and it bounds a search that otherwise cannot end.
-    uint256 internal constant CANDIDATE_LIMIT = 10000;
-
-    /// The bit offset of the list a key belongs to. Recomputed here from the
-    /// documented hash ("Hash logic MUST match set") in Solidity, so the
-    /// expectation is not the implementation's own expression read back.
-    function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
-        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
-    }
-
-    /// The head pointer `kv` records for the list that `key` belongs to.
-    function slotPointer(MemoryKV kv, MemoryKVKey key) internal pure returns (uint256) {
-        return (MemoryKV.unwrap(kv) >> slotBitOffset(key)) & 0xFFFF;
-    }
-
-    /// The 16 bit word count in the top of `kv`.
-    function wordCount(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
+    using LibMemoryKVTestHandle for MemoryKV;
 
     /// The three words of a list node as written by an insert.
     function readNode(uint256 pointer) internal pure returns (bytes32 nodeKey, bytes32 nodeValue, uint256 next) {
@@ -48,24 +29,6 @@ contract LibMemoryKVSetInsertTest is Test {
             nodeValue := mload(add(pointer, 0x20))
             next := mload(add(pointer, 0x40))
         }
-    }
-
-    /// `count` distinct keys that all hash into ONE of the 15 lists, so a
-    /// second and third insert into the SAME list are observable.
-    function keysInOneSlot(uint256 count) internal pure returns (MemoryKVKey[] memory keys) {
-        keys = new MemoryKVKey[](count);
-        MemoryKVKey first = MemoryKVKey.wrap(bytes32(uint256(1)));
-        uint256 bitOffset = slotBitOffset(first);
-        keys[0] = first;
-        uint256 found = 1;
-        for (uint256 i = 2; found < count && i <= CANDIDATE_LIMIT; i++) {
-            MemoryKVKey candidate = MemoryKVKey.wrap(bytes32(i));
-            if (slotBitOffset(candidate) == bitOffset) {
-                keys[found] = candidate;
-                found++;
-            }
-        }
-        require(found == count, "keysInOneSlot: candidate limit hit before enough colliding keys");
     }
 
     /// Insert against an arbitrary free memory pointer so the inserted node's
@@ -100,8 +63,8 @@ contract LibMemoryKVSetInsertTest is Test {
         uint256 allocatedAfter = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
 
         assertEq(allocatedAfter, nodePointer + 0x60, "three words allocated");
-        assertEq(slotPointer(kv, key), nodePointer, "list head is the node address");
-        assertEq(wordCount(kv), 2, "one pair is two words");
+        assertEq(kv.headOf(key), nodePointer, "list head is the node address");
+        assertEq(kv.lengthOf(), 2, "one pair is two words");
 
         (bytes32 nodeKey, bytes32 nodeValue, uint256 next) = readNode(nodePointer);
         assertEq(nodeKey, MemoryKVKey.unwrap(key), "key at node+0x00");
@@ -114,7 +77,7 @@ contract LibMemoryKVSetInsertTest is Test {
     /// the chain of addresses, which is the fact that "nothing inserted is
     /// lost" rests on.
     function testSetInsertPrependsWithinOneList() external pure {
-        MemoryKVKey[] memory keys = keysInOneSlot(3);
+        MemoryKVKey[] memory keys = LibMemoryKVTestKeys.keysInSlot(bytes32(uint256(1)), 0, 3);
         MemoryKV kv = MEMORY_KV_EMPTY;
 
         uint256 node0 = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
@@ -129,8 +92,8 @@ contract LibMemoryKVSetInsertTest is Test {
 
         // The head is the newest node, and ONLY the newest -- the old head is
         // masked out of the slot rather than ored together with the new one.
-        assertEq(slotPointer(kv, keys[0]), node2, "head is the newest node");
-        assertEq(wordCount(kv), 6, "three pairs is six words");
+        assertEq(kv.headOf(keys[0]), node2, "head is the newest node");
+        assertEq(kv.lengthOf(), 6, "three pairs is six words");
 
         {
             (bytes32 nodeKey, bytes32 nodeValue, uint256 next) = readNode(node2);
@@ -169,7 +132,7 @@ contract LibMemoryKVSetInsertTest is Test {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i * 7)));
         }
 
-        assertEq(wordCount(kv), pairs * 2, "400 words, not a count truncated to a byte on each insert");
+        assertEq(kv.lengthOf(), pairs * 2, "400 words, not a count truncated to a byte on each insert");
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, pairs * 2, "export is preallocated from the full count");
@@ -197,8 +160,8 @@ contract LibMemoryKVSetInsertTest is Test {
     /// `0xF000`, not a truncation of it.
     function testSetInsertRecordsTheFullSixteenBitPointer(MemoryKVKey key, MemoryKVVal value) external view {
         MemoryKV kv = this.setAtFreePointerExternal(MEMORY_KV_EMPTY, key, value, 0xF000);
-        assertEq(slotPointer(kv, key), 0xF000, "the whole 16 bit pointer reaches the slot");
-        assertEq(wordCount(kv), 2, "one pair is two words");
+        assertEq(kv.headOf(key), 0xF000, "the whole 16 bit pointer reaches the slot");
+        assertEq(kv.lengthOf(), 2, "one pair is two words");
     }
 
     /// The head pointer an insert produces exists ONLY in the returned store,
@@ -225,12 +188,12 @@ contract LibMemoryKVSetInsertTest is Test {
         assertEq(nodeValue, MemoryKVVal.unwrap(valueB), "with the value");
 
         assertEq(MemoryKV.unwrap(kv), dropped, "the dropped store is the word it already had");
-        assertEq(wordCount(kv), 2, "the dropped store still counts one pair");
+        assertEq(kv.lengthOf(), 2, "the dropped store still counts one pair");
         assertEq(kv.toBytes32Array().length, 2, "and exports one pair");
         assertFalse(kv.has(keyB), "the insert is unreachable from the dropped store");
 
-        assertEq(slotPointer(returned, keyB), nodeB, "the returned store heads the new node");
-        assertEq(wordCount(returned), 4, "the returned store counts two pairs");
+        assertEq(returned.headOf(keyB), nodeB, "the returned store heads the new node");
+        assertEq(returned.lengthOf(), 4, "the returned store counts two pairs");
         (uint256 exists, MemoryKVVal value) = returned.get(keyB);
         assertEq(exists, 1, "the returned store has the key");
         assertEq(MemoryKVVal.unwrap(value), MemoryKVVal.unwrap(valueB), "and the value");

@@ -6,8 +6,13 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 
 contract LibMemoryKVGetSetTest is Test {
+    using LibMemoryKVTestKeys for MemoryKVKey;
+    using LibMemoryKVTestHandle for MemoryKV;
+
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
         assembly ("memory-safe") {
             // Set the pointer past 0xFFFF to cause an overflow on the next
@@ -44,13 +49,6 @@ contract LibMemoryKVGetSetTest is Test {
         return LibMemoryKV.set(kv, key, value);
     }
 
-    /// The bit offset of the internal list `key` belongs to, recomputed from
-    /// the documented hash ("Hash logic MUST match set") rather than read back
-    /// out of `kv`, so a pointer landing in the WRONG slot is a failure here.
-    function slotBitOffset(MemoryKVKey key) internal pure returns (uint256) {
-        return (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
-    }
-
     /// Insert at an exact free memory pointer and read the key back inside the
     /// SAME call frame, as the node only exists in that frame's memory.
     function setAtPointerThenGetExternal(MemoryKVKey key, MemoryKVVal value, uint256 freePtr)
@@ -81,19 +79,6 @@ contract LibMemoryKVGetSetTest is Test {
         return LibMemoryKV.get(kv, first);
     }
 
-    /// A key hashing into the same internal list as `key`, so one list holds
-    /// both and `get` has to follow a next pointer to cross between them.
-    function collidingKey(MemoryKVKey key) internal pure returns (MemoryKVKey) {
-        uint256 bitOffset = slotBitOffset(key);
-        for (uint256 i = 1; i <= 10000; i++) {
-            MemoryKVKey candidate = MemoryKVKey.wrap(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key), i)));
-            if (slotBitOffset(candidate) == bitOffset) {
-                return candidate;
-            }
-        }
-        revert("collidingKey: candidate limit hit before a colliding key");
-    }
-
     /// The pointer `0xFFFF` is the MAXIMUM valid 16 bit pointer and an insert
     /// landing exactly on it MUST succeed (NOT revert). This is the lower edge
     /// of the overflow boundary: `pointer > 0xFFFF` reverts, so `0xFFFF` itself
@@ -108,13 +93,10 @@ contract LibMemoryKVGetSetTest is Test {
 
         // The inserted list item must live at exactly 0xFFFF, so the slot for
         // this key must encode the pointer 0xFFFF.
-        uint256 raw = MemoryKV.unwrap(kv);
-        assertEq(
-            (raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot"
-        );
+        assertEq(kv.headOf(key), 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot");
 
         // The length must be exactly 2 words (one key/value pair).
-        assertEq(raw >> 0xf0, 2, "length");
+        assertEq(kv.lengthOf(), 2, "length");
     }
 
     /// One below the max pointer (`0xFFFE`) must also be accepted and encode
@@ -124,9 +106,8 @@ contract LibMemoryKVGetSetTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
 
-        uint256 raw = MemoryKV.unwrap(kv);
-        assertEq((raw >> slotBitOffset(key)) & 0xFFFF, 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
-        assertEq(raw >> 0xf0, 2, "length");
+        assertEq(kv.headOf(key), 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
+        assertEq(kv.lengthOf(), 2, "length");
     }
 
     /// The first pointer past the max (`0x10000`) MUST revert with the exact
@@ -156,7 +137,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// the walk from that node down to the first one has to read across the
     /// bound to find it.
     function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
-        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, collidingKey(key), value, 0xFFC0);
+        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, key.collidingKey(), value, 0xFFC0);
 
         assertEq(exists, 1, "the walk reaches the first key through a next word at 0x10000");
         assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");

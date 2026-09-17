@@ -5,6 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
@@ -16,6 +18,8 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// pairs behind that node are lost.
 contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
+    using LibMemoryKVTestKeys for MemoryKVKey;
+    using LibMemoryKVTestHandle for MemoryKV;
 
     /// The widest head pointer a list slot can hold.
     uint256 constant POINTER_MAX = 0xFFFF;
@@ -43,21 +47,6 @@ contract LibMemoryKVExportWalkTest is Test {
     bytes32 constant VALUE_TAIL = bytes32(uint256(0xDEC0DE));
     bytes32 constant VALUE_HEAD = bytes32(uint256(0xC0FFEE));
 
-    /// The internal list slot a key hashes into. MUST match `get`/`set`.
-    function slotOf(bytes32 key) internal pure returns (uint256) {
-        uint256 slot;
-        assembly ("memory-safe") {
-            mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 0x0f)
-        }
-        return slot;
-    }
-
-    /// The head pointer `kv` holds for `key`'s internal list.
-    function headOf(MemoryKV kv, bytes32 key) internal pure returns (uint256) {
-        return (MemoryKV.unwrap(kv) >> (slotOf(key) * 0x10)) & POINTER_MAX;
-    }
-
     /// Build the two key list at `pointer` and export it in the SAME frame, so
     /// the nodes the export walks are the ones this built. `KEY_TAIL` is
     /// inserted first, so `KEY_HEAD` is the list's head and `KEY_TAIL` is
@@ -77,12 +66,14 @@ contract LibMemoryKVExportWalkTest is Test {
     /// read truncated to 16 bits lands in the scratch space instead, where the
     /// last hashed key is, and the tail pair never reaches the array.
     function testExportWalksThroughANextWordAboveTheBound() external view {
-        assertEq(slotOf(KEY_HEAD), slotOf(KEY_TAIL), "the two keys share one list");
+        assertEq(
+            MemoryKVKey.wrap(KEY_HEAD).slotOf(), MemoryKVKey.wrap(KEY_TAIL).slotOf(), "the two keys share one list"
+        );
         assertGt(HEAD_POINTER + 0x40, POINTER_MAX, "the head node's next word is above the bound");
 
         (MemoryKV kv, bytes32[] memory array) = this.exportChainAtExternal(CHAIN_POINTER);
 
-        assertEq(headOf(kv, KEY_HEAD), HEAD_POINTER, "the list's head is the node at the bound");
+        assertEq(kv.headOf(MemoryKVKey.wrap(KEY_HEAD)), HEAD_POINTER, "the list's head is the node at the bound");
         assertEq(array.length, 4, "both pairs");
         assertEq(array[0], KEY_HEAD, "the head node's key");
         assertEq(array[1], VALUE_HEAD, "the head node's value");

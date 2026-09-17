@@ -8,9 +8,11 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
+import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
 
 contract LibMemoryKVArrayTest is Test {
     using LibMemoryKV for MemoryKV;
+    using LibMemoryKVTestExport for bytes32[];
 
     // The `Gas` tests assert nothing on purpose: each exists so that the gas
     // report carries the cost of exporting a store of that size and nothing
@@ -154,13 +156,7 @@ contract LibMemoryKVArrayTest is Test {
         // exactly once, so a list the bisect reads twice shows up as a linear
         // pair matched twice.
         for (uint256 i = 0; i < arrayLinear.length; i += 2) {
-            uint256 matches = 0;
-            for (uint256 j = 0; j < array.length; j += 2) {
-                if (array[j] == arrayLinear[i] && array[j + 1] == arrayLinear[i + 1]) {
-                    matches += 1;
-                }
-            }
-            assertEq(matches, 1, "each pair exported exactly once");
+            assertEq(array.countPair(arrayLinear[i], arrayLinear[i + 1]), 1, "each pair exported exactly once");
         }
     }
 }

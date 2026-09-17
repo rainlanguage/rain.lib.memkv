@@ -7,9 +7,12 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
+    using LibMemoryKVTestExport for bytes32[];
 
     uint256 internal constant LIST_COUNT = 15;
     uint256 internal constant LIST_POINTER_BITS = 0x10;
@@ -84,27 +87,10 @@ contract LibMemoryKVSaturateTest is Test {
         // Rehash each key until we get an even spread across all internal list
         // slots.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            bytes32 key = kvs[i];
+            MemoryKVKey key = LibMemoryKVTestKeys.keyForSlot(kvs[i], (i / 2) % LIST_COUNT);
+            kvs[i] = MemoryKVKey.unwrap(key);
 
-            assembly ("memory-safe") {
-                function calculateSlot(k) -> slot {
-                    mstore(0, k)
-                    slot := mod(keccak256(0, 0x20), LIST_COUNT)
-                }
-                for {} 1 {} {
-                    let slot := calculateSlot(key)
-
-                    switch eq(slot, mod(div(i, 2), LIST_COUNT))
-                    case 1 { break }
-                    default {
-                        mstore(0, key)
-                        key := keccak256(0, 0x20)
-                    }
-                }
-            }
-            kvs[i] = key;
-
-            kv = kv.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(kvs[i + 1]));
+            kv = kv.set(key, MemoryKVVal.wrap(kvs[i + 1]));
         }
 
         // Every kv slot should be nonzero at this point.
@@ -129,13 +115,7 @@ contract LibMemoryKVSaturateTest is Test {
         // Counted over every pair at once, a pair exported twice pays for a
         // pair not exported at all, so each pair is counted on its own.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            uint256 matches = 0;
-            for (uint256 j = 0; j < export.length; j += 2) {
-                if (kvs[i] == export[j] && kvs[i + 1] == export[j + 1]) {
-                    matches += 1;
-                }
-            }
-            assertEq(matches, 1, "each pair exported exactly once");
+            assertEq(export.countPair(kvs[i], kvs[i + 1]), 1, "each pair exported exactly once");
         }
     }
 }

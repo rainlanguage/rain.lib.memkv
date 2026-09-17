@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
 /// reason the export is a bisect rather than a loop and the reason any of this
@@ -52,38 +53,6 @@ contract LibMemoryKVGasClaimsTest is Test {
 
     /// What the README's `~` is read as here.
     uint256 constant ROUNDING_PERCENT = 10;
-
-    /// The internal list slot a key hashes into. MUST match `get`/`set`.
-    function slotOf(bytes32 key) internal pure returns (uint256) {
-        uint256 slot;
-        assembly ("memory-safe") {
-            mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 0x0f)
-        }
-        return slot;
-    }
-
-    /// Rehash `seed` until it lands in `slot`.
-    function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (bytes32) {
-        bytes32 key = seed;
-        while (slotOf(key) != slot) {
-            key = keccak256(abi.encodePacked(key));
-        }
-        return key;
-    }
-
-    /// `count` distinct keys that all hash into `COLLIDING_SLOT`, so setting
-    /// them in order builds one list `count` long.
-    function collidingKeys(uint256 count) internal pure returns (MemoryKVKey[] memory) {
-        MemoryKVKey[] memory keys = new MemoryKVKey[](count);
-        bytes32 seed = bytes32(uint256(1));
-        for (uint256 i = 0; i < count; i++) {
-            seed = keyForSlot(seed, COLLIDING_SLOT);
-            keys[i] = MemoryKVKey.wrap(seed);
-            seed = keccak256(abi.encodePacked(seed));
-        }
-        return keys;
-    }
 
     /// The README's figures are prefixed `~`, read here as `ROUNDING_PERCENT` in
     /// BOTH directions. A one sided bound is how the figure this replaced
@@ -136,8 +105,8 @@ contract LibMemoryKVGasClaimsTest is Test {
     function testExportGasIsUniformAcrossSlots() public view {
         MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
         for (uint256 slot = 0; slot < SLOTS; slot++) {
-            bytes32 key = keyForSlot(bytes32(slot + 1), slot);
-            kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
+            MemoryKVKey key = LibMemoryKVTestKeys.keyForSlot(bytes32(slot + 1), slot);
+            kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, key, MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
@@ -200,7 +169,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// target costs and carries none of the constant every measurement shares.
     function testCollidingGasMatchesReadme() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
-        MemoryKVKey[] memory keys = collidingKeys(COLLIDERS);
+        MemoryKVKey[] memory keys = LibMemoryKVTestKeys.keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
         // back walks the whole list. Hoisted out of every measurement below
         // because an array read inside the window is measured with the call.

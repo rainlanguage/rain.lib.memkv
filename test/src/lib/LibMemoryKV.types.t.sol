@@ -5,6 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
@@ -13,48 +15,14 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// arrives as a wrong export or a wrong walk. Here they are the word itself.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
+    using LibMemoryKVTestExport for bytes32[];
 
     /// One head pointer per internal linked list.
     uint256 internal constant SLOTS = 15;
 
-    /// The bit a key keeps that no random fuzz pair differs in alone.
-    uint256 internal constant TOP_BIT = uint256(1) << 0xff;
-
-    /// How many candidates `collidingTopBitPair` tries. One key in 15 shares a
-    /// list with its top bit partner, so this is far more than it needs, and it
-    /// bounds a search that otherwise cannot end.
-    uint256 internal constant CANDIDATE_LIMIT = 10000;
-
-    /// The internal list a key belongs to. Recomputed from the documented hash
-    /// in Solidity, so the expectation is not the implementation's own
-    /// expression read back.
-    function slotOf(bytes32 key) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(key))) % SLOTS;
-    }
-
-    /// A key and that same key with its top bit set, both landing in ONE
-    /// internal list, so the walk reaches both nodes and only the node key
-    /// compare tells them apart. `seed` picks which such pair.
-    function collidingTopBitPair(uint256 seed) internal pure returns (MemoryKVKey, MemoryKVKey) {
-        for (uint256 tries = 0; tries < CANDIDATE_LIMIT; tries++) {
-            bytes32 low = bytes32(uint256(keccak256(abi.encodePacked(seed, tries))) & ~TOP_BIT);
-            bytes32 high = bytes32(uint256(low) | TOP_BIT);
-            if (slotOf(low) == slotOf(high)) {
-                return (MemoryKVKey.wrap(low), MemoryKVKey.wrap(high));
-            }
-        }
-        revert("no top bit pair shares a list within the candidate limit");
-    }
-
-    /// Whether the export holds `key` immediately followed by `value`.
-    function exportHolds(bytes32[] memory array, bytes32 key, bytes32 value) internal pure returns (bool) {
-        for (uint256 i = 0; i < array.length; i += 2) {
-            if (array[i] == key && array[i + 1] == value) {
-                return true;
-            }
-        }
-        return false;
-    }
+    /// The index of the bit a key keeps that no random fuzz pair differs in
+    /// alone.
+    uint256 internal constant TOP_BIT = 0xff;
 
     /// `low` and `high` are two keys, each answering with its own value and
     /// each counted.
@@ -74,8 +42,8 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(exportHolds(array, MemoryKVKey.unwrap(low), bytes32(uint256(0xA))), "low key pair exported");
-        assertTrue(exportHolds(array, MemoryKVKey.unwrap(high), bytes32(uint256(0xB))), "high key pair exported");
+        assertTrue(array.countPair(MemoryKVKey.unwrap(low), bytes32(uint256(0xA))) != 0, "low key pair exported");
+        assertTrue(array.countPair(MemoryKVKey.unwrap(high), bytes32(uint256(0xB))) != 0, "high key pair exported");
     }
 
     /// The empty store is the zero word.
@@ -108,13 +76,13 @@ contract LibMemoryKVTypesTest is Test {
     /// two, and one value answering for both. No fuzzed pair of keys differs in
     /// that bit alone, so the pair is searched for rather than drawn.
     function testTopBitCollidersAreTwoKeys() external pure {
-        (MemoryKVKey low, MemoryKVKey high) = collidingTopBitPair(0);
+        (MemoryKVKey low, MemoryKVKey high) = LibMemoryKVTestKeys.collidingPairDifferingInBit(0, TOP_BIT);
         assertTwoKeys(low, high);
     }
 
     /// The same, over whichever colliding pair the seed reaches.
     function testTopBitCollidersAreTwoKeysFuzz(uint256 seed) external pure {
-        (MemoryKVKey low, MemoryKVKey high) = collidingTopBitPair(seed);
+        (MemoryKVKey low, MemoryKVKey high) = LibMemoryKVTestKeys.collidingPairDifferingInBit(seed, TOP_BIT);
         assertTwoKeys(low, high);
     }
 
@@ -138,7 +106,7 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(exportHolds(array, bytes32(0), bytes32(type(uint256).max)), "zero key pair exported");
-        assertTrue(exportHolds(array, bytes32(type(uint256).max), bytes32(0)), "max key pair exported");
+        assertTrue(array.countPair(bytes32(0), bytes32(type(uint256).max)) != 0, "zero key pair exported");
+        assertTrue(array.countPair(bytes32(type(uint256).max), bytes32(0)) != 0, "max key pair exported");
     }
 }
