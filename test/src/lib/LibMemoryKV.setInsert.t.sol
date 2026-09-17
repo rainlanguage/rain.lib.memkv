@@ -7,6 +7,7 @@ import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
 import {keysInSlot, headOf, wordCount} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetInsertTest
@@ -53,6 +54,30 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         assertEq(nodeKey, MemoryKVKey.unwrap(key), "key at node+0x00");
         assertEq(nodeValue, MemoryKVVal.unwrap(value), "value at node+0x20");
         assertEq(next, 0, "next at node+0x40 is the old (empty) head");
+    }
+
+    /// An insert WRITES all three words of its node. A zero key, a zero value
+    /// and the terminator of an empty list are what the node HOLDS, not what
+    /// the memory under it happened to hold: the node lands on a sentinel here,
+    /// so a word the insert leaves alone reads back as that sentinel instead.
+    function testSetInsertWritesEveryWordOfTheNode(bytes32 seed) external pure {
+        bytes32 sentinel = keccak256(abi.encode(seed));
+        MemoryKVKey key = MemoryKVKey.wrap(bytes32(0));
+        MemoryKVVal value = MemoryKVVal.wrap(bytes32(0));
+
+        dirtyFreeMemory(sentinel, 3);
+
+        uint256 nodePointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
+
+        (bytes32 nodeKey, bytes32 nodeValue, uint256 next) = readNode(nodePointer);
+        assertEq(nodeKey, bytes32(0), "zero key written at node+0x00");
+        assertEq(nodeValue, bytes32(0), "zero value written at node+0x20");
+        assertEq(next, 0, "terminator written at node+0x40");
+
+        (uint256 exists, MemoryKVVal got) = kv.get(key);
+        assertEq(exists, 1, "the zero key exists");
+        assertEq(MemoryKVVal.unwrap(got), bytes32(0), "and reads back zero, not the sentinel");
     }
 
     /// Three keys that share one list: each insert PREPENDS, so the head is the
