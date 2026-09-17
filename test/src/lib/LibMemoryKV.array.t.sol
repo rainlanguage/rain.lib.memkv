@@ -126,6 +126,11 @@ contract LibMemoryKVArrayTest is Test {
             assertEq(slowExists, true);
             assertEq(roundExists, true);
             assertEq(slowVal, roundVal);
+            // A lookup on both sides is the same reader twice: one that answers
+            // with the wrong word of a pair answers with it on both sides and
+            // the comparison holds whatever was exported. The value the model
+            // holds is therefore read out of its array by index as well.
+            assertEq(roundVal, slowKVs[i + 1]);
         }
     }
 
@@ -143,14 +148,19 @@ contract LibMemoryKVArrayTest is Test {
 
         assertEq(array.length, arrayLinear.length);
 
-        uint256 matches = 0;
-        for (uint256 i = 0; i < array.length; i += 2) {
-            for (uint256 j = 0; j < arrayLinear.length; j += 2) {
-                if (array[i] == arrayLinear[j] && array[i + 1] == arrayLinear[j + 1]) {
+        // Counted over every pair at once, a pair exported twice pays for a
+        // pair not exported at all, so each pair is counted on its own. The
+        // linear walk names the pairs because it visits each of the 15 slots
+        // exactly once, so a list the bisect reads twice shows up as a linear
+        // pair matched twice.
+        for (uint256 i = 0; i < arrayLinear.length; i += 2) {
+            uint256 matches = 0;
+            for (uint256 j = 0; j < array.length; j += 2) {
+                if (array[j] == arrayLinear[i] && array[j + 1] == arrayLinear[i + 1]) {
                     matches += 1;
                 }
             }
+            assertEq(matches, 1, "each pair exported exactly once");
         }
-        assertEq(matches, arrayLinear.length / 2);
     }
 }
