@@ -25,10 +25,8 @@ contract LibMemoryKVGetWalkTest is Test {
         pure
         returns (MemoryKV kv, uint256 head, uint256 tail)
     {
+        uint256 bitOffset = LibMemoryKVTestKeys.slotOf(key) * 0x10;
         assembly ("memory-safe") {
-            mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 0x0f), 0x10)
-
             tail := mload(0x40)
             mstore(0x40, add(tail, 0x60))
             mstore(tail, key)

@@ -76,7 +76,8 @@ contract LibMemoryKVSetUpdateTest is Test {
         MemoryKVKey b = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(0xB)), 0x07);
         MemoryKVKey c = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(0xC)), 0x07);
 
-        MemoryKV kv = MEMORY_KV_EMPTY.set(a, LibMemoryKVTestKeys.val(1)).set(b, LibMemoryKVTestKeys.val(2)).set(c, LibMemoryKVTestKeys.val(3));
+        MemoryKV kv = MEMORY_KV_EMPTY.set(a, LibMemoryKVTestKeys.val(1)).set(b, LibMemoryKVTestKeys.val(2))
+            .set(c, LibMemoryKVTestKeys.val(3));
         assertEq(kv.lengthOf(), 6, "length before");
 
         // `c` was inserted last so it is the head. Update the MIDDLE node.

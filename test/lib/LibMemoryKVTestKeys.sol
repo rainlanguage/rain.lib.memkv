@@ -6,9 +6,13 @@ import {MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVTestKeys
 /// Keys and values a test constructs, and the internal list a key belongs to.
-/// The list is restated from the hash `get` and `set` document in Solidity
-/// rather than read back out of the store, so a test's expectation is not the
+/// The list is restated from the hash `get` and `set` document rather than
+/// read back out of the store, so a test's expectation is not the
 /// implementation's own expression.
+///
+/// Nothing here allocates. A store's node pointers are 16 bits, so a search
+/// that allocated on every candidate would push the nodes of a test that fills
+/// all 15 lists past what a pointer can address.
 library LibMemoryKVTestKeys {
     /// `MemoryKV` carries one head pointer per internal linked list.
     uint256 internal constant SLOTS = 15;
@@ -23,9 +27,18 @@ library LibMemoryKVTestKeys {
         return MemoryKVVal.wrap(bytes32(v));
     }
 
+    /// `keccak256` of the one word `word`, hashed from scratch space so the
+    /// free memory pointer does not move.
+    function hashWord(bytes32 word) internal pure returns (bytes32 hashed) {
+        assembly ("memory-safe") {
+            mstore(0, word)
+            hashed := keccak256(0, 0x20)
+        }
+    }
+
     /// The internal list `key` belongs to: `keccak256(key) % 15`.
     function slotOf(MemoryKVKey key) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % SLOTS;
+        return uint256(hashWord(MemoryKVKey.unwrap(key))) % SLOTS;
     }
 
     /// The first key of the chain `seed`, `keccak256(seed)`,
@@ -38,7 +51,7 @@ library LibMemoryKVTestKeys {
             if (slotOf(MemoryKVKey.wrap(key)) == slot) {
                 return MemoryKVKey.wrap(key);
             }
-            key = keccak256(abi.encodePacked(key));
+            key = hashWord(key);
         }
         revert("no key for slot");
     }
@@ -50,7 +63,7 @@ library LibMemoryKVTestKeys {
         MemoryKVKey[] memory keys = new MemoryKVKey[](count);
         for (uint256 i = 0; i < count; i++) {
             keys[i] = keyForSlot(seed, slot);
-            seed = keccak256(abi.encodePacked(MemoryKVKey.unwrap(keys[i])));
+            seed = hashWord(MemoryKVKey.unwrap(keys[i]));
         }
         return keys;
     }
@@ -59,7 +72,7 @@ library LibMemoryKVTestKeys {
     /// list holds both and a walk has to follow a next pointer to cross
     /// between them. It is `keyForSlot` of `key` rehashed once.
     function collidingKey(MemoryKVKey key) internal pure returns (MemoryKVKey) {
-        return keyForSlot(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key))), slotOf(key));
+        return keyForSlot(hashWord(MemoryKVKey.unwrap(key)), slotOf(key));
     }
 
     /// Two keys that differ in bit `bit` alone and land in ONE list, so a walk
@@ -68,14 +81,16 @@ library LibMemoryKVTestKeys {
     /// such pair: the low key is `keccak256(seed, tries)` with the bit cleared
     /// for the first `tries` from zero whose pair shares a list. Reverts if
     /// none of the first `CANDIDATE_LIMIT` does.
-    function collidingPairDifferingInBit(uint256 seed, uint256 bit)
-        internal
-        pure
-        returns (MemoryKVKey, MemoryKVKey)
-    {
+    function collidingPairDifferingInBit(uint256 seed, uint256 bit) internal pure returns (MemoryKVKey, MemoryKVKey) {
         uint256 mask = uint256(1) << bit;
         for (uint256 tries = 0; tries < CANDIDATE_LIMIT; tries++) {
-            bytes32 low = bytes32(uint256(keccak256(abi.encodePacked(seed, tries))) & ~mask);
+            bytes32 candidate;
+            assembly ("memory-safe") {
+                mstore(0, seed)
+                mstore(0x20, tries)
+                candidate := keccak256(0, 0x40)
+            }
+            bytes32 low = bytes32(uint256(candidate) & ~mask);
             bytes32 high = bytes32(uint256(low) | mask);
             if (slotOf(MemoryKVKey.wrap(low)) == slotOf(MemoryKVKey.wrap(high))) {
                 return (MemoryKVKey.wrap(low), MemoryKVKey.wrap(high));

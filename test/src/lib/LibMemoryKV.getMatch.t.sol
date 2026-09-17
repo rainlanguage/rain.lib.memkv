@@ -29,10 +29,8 @@ contract LibMemoryKVGetMatchTest is Test {
     {
         MemoryKV kv;
         uint256 node;
+        uint256 bitOffset = LibMemoryKVTestKeys.slotOf(queryKey) * 0x10;
         assembly ("memory-safe") {
-            mstore(0, queryKey)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 0x0f), 0x10)
-
             node := mload(0x40)
             mstore(0x40, add(node, 0x60))
             mstore(node, nodeKey)
