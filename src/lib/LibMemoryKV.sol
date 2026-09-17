@@ -212,6 +212,8 @@ library LibMemoryKV {
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
+    /// The pair order is unspecified and MUST NOT be relied upon; a caller that
+    /// needs a canonical form MUST sort.
     // Slither is not wrong about the cyclomatic complexity but I don't know
     // another way to implement the bisect and keep the gas savings.
     //slither-disable-next-line cyclomatic-complexity
