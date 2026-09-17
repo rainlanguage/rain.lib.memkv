@@ -50,6 +50,19 @@ contract LibMemoryKVSetInsertTest is Test {
         }
     }
 
+    /// Fill `words` words from the free memory pointer up with a sentinel
+    /// WITHOUT allocating them, so the next allocation lands on memory that
+    /// does not read as zero.
+    function dirtyFreeMemory(bytes32 sentinel, uint256 words) internal pure {
+        assembly ("memory-safe") {
+            let cursor := mload(0x40)
+            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
+                mstore(cursor, sentinel)
+                cursor := add(cursor, 0x20)
+            }
+        }
+    }
+
     /// `count` distinct keys that all hash into ONE of the 15 lists, so a
     /// second and third insert into the SAME list are observable.
     function keysInOneSlot(uint256 count) internal pure returns (MemoryKVKey[] memory keys) {
@@ -107,6 +120,30 @@ contract LibMemoryKVSetInsertTest is Test {
         assertEq(nodeKey, MemoryKVKey.unwrap(key), "key at node+0x00");
         assertEq(nodeValue, MemoryKVVal.unwrap(value), "value at node+0x20");
         assertEq(next, 0, "next at node+0x40 is the old (empty) head");
+    }
+
+    /// An insert WRITES all three words of its node. A zero key, a zero value
+    /// and the terminator of an empty list are what the node HOLDS, not what
+    /// the memory under it happened to hold: the node lands on a sentinel here,
+    /// so a word the insert leaves alone reads back as that sentinel instead.
+    function testSetInsertWritesEveryWordOfTheNode(bytes32 seed) external pure {
+        bytes32 sentinel = keccak256(abi.encode(seed));
+        MemoryKVKey key = MemoryKVKey.wrap(bytes32(0));
+        MemoryKVVal value = MemoryKVVal.wrap(bytes32(0));
+
+        dirtyFreeMemory(sentinel, 3);
+
+        uint256 nodePointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
+
+        (bytes32 nodeKey, bytes32 nodeValue, uint256 next) = readNode(nodePointer);
+        assertEq(nodeKey, bytes32(0), "zero key written at node+0x00");
+        assertEq(nodeValue, bytes32(0), "zero value written at node+0x20");
+        assertEq(next, 0, "terminator written at node+0x40");
+
+        (uint256 exists, MemoryKVVal got) = kv.get(key);
+        assertEq(exists, 1, "the zero key exists");
+        assertEq(MemoryKVVal.unwrap(got), bytes32(0), "and reads back zero, not the sentinel");
     }
 
     /// Three keys that share one list: each insert PREPENDS, so the head is the
