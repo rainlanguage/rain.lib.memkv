@@ -68,4 +68,37 @@ contract LibMemoryKVHasTest is Test {
         }
         assertFalse(kv.has(MemoryKVKey.wrap(bytes32(uint256(9)))));
     }
+
+    /// Existence is not the value at either end of its range: a key set to
+    /// every bit is there exactly as a key set to none of them is.
+    function testHasAKeyWhoseValueIsAllOnes(MemoryKVKey key) external pure {
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, MemoryKVVal.wrap(bytes32(type(uint256).max)));
+        assertTrue(kv.has(key));
+        (uint256 exists, MemoryKVVal value) = kv.get(key);
+        assertEq(exists, 1);
+        assertEq(MemoryKVVal.unwrap(value), bytes32(type(uint256).max));
+    }
+
+    /// `has` throws away the value half of `get`, and throwing it away costs no
+    /// memory: the free memory pointer and the word it points at are the same
+    /// on both sides of the call.
+    function testHasLeavesMemoryWhereItFoundIt(MemoryKVKey key, MemoryKVVal value) external pure {
+        bytes32 sentinel = keccak256("sentinel above the free memory pointer");
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
+        uint256 free;
+        assembly ("memory-safe") {
+            free := mload(0x40)
+            mstore(free, sentinel)
+        }
+        bool result = kv.has(key);
+        uint256 freeAfter;
+        bytes32 word;
+        assembly ("memory-safe") {
+            freeAfter := mload(0x40)
+            word := mload(free)
+        }
+        assertTrue(result);
+        assertEq(freeAfter, free, "free memory pointer moved");
+        assertEq(word, sentinel, "word above the free memory pointer was written");
+    }
 }

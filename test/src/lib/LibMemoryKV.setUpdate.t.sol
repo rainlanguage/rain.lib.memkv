@@ -7,6 +7,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {keyForSlot, lengthOf, headOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetUpdateTest
 /// `set` hashes the key to one of 15 internal lists, walks that list for a
@@ -16,49 +17,6 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// different number rather than as a revert.
 contract LibMemoryKVSetUpdateTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// The internal list a key belongs to. This is the store's own hash, which
-    /// `get` and `set` MUST both use, restated here so the tests can aim keys at
-    /// a chosen list rather than hoping a fuzzer collides two.
-    function slotOf(MemoryKVKey key) internal pure returns (uint256 slot) {
-        assembly ("memory-safe") {
-            mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 0x0f)
-        }
-    }
-
-    /// Rehash `seed` until the key lands in `slot`.
-    function keyForSlot(bytes32 seed, uint256 slot) internal pure returns (MemoryKVKey) {
-        bytes32 key = seed;
-        for (uint256 i = 0; i < 10000; i++) {
-            if (slotOf(MemoryKVKey.wrap(key)) == slot) {
-                return MemoryKVKey.wrap(key);
-            }
-            key = keccak256(abi.encodePacked(key));
-        }
-        revert("no key for slot");
-    }
-
-    /// The word count the store carries in its top 16 bits.
-    function lengthOf(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
-
-    /// The 16 bit head pointer the store holds for `slot`.
-    function headOf(MemoryKV kv, uint256 slot) internal pure returns (uint256) {
-        return (MemoryKV.unwrap(kv) >> (slot * 0x10)) & 0xFFFF;
-    }
-
-    /// Assert the store reports exactly `value` for `key`.
-    function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory err) internal pure {
-        (uint256 exists, MemoryKVVal got) = kv.get(key);
-        assertEq(exists, 1, string.concat(err, " exists"));
-        assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
-    }
-
-    function val(uint256 v) internal pure returns (MemoryKVVal) {
-        return MemoryKVVal.wrap(bytes32(v));
-    }
 
     /// `set` must hash into the same list `get` reads from, for EVERY one of the
     /// 15 lists. The head pointer the store ends up holding names the list, so a
