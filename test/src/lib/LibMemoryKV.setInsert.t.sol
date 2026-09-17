@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibDirtyMemory} from "test/lib/LibDirtyMemory.sol";
 
 /// @title LibMemoryKVSetInsertTest
 /// The insert half of `set`, asserted against the documented SHAPE of the store
@@ -47,19 +48,6 @@ contract LibMemoryKVSetInsertTest is Test {
             nodeKey := mload(pointer)
             nodeValue := mload(add(pointer, 0x20))
             next := mload(add(pointer, 0x40))
-        }
-    }
-
-    /// Fill `words` words from the free memory pointer up with a sentinel
-    /// WITHOUT allocating them, so the next allocation lands on memory that
-    /// does not read as zero.
-    function dirtyFreeMemory(bytes32 sentinel, uint256 words) internal pure {
-        assembly ("memory-safe") {
-            let cursor := mload(0x40)
-            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                mstore(cursor, sentinel)
-                cursor := add(cursor, 0x20)
-            }
         }
     }
 
@@ -131,7 +119,7 @@ contract LibMemoryKVSetInsertTest is Test {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(0));
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(0));
 
-        dirtyFreeMemory(sentinel, 3);
+        LibDirtyMemory.dirtyFreeMemory(sentinel, 3);
 
         uint256 nodePointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);

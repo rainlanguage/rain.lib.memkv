@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {LibDirtyMemory} from "test/lib/LibDirtyMemory.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every
@@ -20,20 +21,6 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// `array.length` would only restate whatever the implementation wrote.
 contract LibMemoryKVExportAllocTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// Fill `words` words of memory from the free memory pointer up with a
-    /// sentinel, WITHOUT allocating them. Anything an export subsequently
-    /// hands back that still reads as the sentinel is memory the export
-    /// claimed but never wrote.
-    function dirtyFreeMemory(bytes32 sentinel, uint256 words) internal pure {
-        assembly ("memory-safe") {
-            let cursor := mload(0x40)
-            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                mstore(cursor, sentinel)
-                cursor := add(cursor, 0x20)
-            }
-        }
-    }
 
     /// Rehash `key` until it lands in internal list `slot`. Mirrors the hash
     /// `get`/`set` use so a test can put several keys into ONE linked list and
@@ -74,7 +61,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// dirtied first: an export that wrote no header would hand back the
     /// sentinel as the length.
     function testExportEmptyAllocatesOnlyTheHeader() external pure {
-        dirtyFreeMemory(bytes32(type(uint256).max), 1);
+        LibDirtyMemory.dirtyFreeMemory(bytes32(type(uint256).max), 1);
 
         Pointer before = LibPointer.allocatedMemoryPointer();
         bytes32[] memory array = LibMemoryKV.toBytes32Array(MEMORY_KV_EMPTY);
@@ -164,7 +151,7 @@ contract LibMemoryKVExportAllocTest is Test {
             kv = kv.set(MemoryKVKey.wrap(keccak256(abi.encode(seed, i))), MemoryKVVal.wrap(bytes32(i)));
         }
 
-        dirtyFreeMemory(sentinel, 64);
+        LibDirtyMemory.dirtyFreeMemory(sentinel, 64);
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 20);
