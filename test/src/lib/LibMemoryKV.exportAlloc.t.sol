@@ -7,7 +7,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {slotOf, keyForSlot, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf, keyForSlot, countPair, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every
@@ -265,13 +265,7 @@ contract LibMemoryKVExportAllocTest is Test {
         }
 
         // Exactly one slot of the kv is populated: everything is on one list.
-        uint256 populated = 0;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF) != 0) {
-                populated += 1;
-            }
-        }
-        assertEq(populated, 1, "one list");
+        assertEq(occupiedSlots(kv), 1, "one list");
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 10);

@@ -10,6 +10,12 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 // in any given list, so this is far more than any search here needs.
 uint256 constant CANDIDATE_LIMIT = 10000;
 
+// The bit offset of the word count in `MemoryKV`.
+uint256 constant COUNT_BIT_OFFSET = 0xf0;
+
+// The widest count the field holds.
+uint256 constant COUNT_MAX = 0xFFFF;
+
 Vm constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
 /// The value whose word is `v`.
@@ -88,6 +94,12 @@ function collidingPairDifferingInBit(uint256 seed, uint256 bit) pure returns (Me
     revert("no pair differing in the bit shares a list within the candidate limit");
 }
 
+/// `kv` with its word count replaced by `newCount`, every other bit kept;
+/// `newCount` is not checked against `COUNT_MAX`.
+function withCount(MemoryKV kv, uint256 newCount) pure returns (MemoryKV) {
+    return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
+}
+
 /// The word count the store carries in its top 16 bits.
 function lengthOf(MemoryKV kv) pure returns (uint256) {
     return MemoryKV.unwrap(kv) >> 0xf0;
@@ -127,4 +139,15 @@ function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory 
     (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, key);
     VM.assertEq(exists, 1, string.concat(err, " exists"));
     VM.assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
+}
+
+/// How many of the 15 internal lists of `kv` hold a head pointer.
+function occupiedSlots(MemoryKV kv) pure returns (uint256) {
+    uint256 count = 0;
+    for (uint256 slot = 0; slot < 15; slot++) {
+        if (headOf(kv, slot) != 0) {
+            count++;
+        }
+    }
+    return count;
 }

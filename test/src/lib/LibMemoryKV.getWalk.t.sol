@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf, keyForSlot, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
@@ -114,13 +114,7 @@ contract LibMemoryKVGetWalkTest is Test {
 
         // One list holds both, so exactly one of the 15 slots is occupied and
         // the tail is only reachable by walking past the head.
-        uint256 occupied = 0;
-        for (uint256 bitOffset = 0; bitOffset < 0xf0; bitOffset += 0x10) {
-            if (((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF) != 0) {
-                occupied++;
-            }
-        }
-        assertEq(occupied, 1, "both keys share one internal list");
+        assertEq(occupiedSlots(kv), 1, "both keys share one internal list");
 
         (uint256 tailExists, MemoryKVVal tailValue) = kv.get(tailKey);
         assertEq(tailExists, 1, "tail exists");
