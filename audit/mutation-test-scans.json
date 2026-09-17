@@ -2,7 +2,7 @@
   {
     "timestamp": "2026-09-16T10:52:59Z",
     "commit": "645ddb9f767a30d7ef30c5fb05048577f3e80cd0",
-    "testsAfterCommit": "645ddb9f767a30d7ef30c5fb05048577f3e80cd0",
+    "testsAfterCommit": "877a07ec023ee295f91118f007f7dc61ad4d1126",
     "publishedTag": "sol-v0.1.5",
     "commitsAheadOfTag": 0,
     "scope": "whole repo",
@@ -13,7 +13,7 @@
       "candidates": 28,
       "confirmed": 10,
       "testsBefore": 34,
-      "testsAfter": 34,
+      "testsAfter": 151,
       "filed": [
         "#36",
         "#37",
