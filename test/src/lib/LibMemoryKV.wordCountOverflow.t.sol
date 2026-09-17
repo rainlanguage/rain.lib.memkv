@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {lengthOf, withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
@@ -23,25 +24,10 @@ import {lengthOf, withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.so
 /// Both bounds are read by one comparison over `pointer | length`, so where the
 /// two values meet at `0xFFFF` is here too: what that comparison still accepts,
 /// and which of the two an overflow is reported as.
-contract LibMemoryKVWordCountOverflowTest is Test {
+contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// Somewhere low enough that the inserted node's address cannot be what
     /// overflows, and clear of the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
-
-    /// Insert against a chosen free memory pointer so the node's address is a
-    /// known value rather than wherever this test frame happens to have reached.
-    /// The node lives in memory this call frame owns, so only the returned `kv`
-    /// and the (non)revert are observable to the caller.
-    function setAtFreePointer(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePointer)
-        external
-        pure
-        returns (MemoryKV)
-    {
-        assembly ("memory-safe") {
-            mstore(0x40, freePointer)
-        }
-        return LibMemoryKV.set(kv, key, value);
-    }
 
     /// Insert `key` normally, force the count to `forced`, then set `key` again
     /// -- which is an update, because the key is already in its list. Both sets

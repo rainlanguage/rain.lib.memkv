@@ -140,3 +140,14 @@ function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory 
     VM.assertEq(exists, 1, string.concat(err, " exists"));
     VM.assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
 }
+
+/// How many of the 15 internal lists of `kv` hold a head pointer.
+function occupiedSlots(MemoryKV kv) pure returns (uint256) {
+    uint256 count = 0;
+    for (uint256 slot = 0; slot < 15; slot++) {
+        if (headOf(kv, slot) != 0) {
+            count++;
+        }
+    }
+    return count;
+}

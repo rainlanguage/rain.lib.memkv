@@ -3,12 +3,13 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {headOf, collidingKey} from "test/lib/LibMemoryKVTestHelpers.sol";
 
-contract LibMemoryKVGetSetTest is Test {
+contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
         assembly ("memory-safe") {
             // Set the pointer past 0xFFFF to cause an overflow on the next
@@ -24,25 +25,6 @@ contract LibMemoryKVGetSetTest is Test {
         // The next set should revert with a MemoryKVOverflow error.
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.setOverflowExternal(kv, key, value);
-    }
-
-    /// Insert against an arbitrary free memory pointer so we can drive the
-    /// inserted list item's pointer (which `set` takes from the free memory
-    /// pointer) to an exact value and probe the overflow boundary precisely.
-    /// The returned `kv` encodes the pointer for the inserted slot, so the
-    /// caller can assert the exact pointer landed where expected. Note the node
-    /// is written into low memory and may subsequently be clobbered, so the
-    /// caller MUST NOT read the value back via `get`; the `kv` encoding and the
-    /// (non)revert are the observable facts here.
-    function setAtPointerExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePtr)
-        external
-        pure
-        returns (MemoryKV)
-    {
-        assembly ("memory-safe") {
-            mstore(0x40, freePtr)
-        }
-        return LibMemoryKV.set(kv, key, value);
     }
 
     /// Insert at an exact free memory pointer and read the key back inside the
@@ -85,7 +67,7 @@ contract LibMemoryKVGetSetTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         // Insert with the free memory pointer at exactly the max valid pointer.
         // This MUST NOT revert and MUST encode the pointer 0xFFFF.
-        kv = this.setAtPointerExternal(kv, key, value, 0xFFFF);
+        kv = this.setAtFreePointer(kv, key, value, 0xFFFF);
 
         // The inserted list item must live at exactly 0xFFFF, so the slot for
         // this key must encode the pointer 0xFFFF.
@@ -101,7 +83,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// `0xFFFF` -> `0xFFFE` mutation (which would wrongly revert here) is killed.
     function testSetPointerBoundaryBelowMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
         MemoryKV kv = MEMORY_KV_EMPTY;
-        kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
+        kv = this.setAtFreePointer(kv, key, value, 0xFFFE);
 
         uint256 raw = MemoryKV.unwrap(kv);
         assertEq(headOf(kv, key), 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
@@ -114,7 +96,7 @@ contract LibMemoryKVGetSetTest is Test {
     function testSetPointerBoundaryOverflowReverts(MemoryKVKey key, MemoryKVVal value) external {
         MemoryKV kv = MEMORY_KV_EMPTY;
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
-        this.setAtPointerExternal(kv, key, value, 0x10000);
+        this.setAtFreePointer(kv, key, value, 0x10000);
     }
 
     /// The bound is on the node's HEAD pointer alone. A node inserted at the

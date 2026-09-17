@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
@@ -17,7 +18,7 @@ import {keysInSlot, headOf, wordCount} from "test/lib/LibMemoryKVTestHelpers.sol
 /// the count is "The total word count of all inserts ... encoded alongside the
 /// pointer" (`MemoryKV`). So an insert must place a three word key/value/next
 /// node, prepend it to its list, and add two to a SIXTEEN bit count.
-contract LibMemoryKVSetInsertTest is Test {
+contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     using LibMemoryKV for MemoryKV;
 
     /// The three words of a list node as written by an insert.
@@ -27,22 +28,6 @@ contract LibMemoryKVSetInsertTest is Test {
             nodeValue := mload(add(pointer, 0x20))
             next := mload(add(pointer, 0x40))
         }
-    }
-
-    /// Insert against an arbitrary free memory pointer so the inserted node's
-    /// address (which `set` takes from the free memory pointer) is an exact
-    /// known value. The node is written into memory this call frame owns and is
-    /// gone when the call returns, so only the returned `kv` and the
-    /// (non)revert are observable to the caller.
-    function setAtFreePointerExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePointer)
-        external
-        pure
-        returns (MemoryKV)
-    {
-        assembly ("memory-safe") {
-            mstore(0x40, freePointer)
-        }
-        return LibMemoryKV.set(kv, key, value);
     }
 
     /// An insert into an empty store writes exactly three words AT the free
@@ -150,14 +135,14 @@ contract LibMemoryKVSetInsertTest is Test {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
 
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x12345));
-        this.setAtFreePointerExternal(MEMORY_KV_EMPTY, key, value, 0x12345);
+        this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, 0x12345);
     }
 
     /// A pointer with bits above the low twelve must reach the slot intact: the
     /// slot is sixteen bits wide and an insert at `0xF000` must record exactly
     /// `0xF000`, not a truncation of it.
     function testSetInsertRecordsTheFullSixteenBitPointer(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = this.setAtFreePointerExternal(MEMORY_KV_EMPTY, key, value, 0xF000);
+        MemoryKV kv = this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, 0xF000);
         assertEq(headOf(kv, key), 0xF000, "the whole 16 bit pointer reaches the slot");
         assertEq(wordCount(kv), 2, "one pair is two words");
     }

@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
@@ -15,7 +16,7 @@ import {withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
 /// revert off chain holds the signature as a string instead. These build the
 /// expected returndata from that string, pinning each error to exactly one
 /// `uint256` argument and to a selector the other error does not share.
-contract LibMemoryKVErrorAbiTest is Test {
+contract LibMemoryKVErrorAbiTest is Test, SetAtFreePointer {
     /// A node address low enough that it cannot be what overflows, and clear of
     /// the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
@@ -23,21 +24,6 @@ contract LibMemoryKVErrorAbiTest is Test {
     /// A node address above the widest head pointer a list slot holds, and
     /// distinct from both that bound and one past it.
     uint256 internal constant HIGH_FREE_POINTER = 0x12345;
-
-    /// Insert against a chosen free memory pointer so the node's address is a
-    /// known value rather than wherever this test frame happens to have
-    /// reached. The node lives in memory this call frame owns, so only the
-    /// returned `kv` and the (non)revert are observable to the caller.
-    function setAtFreePointer(MemoryKV kv, MemoryKVKey key, MemoryKVVal value, uint256 freePointer)
-        external
-        pure
-        returns (MemoryKV)
-    {
-        assembly ("memory-safe") {
-            mstore(0x40, freePointer)
-        }
-        return LibMemoryKV.set(kv, key, value);
-    }
 
     /// An insert above the head pointer bound reverts with the first four bytes
     /// of the hash of `MemoryKVOverflow(uint256)`, then the offending pointer
