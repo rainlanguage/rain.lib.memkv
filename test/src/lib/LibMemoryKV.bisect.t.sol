@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {slotOf, headOf, lengthOf, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
@@ -85,16 +86,6 @@ contract LibMemoryKVBisectTest is Test {
     /// `exportMatches` reads a pair's slot back out of it.
     uint256 constant VALUE_BASE = 0x100;
 
-    /// The internal list slot a key hashes into. MUST match `get`/`set`.
-    function slotOf(bytes32 key) internal pure returns (uint256) {
-        uint256 slot;
-        assembly ("memory-safe") {
-            mstore(0, key)
-            slot := mod(keccak256(0, 0x20), 0x0f)
-        }
-        return slot;
-    }
-
     /// One key per slot: the smallest positive integer whose 32 byte big endian
     /// encoding hashes into that slot. Regenerating one is
     /// `cast keccak $(cast to-uint256 <n>)` reduced modulo 15, and
@@ -158,21 +149,13 @@ contract LibMemoryKVBisectTest is Test {
         return count;
     }
 
-    function pointerAt(MemoryKV kv, uint256 slot) internal pure returns (uint256) {
-        return (MemoryKV.unwrap(kv) >> (slot * 0x10)) & POINTER_MAX;
-    }
-
-    function lengthOf(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
-
     /// Which slots of `kv` hold a pointer, in the same bit order as an occupancy
     /// mask.
     function occupancyOf(MemoryKV kv) internal pure returns (uint256) {
         uint256 occupancy = 0;
         for (uint256 i = 0; i < SLOTS; i++) {
             occupancy <<= 1;
-            if (pointerAt(kv, SLOTS - 1 - i) != 0) {
+            if (headOf(kv, SLOTS - 1 - i) != 0) {
                 occupancy |= 1;
             }
         }
@@ -185,17 +168,6 @@ contract LibMemoryKVBisectTest is Test {
             pointer := mload(0x40)
         }
         return pointer;
-    }
-
-    /// How many times `array` holds the pair `(key, value)`.
-    function countPair(bytes32[] memory array, bytes32 key, bytes32 value) internal pure returns (uint256) {
-        uint256 count = 0;
-        for (uint256 i = 0; i < array.length; i += 2) {
-            if (array[i] == key && array[i + 1] == value) {
-                count++;
-            }
-        }
-        return count;
     }
 
     /// The store holding one key in each slot `mask` names.
@@ -245,7 +217,7 @@ contract LibMemoryKVBisectTest is Test {
         assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             if (occupies(mask, slot)) {
-                assertGe(pointerAt(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
+                assertGe(headOf(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
             }
         }
         checkExportedPairs(kv, mask, keys);

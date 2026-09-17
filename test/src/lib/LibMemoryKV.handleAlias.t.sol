@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {lengthOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVHandleAliasTest
 /// A `MemoryKV` is a value type, so every assignment of one copies it and
@@ -18,24 +19,8 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 contract LibMemoryKVHandleAliasTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    /// The word count the store carries in its top 16 bits.
-    function lengthOf(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
-
-    /// Assert the store reports exactly `value` for `key`.
-    function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory err) internal pure {
-        (uint256 exists, MemoryKVVal got) = kv.get(key);
-        assertEq(exists, 1, string.concat(err, " exists"));
-        assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
-    }
-
     function keyFor(uint256 k) internal pure returns (MemoryKVKey) {
         return MemoryKVKey.wrap(bytes32(k));
-    }
-
-    function val(uint256 v) internal pure returns (MemoryKVVal) {
-        return MemoryKVVal.wrap(bytes32(v));
     }
 
     /// An update through a handle is visible through a handle copied BEFORE the
