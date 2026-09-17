@@ -5,8 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
+import {keyForSlot, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetSlotMaskTest
 /// An insert clears its list's head slot and writes the new head into it, and
@@ -22,7 +21,6 @@ import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 /// alone.
 contract LibMemoryKVSetSlotMaskTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestHandle for MemoryKV;
 
     /// An odd node address, low enough that a walk off the end of it expands
     /// memory by kilobytes rather than megabytes.
@@ -63,8 +61,8 @@ contract LibMemoryKVSetSlotMaskTest is Test {
     /// Slot 0 also puts the rewrite at a bit offset of zero, so the shift that
     /// places the new head is the identity.
     function testInsertClearsTheSlotsLowBit() external view {
-        MemoryKVKey older = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 0);
-        MemoryKVKey newer = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(2)), 0);
+        MemoryKVKey older = keyForSlot(bytes32(uint256(1)), 0);
+        MemoryKVKey newer = keyForSlot(bytes32(uint256(2)), 0);
         assertTrue(MemoryKVKey.unwrap(older) != MemoryKVKey.unwrap(newer), "two distinct keys");
 
         (MemoryKV kv, uint256 exists, bytes32 value) = this.insertAtTwoPointersExternal(
@@ -76,8 +74,8 @@ contract LibMemoryKVSetSlotMaskTest is Test {
             EVEN_POINTER
         );
 
-        assertEq(kv.headOf(0), EVEN_POINTER, "slot 0 heads the newer node and nothing of the older address");
-        assertEq(kv.lengthOf(), 4, "two pairs is four words");
+        assertEq(headOf(kv, 0), EVEN_POINTER, "slot 0 heads the newer node and nothing of the older address");
+        assertEq(lengthOf(kv), 4, "two pairs is four words");
         assertEq(exists, 1, "the older key is still reachable behind the new head");
         assertEq(uint256(value), 0xA100, "and still carries its value");
     }
@@ -89,8 +87,8 @@ contract LibMemoryKVSetSlotMaskTest is Test {
     /// List 14 is the highest there is, so its head sits directly under the
     /// word count and is the slot a rewrite is likeliest to reach past.
     function testInsertLeavesTheNeighbouringSlotsLowBit() external view {
-        MemoryKVKey high = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 14);
-        MemoryKVKey low = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 13);
+        MemoryKVKey high = keyForSlot(bytes32(uint256(1)), 14);
+        MemoryKVKey low = keyForSlot(bytes32(uint256(1)), 13);
 
         (MemoryKV kv, uint256 exists, bytes32 value) = this.insertAtTwoPointersExternal(
             high,
@@ -101,9 +99,9 @@ contract LibMemoryKVSetSlotMaskTest is Test {
             EVEN_POINTER
         );
 
-        assertEq(kv.headOf(14), ODD_POINTER, "list 14 keeps the whole address it was given");
-        assertEq(kv.headOf(13), EVEN_POINTER, "list 13 heads its own node");
-        assertEq(kv.lengthOf(), 4, "two pairs is four words");
+        assertEq(headOf(kv, 14), ODD_POINTER, "list 14 keeps the whole address it was given");
+        assertEq(headOf(kv, 13), EVEN_POINTER, "list 13 heads its own node");
+        assertEq(lengthOf(kv), 4, "two pairs is four words");
         assertEq(exists, 1, "the key in list 14 is still reachable");
         assertEq(uint256(value), 0xA100, "and still carries its value");
     }

@@ -5,9 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
-import {LibMemoryKVTestAssert} from "test/lib/LibMemoryKVTestAssert.sol";
+import {lengthOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVHandleAliasTest
 /// A `MemoryKV` is a value type, so every assignment of one copies it and
@@ -20,8 +18,6 @@ import {LibMemoryKVTestAssert} from "test/lib/LibMemoryKVTestAssert.sol";
 /// number rather than a revert.
 contract LibMemoryKVHandleAliasTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestHandle for MemoryKV;
-    using LibMemoryKVTestAssert for MemoryKV;
 
     function keyFor(uint256 k) internal pure returns (MemoryKVKey) {
         return MemoryKVKey.wrap(bytes32(k));
@@ -31,37 +27,37 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// update, whose own bits never changed. The older handle reads 999 even
     /// though 111 is the only value it ever saw written.
     function testUpdateIsVisibleThroughAnOlderHandle() external pure {
-        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), LibMemoryKVTestKeys.val(111));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(111));
         uint256 aBits = MemoryKV.unwrap(a);
-        a.assertValue(keyFor(1), 111, "a before");
+        assertValue(a, keyFor(1), 111, "a before");
 
-        MemoryKV b = a.set(keyFor(2), LibMemoryKVTestKeys.val(222));
-        MemoryKV c = b.set(keyFor(1), LibMemoryKVTestKeys.val(999));
+        MemoryKV b = a.set(keyFor(2), val(222));
+        MemoryKV c = b.set(keyFor(1), val(999));
 
         // The update allocated nothing and moved no bits, in b or in a.
         assertEq(MemoryKV.unwrap(c), MemoryKV.unwrap(b), "c bits");
         assertEq(MemoryKV.unwrap(a), aBits, "a bits");
 
-        a.assertValue(keyFor(1), 999, "a after");
-        b.assertValue(keyFor(1), 999, "b after");
-        assertEq(a.lengthOf(), 2, "a length");
-        assertEq(b.lengthOf(), 4, "b length");
+        assertValue(a, keyFor(1), 999, "a after");
+        assertValue(b, keyFor(1), 999, "b after");
+        assertEq(lengthOf(a), 2, "a length");
+        assertEq(lengthOf(b), 4, "b length");
     }
 
     /// An insert is visible only through the handle `set` returned. The older
     /// handle keeps the value and the word count it had, and does not see the
     /// new key at all.
     function testInsertIsVisibleOnlyThroughTheReturnedHandle() external pure {
-        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), LibMemoryKVTestKeys.val(10));
-        MemoryKV b = a.set(keyFor(2), LibMemoryKVTestKeys.val(20));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(10));
+        MemoryKV b = a.set(keyFor(2), val(20));
 
-        b.assertValue(keyFor(1), 10, "b old key");
-        b.assertValue(keyFor(2), 20, "b new key");
-        assertEq(b.lengthOf(), 4, "b length");
+        assertValue(b, keyFor(1), 10, "b old key");
+        assertValue(b, keyFor(2), 20, "b new key");
+        assertEq(lengthOf(b), 4, "b length");
 
         assertFalse(a.has(keyFor(2)), "a new key");
-        a.assertValue(keyFor(1), 10, "a old key");
-        assertEq(a.lengthOf(), 2, "a length");
+        assertValue(a, keyFor(1), 10, "a old key");
+        assertEq(lengthOf(a), 2, "a length");
     }
 
     /// Two handles branched off one store are not two stores. An update made
@@ -69,14 +65,14 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// exploring two paths would be exposed to. The keys each branch inserted
     /// stay private to it.
     function testUpdateCrossesBetweenBranchedHandles() external pure {
-        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), LibMemoryKVTestKeys.val(1));
-        MemoryKV left = a.set(keyFor(2), LibMemoryKVTestKeys.val(2));
-        MemoryKV right = a.set(keyFor(3), LibMemoryKVTestKeys.val(3));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(1));
+        MemoryKV left = a.set(keyFor(2), val(2));
+        MemoryKV right = a.set(keyFor(3), val(3));
 
-        left = left.set(keyFor(1), LibMemoryKVTestKeys.val(0xFEED));
+        left = left.set(keyFor(1), val(0xFEED));
 
-        right.assertValue(keyFor(1), 0xFEED, "right shared key");
-        a.assertValue(keyFor(1), 0xFEED, "a shared key");
+        assertValue(right, keyFor(1), 0xFEED, "right shared key");
+        assertValue(a, keyFor(1), 0xFEED, "a shared key");
         assertFalse(right.has(keyFor(2)), "right sees left insert");
         assertFalse(left.has(keyFor(3)), "left sees right insert");
     }
@@ -85,17 +81,17 @@ contract LibMemoryKVHandleAliasTest is Test {
     /// move what the array holds. This is the difference between an export and
     /// a retained handle: the handle below moves to 999, the array does not.
     function testExportedArrayDoesNotMoveUnderALaterUpdate() external pure {
-        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), LibMemoryKVTestKeys.val(111));
+        MemoryKV a = MEMORY_KV_EMPTY.set(keyFor(1), val(111));
         bytes32[] memory snapshot = a.toBytes32Array();
         assertEq(snapshot.length, 2, "snapshot length");
         assertEq(uint256(snapshot[0]), 1, "snapshot key");
         assertEq(uint256(snapshot[1]), 111, "snapshot value");
 
-        MemoryKV b = a.set(keyFor(2), LibMemoryKVTestKeys.val(222)).set(keyFor(1), LibMemoryKVTestKeys.val(999));
+        MemoryKV b = a.set(keyFor(2), val(222)).set(keyFor(1), val(999));
 
         assertEq(uint256(snapshot[1]), 111, "snapshot after update");
-        a.assertValue(keyFor(1), 999, "handle after update");
-        b.assertValue(keyFor(1), 999, "b after update");
+        assertValue(a, keyFor(1), 999, "handle after update");
+        assertValue(b, keyFor(1), 999, "b after update");
     }
 
     /// The same asymmetry over arbitrary keys and values: whatever the hash
@@ -117,8 +113,8 @@ contract LibMemoryKVHandleAliasTest is Test {
         MemoryKV b = a.set(second, updated).set(first, updated);
 
         assertEq(MemoryKV.unwrap(a), aBits, "a bits");
-        assertEq(a.lengthOf(), 2, "a length");
-        assertEq(b.lengthOf(), 4, "b length");
+        assertEq(lengthOf(a), 2, "a length");
+        assertEq(lengthOf(b), 4, "b length");
 
         // Update: visible through the older handle.
         (uint256 exists, MemoryKVVal got) = a.get(first);

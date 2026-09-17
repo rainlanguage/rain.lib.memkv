@@ -5,8 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
 /// reason the export is a bisect rather than a loop and the reason any of this
@@ -105,8 +105,8 @@ contract LibMemoryKVGasClaimsTest is Test {
     function testExportGasIsUniformAcrossSlots() public view {
         MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
         for (uint256 slot = 0; slot < SLOTS; slot++) {
-            MemoryKVKey key = LibMemoryKVTestKeys.keyForSlot(bytes32(slot + 1), slot);
-            kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, key, MemoryKVVal.wrap(bytes32(uint256(1))));
+            bytes32 key = MemoryKVKey.unwrap(keyForSlot(bytes32(slot + 1), slot));
+            kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
@@ -169,7 +169,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// target costs and carries none of the constant every measurement shares.
     function testCollidingGasMatchesReadme() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
-        MemoryKVKey[] memory keys = LibMemoryKVTestKeys.keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
+        MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
         // back walks the whole list. Hoisted out of every measurement below
         // because an array read inside the window is measured with the call.

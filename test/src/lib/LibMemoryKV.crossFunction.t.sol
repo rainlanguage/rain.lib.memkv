@@ -5,9 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
-import {LibMemoryKVTestAssert} from "test/lib/LibMemoryKVTestAssert.sol";
+import {keyForSlot, lengthOf, assertValue} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two claims about a `MemoryKV` handle that no mutation of the library can
@@ -16,8 +14,6 @@ import {LibMemoryKVTestAssert} from "test/lib/LibMemoryKVTestAssert.sol";
 /// and the update/insert asymmetry holds however many handles are live at once.
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestHandle for MemoryKV;
-    using LibMemoryKVTestAssert for MemoryKV;
 
     uint256 internal constant LIST_COUNT = 15;
     uint256 internal constant SLOT_BITS = 0x10;
@@ -52,7 +48,7 @@ contract LibMemoryKVCrossFunctionTest is Test {
         bytes32[] memory keys = new bytes32[](LIST_COUNT);
         uint256 expected = (LIST_COUNT * 2) << 0xf0;
         for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
-            keys[slot] = MemoryKVKey.unwrap(LibMemoryKVTestKeys.keyForSlot(keccak256(abi.encode(seed, slot)), slot));
+            keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             expected |= (SATURATED_BASE + slot * NODE_SIZE) << (slot * SLOT_BITS);
         }
 
@@ -78,10 +74,10 @@ contract LibMemoryKVCrossFunctionTest is Test {
         // Every handle carries the count of the inserts it was branched after,
         // and sees exactly those keys.
         for (uint256 i = 0; i < handles.length; i++) {
-            assertEq(handles[i].lengthOf(), (i + 1) * 2, "count");
+            assertEq(lengthOf(handles[i]), (i + 1) * 2, "count");
             for (uint256 j = 0; j < keys.length; j++) {
                 if (j <= i) {
-                    handles[i].assertValue(keys[j], j + 1, "before branch");
+                    assertValue(handles[i], keys[j], j + 1, "before branch");
                 } else {
                     assertFalse(handles[i].has(keys[j]), "after branch");
                 }
@@ -92,8 +88,8 @@ contract LibMemoryKVCrossFunctionTest is Test {
         // holding that key reports, oldest included.
         handles[handles.length - 1] = handles[handles.length - 1].set(keys[0], MemoryKVVal.wrap(bytes32(uint256(999))));
         for (uint256 i = 0; i < handles.length; i++) {
-            handles[i].assertValue(keys[0], 999, "after update");
-            assertEq(handles[i].lengthOf(), (i + 1) * 2, "count after update");
+            assertValue(handles[i], keys[0], 999, "after update");
+            assertEq(lengthOf(handles[i]), (i + 1) * 2, "count after update");
         }
     }
 }

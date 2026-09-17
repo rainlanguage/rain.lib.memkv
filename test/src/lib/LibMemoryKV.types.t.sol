@@ -5,8 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
+import {collidingPairDifferingInBit, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
@@ -15,13 +14,11 @@ import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
 /// arrives as a wrong export or a wrong walk. Here they are the word itself.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestExport for bytes32[];
 
     /// One head pointer per internal linked list.
     uint256 internal constant SLOTS = 15;
 
-    /// The index of the bit a key keeps that no random fuzz pair differs in
-    /// alone.
+    /// The bit a key keeps that no random fuzz pair differs in alone.
     uint256 internal constant TOP_BIT = 0xff;
 
     /// `low` and `high` are two keys, each answering with its own value and
@@ -42,8 +39,8 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(array.countPair(MemoryKVKey.unwrap(low), bytes32(uint256(0xA))) != 0, "low key pair exported");
-        assertTrue(array.countPair(MemoryKVKey.unwrap(high), bytes32(uint256(0xB))) != 0, "high key pair exported");
+        assertTrue(countPair(array, MemoryKVKey.unwrap(low), bytes32(uint256(0xA))) != 0, "low key pair exported");
+        assertTrue(countPair(array, MemoryKVKey.unwrap(high), bytes32(uint256(0xB))) != 0, "high key pair exported");
     }
 
     /// The empty store is the zero word.
@@ -76,13 +73,13 @@ contract LibMemoryKVTypesTest is Test {
     /// two, and one value answering for both. No fuzzed pair of keys differs in
     /// that bit alone, so the pair is searched for rather than drawn.
     function testTopBitCollidersAreTwoKeys() external pure {
-        (MemoryKVKey low, MemoryKVKey high) = LibMemoryKVTestKeys.collidingPairDifferingInBit(0, TOP_BIT);
+        (MemoryKVKey low, MemoryKVKey high) = collidingPairDifferingInBit(0, TOP_BIT);
         assertTwoKeys(low, high);
     }
 
     /// The same, over whichever colliding pair the seed reaches.
     function testTopBitCollidersAreTwoKeysFuzz(uint256 seed) external pure {
-        (MemoryKVKey low, MemoryKVKey high) = LibMemoryKVTestKeys.collidingPairDifferingInBit(seed, TOP_BIT);
+        (MemoryKVKey low, MemoryKVKey high) = collidingPairDifferingInBit(seed, TOP_BIT);
         assertTwoKeys(low, high);
     }
 
@@ -106,7 +103,7 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(array.countPair(bytes32(0), bytes32(type(uint256).max)) != 0, "zero key pair exported");
-        assertTrue(array.countPair(bytes32(type(uint256).max), bytes32(0)) != 0, "max key pair exported");
+        assertTrue(countPair(array, bytes32(0), bytes32(type(uint256).max)) != 0, "zero key pair exported");
+        assertTrue(countPair(array, bytes32(type(uint256).max), bytes32(0)) != 0, "max key pair exported");
     }
 }

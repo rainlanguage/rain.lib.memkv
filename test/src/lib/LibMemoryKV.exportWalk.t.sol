@@ -5,8 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
+import {slotOf, headOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
@@ -18,8 +17,6 @@ import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 /// pairs behind that node are lost.
 contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestKeys for MemoryKVKey;
-    using LibMemoryKVTestHandle for MemoryKV;
 
     /// The widest head pointer a list slot can hold.
     uint256 constant POINTER_MAX = 0xFFFF;
@@ -66,14 +63,12 @@ contract LibMemoryKVExportWalkTest is Test {
     /// read truncated to 16 bits lands in the scratch space instead, where the
     /// last hashed key is, and the tail pair never reaches the array.
     function testExportWalksThroughANextWordAboveTheBound() external view {
-        assertEq(
-            MemoryKVKey.wrap(KEY_HEAD).slotOf(), MemoryKVKey.wrap(KEY_TAIL).slotOf(), "the two keys share one list"
-        );
+        assertEq(slotOf(KEY_HEAD), slotOf(KEY_TAIL), "the two keys share one list");
         assertGt(HEAD_POINTER + 0x40, POINTER_MAX, "the head node's next word is above the bound");
 
         (MemoryKV kv, bytes32[] memory array) = this.exportChainAtExternal(CHAIN_POINTER);
 
-        assertEq(kv.headOf(MemoryKVKey.wrap(KEY_HEAD)), HEAD_POINTER, "the list's head is the node at the bound");
+        assertEq(headOf(kv, MemoryKVKey.wrap(KEY_HEAD)), HEAD_POINTER, "the list's head is the node at the bound");
         assertEq(array.length, 4, "both pairs");
         assertEq(array[0], KEY_HEAD, "the head node's key");
         assertEq(array[1], VALUE_HEAD, "the head node's value");

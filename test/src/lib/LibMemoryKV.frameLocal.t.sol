@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
+import {headOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call
@@ -16,7 +16,6 @@ import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 /// a caller could catch.
 contract LibMemoryKVFrameLocalTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestHandle for MemoryKV;
 
     /// Build a one pair store whose node is at exactly `0xA0`, read it back in
     /// the SAME frame, and return the handle alongside what that read saw. The
@@ -67,8 +66,8 @@ contract LibMemoryKVFrameLocalTest is Test {
 
         assertEq(exists, 1, "the building frame reads its own store");
         assertEq(got, MemoryKVVal.unwrap(value), "the building frame reads the value it set");
-        assertEq(kv.lengthOf(), 2, "the word count crosses the boundary");
-        assertEq(kv.headOf(key), 0xA0, "the head pointer crosses the boundary");
+        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 2, "the word count crosses the boundary");
+        assertEq(headOf(kv, key), 0xA0, "the head pointer crosses the boundary");
     }
 
     /// The same handle in another frame reads THAT frame's memory. The filler

@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
@@ -25,7 +25,7 @@ contract LibMemoryKVGetWalkTest is Test {
         pure
         returns (MemoryKV kv, uint256 head, uint256 tail)
     {
-        uint256 bitOffset = LibMemoryKVTestKeys.slotOf(key) * 0x10;
+        uint256 bitOffset = slotOf(MemoryKVKey.unwrap(key)) * 0x10;
         assembly ("memory-safe") {
             tail := mload(0x40)
             mstore(0x40, add(tail, 0x60))
@@ -101,8 +101,8 @@ contract LibMemoryKVGetWalkTest is Test {
     /// onto ONE internal list, because two keys in different slots are two
     /// one-node lists and never exercise the walk at all.
     function testGetReadsATailNodeWhenOnlyItMatches() external pure {
-        MemoryKVKey tailKey = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 5);
-        MemoryKVKey headKey = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(2)), 5);
+        MemoryKVKey tailKey = keyForSlot(bytes32(uint256(1)), 5);
+        MemoryKVKey headKey = keyForSlot(bytes32(uint256(2)), 5);
         assertTrue(MemoryKVKey.unwrap(headKey) != MemoryKVKey.unwrap(tailKey), "the two keys must be different keys");
 
         MemoryKV kv = MEMORY_KV_EMPTY;

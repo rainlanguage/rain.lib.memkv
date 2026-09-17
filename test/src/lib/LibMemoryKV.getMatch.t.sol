@@ -5,8 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
@@ -16,7 +15,6 @@ import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
 /// nothing about the comparison.
 contract LibMemoryKVGetMatchTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestHandle for MemoryKV;
 
     /// A one node list holding `nodeKey`, hung off the internal list that
     /// `queryKey` hashes to, so a `get` for `queryKey` reaches that node
@@ -29,7 +27,7 @@ contract LibMemoryKVGetMatchTest is Test {
     {
         MemoryKV kv;
         uint256 node;
-        uint256 bitOffset = LibMemoryKVTestKeys.slotOf(queryKey) * 0x10;
+        uint256 bitOffset = slotOf(MemoryKVKey.unwrap(queryKey)) * 0x10;
         assembly ("memory-safe") {
             node := mload(0x40)
             mstore(0x40, add(node, 0x60))
@@ -84,9 +82,9 @@ contract LibMemoryKVGetMatchTest is Test {
     /// three keys are driven onto one list rather than left to collide by
     /// chance, which two arbitrary keys do one time in fifteen.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
-        MemoryKVKey head = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(1)), 5);
-        MemoryKVKey tail = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(2)), 5);
-        MemoryKVKey absent = LibMemoryKVTestKeys.keyForSlot(bytes32(uint256(3)), 5);
+        MemoryKVKey head = keyForSlot(bytes32(uint256(1)), 5);
+        MemoryKVKey tail = keyForSlot(bytes32(uint256(2)), 5);
+        MemoryKVKey absent = keyForSlot(bytes32(uint256(3)), 5);
         assertTrue(MemoryKVKey.unwrap(head) != MemoryKVKey.unwrap(tail), "head and tail are different keys");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(head), "absent is not the head key");
         assertTrue(MemoryKVKey.unwrap(absent) != MemoryKVKey.unwrap(tail), "absent is not the tail key");
@@ -94,8 +92,8 @@ contract LibMemoryKVGetMatchTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(tail, MemoryKVVal.wrap(bytes32(uint256(0x222))));
         kv = kv.set(head, MemoryKVVal.wrap(bytes32(uint256(0x111))));
-        assertTrue(kv.headOf(5) != 0, "the absent key's list is occupied");
-        assertEq(kv.lengthOf(), 4, "both pairs are in the store");
+        assertTrue(((MemoryKV.unwrap(kv) >> 0x50) & 0xFFFF) != 0, "the absent key's list is occupied");
+        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "both pairs are in the store");
 
         (uint256 exists, MemoryKVVal value) = kv.get(absent);
         assertEq(exists, 0, "the absent key is not in the store");

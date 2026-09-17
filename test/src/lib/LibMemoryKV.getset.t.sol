@@ -6,13 +6,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
+import {headOf, collidingKey} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 contract LibMemoryKVGetSetTest is Test {
-    using LibMemoryKVTestKeys for MemoryKVKey;
-    using LibMemoryKVTestHandle for MemoryKV;
-
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {
         assembly ("memory-safe") {
             // Set the pointer past 0xFFFF to cause an overflow on the next
@@ -93,10 +89,11 @@ contract LibMemoryKVGetSetTest is Test {
 
         // The inserted list item must live at exactly 0xFFFF, so the slot for
         // this key must encode the pointer 0xFFFF.
-        assertEq(kv.headOf(key), 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot");
+        uint256 raw = MemoryKV.unwrap(kv);
+        assertEq(headOf(kv, key), 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot");
 
         // The length must be exactly 2 words (one key/value pair).
-        assertEq(kv.lengthOf(), 2, "length");
+        assertEq(raw >> 0xf0, 2, "length");
     }
 
     /// One below the max pointer (`0xFFFE`) must also be accepted and encode
@@ -106,8 +103,9 @@ contract LibMemoryKVGetSetTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = this.setAtPointerExternal(kv, key, value, 0xFFFE);
 
-        assertEq(kv.headOf(key), 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
-        assertEq(kv.lengthOf(), 2, "length");
+        uint256 raw = MemoryKV.unwrap(kv);
+        assertEq(headOf(kv, key), 0xFFFE, "pointer 0xFFFE must be encoded into this key's slot");
+        assertEq(raw >> 0xf0, 2, "length");
     }
 
     /// The first pointer past the max (`0x10000`) MUST revert with the exact
@@ -137,7 +135,7 @@ contract LibMemoryKVGetSetTest is Test {
     /// the walk from that node down to the first one has to read across the
     /// bound to find it.
     function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
-        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, key.collidingKey(), value, 0xFFC0);
+        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, collidingKey(key), value, 0xFFC0);
 
         assertEq(exists, 1, "the walk reaches the first key through a next word at 0x10000");
         assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");

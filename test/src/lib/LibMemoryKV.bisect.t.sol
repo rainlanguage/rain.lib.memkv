@@ -5,9 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LibMemoryKVTestKeys} from "test/lib/LibMemoryKVTestKeys.sol";
-import {LibMemoryKVTestHandle} from "test/lib/LibMemoryKVTestHandle.sol";
-import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
+import {slotOf, headOf, lengthOf, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
@@ -49,9 +47,6 @@ import {LibMemoryKVTestExport} from "test/lib/LibMemoryKVTestExport.sol";
 /// walk that pointer past the `0xFFFF` ceiling `set` enforces after 115 of them.
 contract LibMemoryKVBisectTest is Test {
     using LibMemoryKV for MemoryKV;
-    using LibMemoryKVTestKeys for MemoryKVKey;
-    using LibMemoryKVTestHandle for MemoryKV;
-    using LibMemoryKVTestExport for bytes32[];
 
     /// `kv` carries one pointer per internal linked list.
     uint256 constant SLOTS = 15;
@@ -160,7 +155,7 @@ contract LibMemoryKVBisectTest is Test {
         uint256 occupancy = 0;
         for (uint256 i = 0; i < SLOTS; i++) {
             occupancy <<= 1;
-            if (kv.headOf(SLOTS - 1 - i) != 0) {
+            if (headOf(kv, SLOTS - 1 - i) != 0) {
                 occupancy |= 1;
             }
         }
@@ -196,7 +191,7 @@ contract LibMemoryKVBisectTest is Test {
         assertEq(array.length, occupiedCount(mask) * 2, "one pair per occupied slot");
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             if (occupies(mask, slot)) {
-                assertEq(array.countPair(keys[slot], valueFor(slot)), 1, "occupied slot exported exactly once");
+                assertEq(countPair(array, keys[slot], valueFor(slot)), 1, "occupied slot exported exactly once");
             }
         }
     }
@@ -222,7 +217,7 @@ contract LibMemoryKVBisectTest is Test {
         assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
         for (uint256 slot = 0; slot < SLOTS; slot++) {
             if (occupies(mask, slot)) {
-                assertGe(kv.headOf(slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
+                assertGe(headOf(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
             }
         }
         checkExportedPairs(kv, mask, keys);
@@ -471,13 +466,13 @@ contract LibMemoryKVBisectTest is Test {
     function testKeyConstantsLandWhereClaimed() public pure {
         bytes32[SLOTS] memory keys = slotKeys();
         for (uint256 slot = 0; slot < SLOTS; slot++) {
-            assertEq(MemoryKVKey.wrap(keys[slot]).slotOf(), slot, "slot key hashes into its slot");
+            assertEq(slotOf(keys[slot]), slot, "slot key hashes into its slot");
         }
         assertEq(occupancyOf(storeForOccupancy(OCCUPANCY_FULL, keys)), OCCUPANCY_FULL, "fifteen keys, fifteen slots");
 
         bytes32[12] memory chainKeys = slot0ChainKeys();
         for (uint256 i = 0; i < chainKeys.length; i++) {
-            assertEq(MemoryKVKey.wrap(chainKeys[i]).slotOf(), 0, "chain key hashes into slot 0");
+            assertEq(slotOf(chainKeys[i]), 0, "chain key hashes into slot 0");
         }
     }
 
@@ -517,12 +512,12 @@ contract LibMemoryKVBisectTest is Test {
         }
 
         assertEq(occupancyOf(kv), 1, "every slot but slot 0 must be empty");
-        assertEq(kv.lengthOf(), keys.length * 2, "length far above a single insert");
+        assertEq(lengthOf(kv), keys.length * 2, "length far above a single insert");
 
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         assertEq(array.length, keys.length * 2, "twelve pairs");
         for (uint256 i = 0; i < keys.length; i++) {
-            assertEq(array.countPair(keys[i], valueFor(i)), 1, "each pair exported exactly once");
+            assertEq(countPair(array, keys[i], valueFor(i)), 1, "each pair exported exactly once");
         }
     }
 }
