@@ -172,8 +172,7 @@ library LibMemoryKV {
                 // Update total stored word count.
                 length := add(shr(0xf0, kv), 2)
 
-                //slither-disable-next-line incorrect-shift
-                kv := or(shl(0xf0, length), and(kv, not(shl(0xf0, 0xFFFF))))
+                kv := add(kv, shl(0xf0, 2))
 
                 // kv must point to new insertion.
                 //slither-disable-next-line incorrect-shift

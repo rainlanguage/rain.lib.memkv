@@ -30,17 +30,17 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// copying, which both implementations do identically, dominates.
     uint256 constant BISECT_SAVING_MAX_PAIRS = 5;
 
-    /// README: "A key alone in its list costs ~240 gas to get and ~400 gas to
+    /// README: "A key alone in its list costs ~240 gas to get and ~390 gas to
     /// insert."
     uint256 constant README_SOLO_GET_GAS = 240;
-    uint256 constant README_SOLO_SET_GAS = 400;
+    uint256 constant README_SOLO_SET_GAS = 390;
 
     /// README: "every key already in a list adds ~65 gas to a get from it and
     /// ~75 gas to a set into it: the fourth key to land in one list inserts for
-    /// ~620 gas."
+    /// ~610 gas."
     uint256 constant README_WALKED_GET_GAS = 65;
     uint256 constant README_WALKED_SET_GAS = 75;
-    uint256 constant README_FOURTH_IN_LIST_SET_GAS = 620;
+    uint256 constant README_FOURTH_IN_LIST_SET_GAS = 610;
 
     /// How many keys the colliding measurements put into one list. The README
     /// names the fourth.
