@@ -144,4 +144,29 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             0x12345
         );
     }
+
+    /// Ask for the inserts a count wrap needs, against an empty store in a
+    /// frame that allocates nothing else so the node addresses are exact. The
+    /// fill is expected to stop short; the caller sees only which error.
+    function fillFromEmptyExternal(uint256 pairs) external pure {
+        assembly ("memory-safe") {
+            mstore(0x40, 0x80)
+        }
+        MemoryKV kv = MemoryKV.wrap(0);
+        for (uint256 i = 1; i <= pairs; i++) {
+            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
+        }
+    }
+
+    /// Every other test here forces the count with `withCount`, which is a
+    /// `kv` no `set` produced. This is the one that asks what a caller who only
+    /// ever calls `set` can reach, and the answer is that it is not this error:
+    /// carrying the count to `0x10000` needs 32768 inserts, and the node
+    /// address runs out 48 times earlier, at the 683rd, at `0x10040`. So
+    /// `MemoryKVLengthOverflow` is not in a correct caller's reach and the
+    /// header's claim above is a measurement rather than an assurance.
+    function testWordCountBoundIsUnreachableFromAnEmptyStore() external {
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
+        this.fillFromEmptyExternal((COUNT_MAX + 1) / 2);
+    }
 }
