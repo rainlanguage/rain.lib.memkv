@@ -183,6 +183,102 @@ contract LibMemoryKVExportAllocTest is Test {
         assertEq(array[1], value, "value second");
     }
 
+    /// A value of `0` is a value: `get` documents that any key MAY be set to
+    /// zero and reports existence separately from it. The export must write
+    /// that zero into the pair's second word rather than leave the word as
+    /// whatever memory held, so the free memory is dirtied first and the
+    /// assertion is on the zero itself.
+    function testExportCopiesZeroValue(bytes32 seed) external pure {
+        bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
+        bytes32 zeroValued = keccak256(abi.encode(seed, "zero valued"));
+
+        MemoryKV kv = MEMORY_KV_EMPTY.set(MemoryKVKey.wrap(zeroValued), MemoryKVVal.wrap(bytes32(0)));
+        for (uint256 i = 1; i <= 4; i++) {
+            kv = kv.set(MemoryKVKey.wrap(keccak256(abi.encode(seed, i))), MemoryKVVal.wrap(bytes32(i)));
+        }
+
+        dirtyFreeMemory(sentinel, 64);
+
+        bytes32[] memory array = kv.toBytes32Array();
+        assertEq(array.length, 10);
+
+        bool found = false;
+        for (uint256 i = 0; i < array.length; i += 2) {
+            if (array[i] == zeroValued) {
+                assertEq(array[i + 1], bytes32(0), "zero value copied, not left unwritten");
+                found = true;
+            }
+        }
+        assertTrue(found, "the zero valued key was exported");
+    }
+
+    /// A key of `0` is a key: nothing marks it as absent and `get` finds it by
+    /// equality like any other. The export must copy it into the pair's first
+    /// word and keep walking past it. The zero key is inserted LAST onto a list
+    /// four other keys already occupy, so `set`'s prepend puts it at the head
+    /// and a walk that stopped at it would lose the four behind it as well.
+    function testExportCopiesZeroKey(bytes32 seed) external pure {
+        bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
+        bytes32 zeroKeyValue = keccak256(abi.encode(seed, "zero key value"));
+        uint256 slot = uint256(keccak256(abi.encodePacked(bytes32(0)))) % 15;
+
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        bytes32[] memory behind = new bytes32[](4);
+        for (uint256 i = 0; i < behind.length; i++) {
+            behind[i] = keyForSlot(keccak256(abi.encode(seed, i)), slot);
+            kv = kv.set(MemoryKVKey.wrap(behind[i]), MemoryKVVal.wrap(bytes32(i + 1)));
+        }
+        kv = kv.set(MemoryKVKey.wrap(bytes32(0)), MemoryKVVal.wrap(zeroKeyValue));
+
+        dirtyFreeMemory(sentinel, 64);
+
+        bytes32[] memory array = kv.toBytes32Array();
+        assertEq(array.length, 10);
+
+        bool found = false;
+        for (uint256 i = 0; i < array.length; i += 2) {
+            if (array[i] == bytes32(0)) {
+                assertEq(array[i + 1], zeroKeyValue, "zero key's value beside it");
+                found = true;
+            }
+        }
+        assertTrue(found, "the zero key was exported");
+
+        for (uint256 i = 0; i < behind.length; i++) {
+            bool alsoFound = false;
+            for (uint256 j = 0; j < array.length; j += 2) {
+                if (array[j] == behind[i] && array[j + 1] == bytes32(i + 1)) {
+                    alsoFound = true;
+                }
+            }
+            assertTrue(alsoFound, "the walk did not stop at the zero key");
+        }
+    }
+
+    /// The pair writes stay inside the array. The word at
+    /// `array + 0x20 + length * 0x20` is the first word of the next
+    /// allocation, which the `memory-safe` annotation promises is untouched,
+    /// so it must still read as the sentinel the test put there.
+    function testExportWritesNothingPastTheArray(bytes32 seed) external pure {
+        bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
+
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        for (uint256 i = 1; i <= 6; i++) {
+            kv = kv.set(MemoryKVKey.wrap(keccak256(abi.encode(seed, i))), MemoryKVVal.wrap(bytes32(i)));
+        }
+
+        dirtyFreeMemory(sentinel, 64);
+
+        bytes32[] memory array = kv.toBytes32Array();
+        bytes32 past;
+        assembly ("memory-safe") {
+            past := mload(add(array, add(0x20, mul(mload(array), 0x20))))
+        }
+
+        assertEq(array.length, 12);
+        assertEq(past, sentinel, "the word past the array end was written");
+    }
+
     /// A single internal list holding several nodes is walked to its end and
     /// every pair on it lands in the array, adjacent and in one piece. This is
     /// the multi-step walk: the chain, not the bisect.
