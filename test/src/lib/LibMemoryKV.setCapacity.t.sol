@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
@@ -25,6 +26,30 @@ contract LibMemoryKVSetCapacityTest is Test {
         assembly ("memory-safe") {
             mstore(0x40, 0x80)
         }
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        for (uint256 i = 1; i <= pairs; i++) {
+            kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
+        }
+        return MemoryKV.unwrap(kv) >> 0xf0;
+    }
+
+    /// Allocate an unrelated `bytes32[]` of `elements` elements in a frame that
+    /// starts at the default free memory pointer, then insert `pairs` distinct
+    /// keys behind it. The array costs a length word plus its elements, and
+    /// that cost is required rather than assumed so a frame that started
+    /// somewhere else is a failure here rather than a different capacity.
+    /// Returns the word count.
+    function fillAfterUnrelatedAllocationExternal(uint256 elements, uint256 pairs) external pure returns (uint256) {
+        assembly ("memory-safe") {
+            mstore(0x40, 0x80)
+        }
+        bytes32[] memory unrelated = new bytes32[](elements);
+        require(unrelated.length == elements, "the unrelated array is live");
+        require(
+            Pointer.unwrap(LibPointer.allocatedMemoryPointer()) == 0xA0 + elements * 0x20,
+            "the unrelated array is a length word and its elements"
+        );
+
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
@@ -62,6 +87,31 @@ contract LibMemoryKVSetCapacityTest is Test {
     function testSetOverflowsOnThe683rdPairOfAnOtherwiseEmptyFrame() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
         this.fillEmptyFrameExternal(683);
+    }
+
+    /// An empty `bytes32[]` is one word, and that one word costs a whole pair:
+    /// the nodes start at `0xA0` instead of `0x80`, so the last one that fits
+    /// is the 681st, at `0xFFA0`.
+    function testOneUnrelatedWordLeavesRoomFor681Pairs() external view {
+        assertEq(this.fillAfterUnrelatedAllocationExternal(0, 681), 1362, "681 pairs is 1362 words");
+    }
+
+    /// The same 682 pairs that fit an otherwise empty frame revert once one
+    /// unrelated word is in that frame, at `0xA0 + 681 * 0x60`. A pair count is
+    /// therefore not a capacity: what the caller has already allocated decides
+    /// whether the same count succeeds or reverts.
+    function testOneUnrelatedWordMakes682PairsOverflow() external {
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
+        this.fillAfterUnrelatedAllocationExternal(0, 682);
+    }
+
+    /// A bigger allocation costs more pairs, and not one per word: eight
+    /// unrelated words start the nodes at `0x180` and cost three pairs, leaving
+    /// 679 with the 680th at `0x10020`.
+    function testEightUnrelatedWordsCostThreePairs() external {
+        assertEq(this.fillAfterUnrelatedAllocationExternal(7, 679), 1358, "679 pairs is 1358 words");
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10020));
+        this.fillAfterUnrelatedAllocationExternal(7, 680);
     }
 
     /// An update never reverts `MemoryKVOverflow`, however far past the bound

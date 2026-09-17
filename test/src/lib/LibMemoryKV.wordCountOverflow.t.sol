@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -18,6 +19,10 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// must fit sixteen bits too and that runs out first. That is a bound on
 /// addresses, not on the count, and it is the pointer width that sets it. These
 /// assert the count is bounded by a bound on the count.
+///
+/// Both bounds are read by one comparison over `pointer | length`, so where the
+/// two values meet at `0xFFFF` is here too: what that comparison still accepts,
+/// and which of the two an overflow is reported as.
 contract LibMemoryKVWordCountOverflowTest is Test {
     /// The bit offset of the word count in `MemoryKV`.
     uint256 internal constant COUNT_BIT_OFFSET = 0xf0;
@@ -28,10 +33,6 @@ contract LibMemoryKVWordCountOverflowTest is Test {
     /// Somewhere low enough that the inserted node's address cannot be what
     /// overflows, and clear of the scratch space and the free memory pointer.
     uint256 internal constant LOW_FREE_POINTER = 0x200;
-
-    function count(MemoryKV kv) internal pure returns (uint256) {
-        return MemoryKV.unwrap(kv) >> COUNT_BIT_OFFSET;
-    }
 
     function withCount(MemoryKV kv, uint256 newCount) internal pure returns (MemoryKV) {
         return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
@@ -108,7 +109,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             withCount(MEMORY_KV_EMPTY, 0xFFFC), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
-        assertEq(count(kv), 0xFFFE, "the widest count that fits is written whole");
+        assertEq(lengthOf(kv), 0xFFFE, "the widest count that fits is written whole");
 
         uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
         assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");
@@ -127,7 +128,7 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             LOW_FREE_POINTER
         );
 
-        assertEq(count(kv), COUNT_MAX, "an update leaves the count alone");
+        assertEq(lengthOf(kv), COUNT_MAX, "an update leaves the count alone");
         assertEq(exists, 1, "the key is still there");
         assertEq(uint256(value), 3, "the update took effect");
     }
@@ -142,6 +143,54 @@ contract LibMemoryKVWordCountOverflowTest is Test {
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             0x12345
+        );
+    }
+
+    /// `MemoryKVLengthOverflow` is documented for a count pushed "past
+    /// `0xFFFF`", so `0xFFFF` itself still fits and must be written whole. It is
+    /// also the widest value the shared comparison accepts, reached here with
+    /// both of its inputs nonzero, so a guard that added the node address and
+    /// the count rather than ORing their bits would refuse this insert.
+    function testSetAcceptsAWordCountOfExactlyTheBound() external view {
+        MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
+        MemoryKV kv = this.setAtFreePointer(
+            withCount(MEMORY_KV_EMPTY, 0xFFFD), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
+        );
+
+        assertEq(lengthOf(kv), 0xFFFF, "a count of exactly the bound is written whole");
+
+        uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
+        assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");
+    }
+
+    /// `MemoryKVOverflow` is documented for a node address "above `0xFFFF`", so
+    /// a node landing exactly on `0xFFFF` has not overflowed and an overflowing
+    /// count alongside it is still reported as the count's error. Every other
+    /// input either leaves the guard alone or is already past the address bound,
+    /// so this is what separates an address bound of `above` from one of `at`.
+    function testSetReportsTheCountWhenTheAddressIsTheWidestValidOne() external {
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10000));
+        this.setAtFreePointer(
+            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            MemoryKVKey.wrap(bytes32(uint256(1))),
+            MemoryKVVal.wrap(bytes32(uint256(2))),
+            0xFFFF
+        );
+    }
+
+    /// The bound is `0xFFFF`, not the `0x10000` that first crosses it. With the
+    /// node address and the count both at `0x10000` their combined
+    /// `pointer | length` is `0x10000` as well, so a bound written one too high
+    /// lets this insert through entirely rather than merely naming the wrong
+    /// overflow: `0x12345` above carries bits a raised bound still catches, and
+    /// this carries none.
+    function testSetOverflowsWhenBothValuesAreTheFirstInvalidOne() external {
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
+        this.setAtFreePointer(
+            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            MemoryKVKey.wrap(bytes32(uint256(1))),
+            MemoryKVVal.wrap(bytes32(uint256(2))),
+            0x10000
         );
     }
 
