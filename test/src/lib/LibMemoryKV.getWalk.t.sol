@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
@@ -121,7 +121,7 @@ contract LibMemoryKVGetWalkTest is Test {
         MemoryKVKey headKey = keyInSlot(bytes32(uint256(2)), 5);
         assertTrue(MemoryKVKey.unwrap(headKey) != MemoryKVKey.unwrap(tailKey), "the two keys must be different keys");
 
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(tailKey, MemoryKVVal.wrap(bytes32(uint256(222))));
         kv = kv.set(headKey, MemoryKVVal.wrap(bytes32(uint256(111))));
 

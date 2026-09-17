@@ -4,7 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call
@@ -34,7 +34,7 @@ contract LibMemoryKVFrameLocalTest is Test {
         assembly ("memory-safe") {
             mstore(0x40, 0xA0)
         }
-        MemoryKV kv = MemoryKV.wrap(0).set(key, value);
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
         (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (kv, exists, MemoryKVVal.unwrap(got));
     }

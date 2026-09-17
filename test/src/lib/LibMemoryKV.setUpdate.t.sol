@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVSetUpdateTest
 /// `set` hashes the key to one of 15 internal lists, walks that list for a
@@ -68,7 +68,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     function testSetHashesIntoTheSameListGetReads() external pure {
         for (uint256 slot = 0; slot < 15; slot++) {
             MemoryKVKey key = keyForSlot(bytes32(slot + 1), slot);
-            MemoryKV kv = MemoryKV.wrap(0).set(key, val(0xBEEF00 + slot));
+            MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(0xBEEF00 + slot));
 
             // The pointer went into the slot the key hashes to and nowhere else.
             assertTrue(headOf(kv, slot) > 0, "head");
@@ -87,7 +87,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// memory was allocated.
     function testUpdateChangesOnlyTheValue() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
-        MemoryKV kv = MemoryKV.wrap(0).set(key, val(11));
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(11));
         uint256 before = MemoryKV.unwrap(kv);
 
         Pointer alloc0 = LibPointer.allocatedMemoryPointer();
@@ -114,7 +114,7 @@ contract LibMemoryKVSetUpdateTest is Test {
         MemoryKVKey b = keyForSlot(bytes32(uint256(0xB)), 0x07);
         MemoryKVKey c = keyForSlot(bytes32(uint256(0xC)), 0x07);
 
-        MemoryKV kv = MemoryKV.wrap(0).set(a, val(1)).set(b, val(2)).set(c, val(3));
+        MemoryKV kv = MEMORY_KV_EMPTY.set(a, val(1)).set(b, val(2)).set(c, val(3));
         assertEq(lengthOf(kv), 6, "length before");
 
         // `c` was inserted last so it is the head. Update the MIDDLE node.
@@ -134,7 +134,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     function testUpdateReachesTheTailOfALongList() external pure {
         uint256 count = 6;
         MemoryKVKey[] memory keys = new MemoryKVKey[](count);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < count; i++) {
             keys[i] = keyForSlot(bytes32(0xD0 + i), 0x03);
             kv = kv.set(keys[i], val(i + 1));
@@ -157,7 +157,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// single insert, and never grows the word count.
     function testRepeatedUpsertAllocatesOnce() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(0x5EED)));
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         uint256 word;
 
         // Nothing but `set` runs between the two readings, so the whole delta
@@ -186,7 +186,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// Writing the value a key already holds is a no-op on every observable: the
     /// store word, the word count, the allocation, and the export.
     function testUpdateToTheSameValueIsIdempotent(MemoryKVKey key, MemoryKVVal value) external pure {
-        MemoryKV kv = MemoryKV.wrap(0).set(key, value);
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
         uint256 before = MemoryKV.unwrap(kv);
         bytes32[] memory arrayBefore = kv.toBytes32Array();
 
@@ -207,7 +207,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// wavers and the value is whatever was last written, including zero.
     function testUpdateAcrossTheZeroAndMaxEdges() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(0)));
-        MemoryKV kv = MemoryKV.wrap(0).set(key, val(0));
+        MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(0));
         uint256 before = MemoryKV.unwrap(kv);
         assertValue(kv, key, 0, "zero");
 
@@ -225,7 +225,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// head pointers, same values.
     function testUpdateIsIsolatedBetweenLists() external pure {
         MemoryKVKey[] memory keys = new MemoryKVKey[](15);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 slot = 0; slot < 15; slot++) {
             keys[slot] = keyForSlot(bytes32(0x1000 + slot), slot);
             kv = kv.set(keys[slot], val(slot + 1));
@@ -252,7 +252,7 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// linked lists never fill.
     function testWordCountCountsDistinctKeysOnly(MemoryKVKey[] memory keys, MemoryKVVal value) external pure {
         vm.assume(keys.length <= 20);
-        MemoryKV kv = MemoryKV.wrap(0);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         uint256 distinct = 0;
         for (uint256 i = 0; i < keys.length; i++) {
             if (!kv.has(keys[i])) {
