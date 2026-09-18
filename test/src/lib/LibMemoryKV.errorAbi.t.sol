@@ -3,9 +3,9 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
-import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVErrorAbiTest
@@ -40,11 +40,11 @@ contract LibMemoryKVErrorAbiTest is Test, SetAtFreePointer {
     }
 
     /// The same for the count bound: the first four bytes of the hash of
-    /// `MemoryKVLengthOverflow(uint256)`, then the offending count. `0xFFFF + 2`
-    /// is `0x10001`, which is neither the bound nor one past it.
+    /// `MemoryKVLengthOverflow(uint256)`, then the offending count.
+    /// `COUNT_MAX + 2` is neither the bound nor one past it.
     function testLengthOverflowRevertDataIsTheCanonicalAbiEncoding() external {
         bytes4 selector = bytes4(keccak256(bytes("MemoryKVLengthOverflow(uint256)")));
-        vm.expectRevert(abi.encodePacked(selector, uint256(0x10001)));
+        vm.expectRevert(abi.encodePacked(selector, COUNT_MAX + 2));
         this.setAtFreePointer(
             withCount(MEMORY_KV_EMPTY, COUNT_MAX),
             MemoryKVKey.wrap(bytes32(uint256(1))),
