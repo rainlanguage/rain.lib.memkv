@@ -97,6 +97,7 @@ library LibMemoryKV {
     /// whose occupancy bit is `j`. 2 is a primitive root modulo 19, so the 15
     /// indices `2^0 .. 2^14 mod 19` are distinct and every bit has a byte of
     /// its own.
+    //slither-disable-next-line too-many-digits
     uint256 internal constant SLOT_TABLE = 0x000e0d010c0000080b060002000907030a040500000000000000000000000000;
 
     /// The modulus that turns a single occupancy bit into its `SLOT_TABLE`
