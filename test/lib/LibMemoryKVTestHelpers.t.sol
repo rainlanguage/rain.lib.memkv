@@ -9,7 +9,6 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
 import {
-    LIST_COUNT,
     collidingPairDifferingInBit,
     slotOf,
     withCount,
@@ -60,18 +59,18 @@ contract LibMemoryKVTestHelpersTest is Test {
 
     /// `withCount` rewrites the count and nothing under it: from any word,
     /// every head pointer comes through unchanged, the count reads back as the
-    /// one forced, and every bit below the top sixteen is the bit it was.
-    function testWithCountKeepsEveryBitUnderTheCount(uint256 word, uint16 forced) external pure {
+    /// one forced, and every bit below the count's slot is the bit it was.
+    function testWithCountKeepsEveryBitUnderTheCount(uint256 word, uint256 forced) external pure {
+        forced = bound(forced, 0, LibMemoryKV.POINTER_MASK);
         MemoryKV kv = MemoryKV.wrap(word);
         MemoryKV changed = withCount(kv, forced);
 
         assertEq(lengthOf(changed), forced, "count forced");
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             assertEq(headOf(changed, slot), headOf(kv, slot), string.concat("head of slot ", vm.toString(slot)));
         }
-        assertEq(
-            MemoryKV.unwrap(changed) & type(uint240).max, word & type(uint240).max, "every bit under the count kept"
-        );
+        uint256 underTheCount = (uint256(1) << LibMemoryKV.COUNT_BIT_OFFSET) - 1;
+        assertEq(MemoryKV.unwrap(changed) & underTheCount, word & underTheCount, "every bit under the count kept");
     }
 
     /// A key the store holds with exactly the expected value passes.

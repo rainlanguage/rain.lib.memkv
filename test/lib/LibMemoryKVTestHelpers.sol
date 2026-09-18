@@ -7,28 +7,10 @@ import {StdConstants} from "forge-std-1.16.1/src/StdConstants.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @dev How many candidates a key or key-pair search tries before reverting. One
-/// key in `LIST_COUNT` lands in any given list, and one candidate pair in
-/// `LIST_COUNT` shares a list, so this is far more than any search here needs.
+/// key in `LibMemoryKV.LIST_COUNT` lands in any given list, and one candidate
+/// pair in `LibMemoryKV.LIST_COUNT` shares a list, so this is far more than any
+/// search here needs.
 uint256 constant CANDIDATE_LIMIT = 10000;
-
-/// @dev Internal linked lists in one `MemoryKV`, one head pointer slot each.
-uint256 constant LIST_COUNT = 15;
-
-/// @dev Width in bits of one head pointer slot.
-uint256 constant SLOT_BITS = 0x10;
-
-/// @dev The widest head pointer a slot holds.
-uint256 constant POINTER_MAX = 0xFFFF;
-
-/// @dev Bytes an insert allocates per pair: the key, value and next pointer words.
-uint256 constant NODE_BYTES = 0x60;
-
-/// @dev The bit offset of the word count in `MemoryKV`: the slot after the last
-/// list.
-uint256 constant COUNT_BIT_OFFSET = 0xf0;
-
-/// @dev The widest count the field holds.
-uint256 constant COUNT_MAX = 0xFFFF;
 
 /// The value whose word is `word`.
 function val(uint256 word) pure returns (MemoryKVVal) {
@@ -42,7 +24,7 @@ function keyFor(uint256 word) pure returns (MemoryKVKey) {
 
 /// `keccak256` of the one word `word`, hashed from scratch space so the free
 /// memory pointer does not move; callers rely on that when they need node
-/// addresses to stay at or under `POINTER_MAX`.
+/// addresses to stay at or under `LibMemoryKV.POINTER_MASK`.
 function hashWord(bytes32 word) pure returns (bytes32 hashed) {
     assembly ("memory-safe") {
         mstore(0, word)
@@ -50,10 +32,11 @@ function hashWord(bytes32 word) pure returns (bytes32 hashed) {
     }
 }
 
-/// The internal list `key` belongs to: `keccak256(key) % LIST_COUNT`, restated
-/// from the layout `MemoryKV` documents rather than read back out of the store.
+/// The internal list `key` belongs to: `keccak256(key) % LibMemoryKV.LIST_COUNT`,
+/// restated from the layout `MemoryKV` documents rather than read back out of
+/// the store.
 function slotOf(bytes32 key) pure returns (uint256) {
-    return uint256(hashWord(key)) % LIST_COUNT;
+    return uint256(hashWord(key)) % LibMemoryKV.LIST_COUNT;
 }
 
 /// The first key of the chain `seed`, `keccak256(seed)`, ... that lands in
@@ -112,19 +95,23 @@ function collidingPairDifferingInBit(uint256 seed, uint256 bit) pure returns (Me
 }
 
 /// `kv` with its word count replaced by `newCount`, every other bit kept;
-/// `newCount` is not checked against `COUNT_MAX`.
+/// `newCount` is not checked against `LibMemoryKV.POINTER_MASK`, the widest
+/// count the slot holds.
 function withCount(MemoryKV kv, uint256 newCount) pure returns (MemoryKV) {
-    return MemoryKV.wrap((MemoryKV.unwrap(kv) & ~(COUNT_MAX << COUNT_BIT_OFFSET)) | (newCount << COUNT_BIT_OFFSET));
+    return MemoryKV.wrap(
+        (MemoryKV.unwrap(kv) & ~(LibMemoryKV.POINTER_MASK << LibMemoryKV.COUNT_BIT_OFFSET))
+            | (newCount << LibMemoryKV.COUNT_BIT_OFFSET)
+    );
 }
 
-/// The word count the store carries at `COUNT_BIT_OFFSET`.
+/// The word count the store carries at `LibMemoryKV.COUNT_BIT_OFFSET`.
 function lengthOf(MemoryKV kv) pure returns (uint256) {
-    return MemoryKV.unwrap(kv) >> COUNT_BIT_OFFSET;
+    return MemoryKV.unwrap(kv) >> LibMemoryKV.COUNT_BIT_OFFSET;
 }
 
 /// The head pointer `kv` holds for internal list `slot`.
 function headOf(MemoryKV kv, uint256 slot) pure returns (uint256) {
-    return (MemoryKV.unwrap(kv) >> (slot * SLOT_BITS)) & POINTER_MAX;
+    return (MemoryKV.unwrap(kv) >> (slot * LibMemoryKV.SLOT_BITS)) & LibMemoryKV.POINTER_MASK;
 }
 
 /// The head pointer `kv` holds for the internal list `key` belongs to.
@@ -153,10 +140,11 @@ function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory 
     StdConstants.VM.assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
 }
 
-/// How many of the `LIST_COUNT` internal lists of `kv` hold a head pointer.
+/// How many of the `LibMemoryKV.LIST_COUNT` internal lists of `kv` hold a head
+/// pointer.
 function occupiedSlots(MemoryKV kv) pure returns (uint256) {
     uint256 count = 0;
-    for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+    for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
         if (headOf(kv, slot) != 0) {
             count++;
         }
