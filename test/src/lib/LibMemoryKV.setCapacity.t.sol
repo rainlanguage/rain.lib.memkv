@@ -3,9 +3,11 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {NODE_BYTES, lengthOf, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -17,20 +19,25 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 contract LibMemoryKVSetCapacityTest is Test {
     using LibMemoryKV for MemoryKV;
 
+    /// The source whose `set` NatSpec states `EMPTY_FRAME_PAIRS`.
+    string internal constant SOURCE = "src/lib/LibMemoryKV.sol";
+
+    /// The pairs a frame that allocates nothing else holds before the next
+    /// insert reverts.
+    uint256 internal constant EMPTY_FRAME_PAIRS = 682;
+
     /// Insert `pairs` distinct keys into an empty store in a frame that starts
     /// at the default free memory pointer and allocates nothing else, so the
     /// nodes are the only allocation and their addresses are exact. Returns the
     /// word count, so a fill that stopped early is a number rather than a
     /// silence.
     function fillEmptyFrameExternal(uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
+        setFreePointer(0x80);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }
-        return MemoryKV.unwrap(kv) >> 0xf0;
+        return lengthOf(kv);
     }
 
     /// Allocate an unrelated `bytes32[]` of `elements` elements in a frame that
@@ -40,9 +47,7 @@ contract LibMemoryKVSetCapacityTest is Test {
     /// somewhere else is a failure here rather than a different capacity.
     /// Returns the word count.
     function fillAfterUnrelatedAllocationExternal(uint256 elements, uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
+        setFreePointer(0x80);
         bytes32[] memory unrelated = new bytes32[](elements);
         require(unrelated.length == elements, "the unrelated array is live");
         require(
@@ -54,7 +59,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }
-        return MemoryKV.unwrap(kv) >> 0xf0;
+        return lengthOf(kv);
     }
 
     /// Insert `key`, then move the free memory pointer far above the bound and
@@ -66,27 +71,33 @@ contract LibMemoryKVSetCapacityTest is Test {
         returns (uint256, bytes32)
     {
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, first);
-        assembly ("memory-safe") {
-            mstore(0x40, 0x20000)
-        }
+        setFreePointer(0x20000);
         kv = kv.set(key, second);
         (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (exists, MemoryKVVal.unwrap(got));
     }
 
-    /// A frame that allocates nothing else fits exactly 682 pairs: the first
-    /// node is at the default free memory pointer `0x80` and each takes three
-    /// words, so the 682nd starts at `0xFFE0` and still fits a 16 bit slot.
-    function testSet682PairsFitAnOtherwiseEmptyFrame() external view {
-        assertEq(this.fillEmptyFrameExternal(682), 1364, "682 pairs is 1364 words");
+    /// A frame that allocates nothing else fits `EMPTY_FRAME_PAIRS` pairs: the
+    /// first node is at the default free memory pointer `0x80` and each is
+    /// `NODE_BYTES`, so the last of them still starts at or below the widest
+    /// pointer a head slot holds. The `set` NatSpec states this count.
+    function testSetFillsAnOtherwiseEmptyFrameToItsCapacity() external view {
+        assertEq(this.fillEmptyFrameExternal(EMPTY_FRAME_PAIRS), EMPTY_FRAME_PAIRS * 2, "each pair is two words");
+
+        assertDocumentStates(
+            SOURCE, string.concat("still fit, which is ", vm.toString(EMPTY_FRAME_PAIRS), " for a frame")
+        );
     }
 
-    /// The 683rd pair would start at `0x10040`, past the widest pointer a slot
+    /// One pair past `EMPTY_FRAME_PAIRS` would start at
+    /// `0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES`, past the widest pointer a slot
     /// holds, so it reverts carrying that address. This is the ceiling as a
     /// pair count, which is the form a caller can measure itself against.
-    function testSetOverflowsOnThe683rdPairOfAnOtherwiseEmptyFrame() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
-        this.fillEmptyFrameExternal(683);
+    function testSetOverflowsOnePairPastAnOtherwiseEmptyFramesCapacity() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES)
+        );
+        this.fillEmptyFrameExternal(EMPTY_FRAME_PAIRS + 1);
     }
 
     /// An empty `bytes32[]` is one word, and that one word costs a whole pair:
@@ -96,13 +107,14 @@ contract LibMemoryKVSetCapacityTest is Test {
         assertEq(this.fillAfterUnrelatedAllocationExternal(0, 681), 1362, "681 pairs is 1362 words");
     }
 
-    /// The same 682 pairs that fit an otherwise empty frame revert once one
-    /// unrelated word is in that frame, at `0xA0 + 681 * 0x60`. A pair count is
-    /// therefore not a capacity: what the caller has already allocated decides
-    /// whether the same count succeeds or reverts.
-    function testOneUnrelatedWordMakes682PairsOverflow() external {
+    /// The `EMPTY_FRAME_PAIRS` pairs that fit an otherwise empty frame revert
+    /// once one unrelated word is in that frame: the last of them would start
+    /// at `0x10000`. A pair count is therefore not a capacity: what the caller
+    /// has already allocated decides whether the same count succeeds or
+    /// reverts.
+    function testOneUnrelatedWordMakesAnEmptyFramesCapacityOverflow() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
-        this.fillAfterUnrelatedAllocationExternal(0, 682);
+        this.fillAfterUnrelatedAllocationExternal(0, EMPTY_FRAME_PAIRS);
     }
 
     /// A bigger allocation costs more pairs, and not one per word: eight

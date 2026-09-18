@@ -11,6 +11,12 @@ evm_version = "cancun"
 
 libs = ["dependencies"]
 
+# Read only: tests check that these files state the figures the tests pin.
+fs_permissions = [
+  { access = "read", path = "./README.md" },
+  { access = "read", path = "./src/lib/LibMemoryKV.sol" },
+]
+
 [fuzz]
 runs = 1024
 
