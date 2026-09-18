@@ -5,7 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.

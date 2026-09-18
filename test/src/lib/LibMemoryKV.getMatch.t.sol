@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
