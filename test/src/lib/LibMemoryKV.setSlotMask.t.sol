@@ -6,7 +6,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {keyForSlot, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetSlotMaskTest
 /// An insert clears its list's head slot and writes the new head into it, and

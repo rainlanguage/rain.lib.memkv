@@ -6,8 +6,10 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {slotOf, keyForSlot, countPair, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every

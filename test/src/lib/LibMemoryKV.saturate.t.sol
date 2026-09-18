@@ -7,7 +7,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {keyForSlot, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;

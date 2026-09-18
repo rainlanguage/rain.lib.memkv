@@ -8,7 +8,8 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {headOf, lengthOf, collidingKey, NODE_BYTES} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {collidingKey} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVGetSetTest
 /// `get` after `set` on the same handle reports what was set. An insert
@@ -96,7 +97,7 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
         Pointer alloc0 = LibPointer.allocatedMemoryPointer();
         kv = LibMemoryKV.set(kv, key, value);
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
-        assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + NODE_BYTES, "insert allocates one node");
+        assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + LibMemoryKV.NODE_BYTES, "insert allocates one node");
         assertEq(lengthOf(kv), 2, "one pair");
 
         (uint256 exists1, MemoryKVVal value1) = LibMemoryKV.get(kv, key);
@@ -124,7 +125,11 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
             Pointer alloc0 = LibPointer.allocatedMemoryPointer();
             kv = LibMemoryKV.set(kv, key0, value00);
             Pointer alloc1 = LibPointer.allocatedMemoryPointer();
-            assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + NODE_BYTES, "insert key0 allocates one node");
+            assertEq(
+                Pointer.unwrap(alloc1),
+                Pointer.unwrap(alloc0) + LibMemoryKV.NODE_BYTES,
+                "insert key0 allocates one node"
+            );
 
             (uint256 exists0, MemoryKVVal get0) = LibMemoryKV.get(kv, key0);
             assertEq(exists0, 1, "key0 present after insert");
@@ -139,7 +144,11 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
             Pointer alloc2 = LibPointer.allocatedMemoryPointer();
             kv = LibMemoryKV.set(kv, key1, value10);
             Pointer alloc3 = LibPointer.allocatedMemoryPointer();
-            assertEq(Pointer.unwrap(alloc3), Pointer.unwrap(alloc2) + NODE_BYTES, "insert key1 allocates one node");
+            assertEq(
+                Pointer.unwrap(alloc3),
+                Pointer.unwrap(alloc2) + LibMemoryKV.NODE_BYTES,
+                "insert key1 allocates one node"
+            );
 
             (uint256 exists2, MemoryKVVal get2) = LibMemoryKV.get(kv, key0);
             assertEq(exists2, 1, "key0 present after key1 insert");

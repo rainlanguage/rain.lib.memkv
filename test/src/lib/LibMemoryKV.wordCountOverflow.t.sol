@@ -6,7 +6,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {lengthOf, headOf, withCount, setFreePointer, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, headOf, withCount} from "test/lib/LibMemoryKVHandle.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -61,13 +62,15 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     }
 
     /// The error carries the OFFENDING count, not the bound it crossed. From
-    /// `COUNT_MAX` the sum is `COUNT_MAX + 2`, which is neither the bound nor
-    /// the `COUNT_MAX + 1` that the first overflowing count and
-    /// one-past-the-bound share.
+    /// `LibMemoryKV.POINTER_MASK` the sum is `LibMemoryKV.POINTER_MASK + 2`,
+    /// which is neither the bound nor the `LibMemoryKV.POINTER_MASK + 1` that
+    /// the first overflowing count and one-past-the-bound share.
     function testSetWordCountOverflowPayloadIsTheOffendingCountNotTheBound() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, COUNT_MAX + 2));
+        vm.expectRevert(
+            abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, LibMemoryKV.POINTER_MASK + 2)
+        );
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, COUNT_MAX),
+            withCount(MEMORY_KV_EMPTY, LibMemoryKV.POINTER_MASK),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
@@ -93,14 +96,14 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     function testSetUpdateAtAFullWordCountIsNotRefused() external view {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         (MemoryKV kv, uint256 exists, bytes32 value) = this.updateAtForcedCount(
-            COUNT_MAX,
+            LibMemoryKV.POINTER_MASK,
             key,
             MemoryKVVal.wrap(bytes32(uint256(2))),
             MemoryKVVal.wrap(bytes32(uint256(3))),
             LOW_FREE_POINTER
         );
 
-        assertEq(lengthOf(kv), COUNT_MAX, "an update leaves the count alone");
+        assertEq(lengthOf(kv), LibMemoryKV.POINTER_MASK, "an update leaves the count alone");
         assertEq(exists, 1, "the key is still there");
         assertEq(uint256(value), 3, "the update took effect");
     }
@@ -184,6 +187,6 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// header's claim above is a measurement rather than an assurance.
     function testWordCountBoundIsUnreachableFromAnEmptyStore() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
-        this.fillFromEmptyExternal((COUNT_MAX + 1) / 2);
+        this.fillFromEmptyExternal((LibMemoryKV.POINTER_MASK + 1) / 2);
     }
 }
