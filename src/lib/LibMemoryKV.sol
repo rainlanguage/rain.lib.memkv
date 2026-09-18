@@ -218,8 +218,8 @@ library LibMemoryKV {
     /// The bisect tests an empty subtree once where a linear loop visits every
     /// list in it, so its saving over a loop over every list depends on which
     /// lists are occupied, not on how many pairs they hold, and falls as they
-    /// fill: ~1900 gas for an empty store, ~1100 gas with lists 0 to 5 occupied
-    /// and ~60 gas with every list occupied.
+    /// fill: it is largest for an empty store and smallest with every list
+    /// occupied, where the bisect still costs less than the loop.
     ///
     /// Note this is a one time export, if the key/value store is subsequently
     /// mutated the built array will not reflect these mutations.
