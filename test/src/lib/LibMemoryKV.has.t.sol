@@ -3,7 +3,10 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "../../../src/lib/LibMemoryKV.sol";
+
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
+import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVHasTest
 /// `has` answers the existence half of `get`, so every case here states what
@@ -85,20 +88,13 @@ contract LibMemoryKVHasTest is Test {
     function testHasLeavesMemoryWhereItFoundIt(MemoryKVKey key, MemoryKVVal value) external pure {
         bytes32 sentinel = keccak256("sentinel above the free memory pointer");
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
-        uint256 free;
-        assembly ("memory-safe") {
-            free := mload(0x40)
-            mstore(free, sentinel)
-        }
+        Pointer free = LibPointer.allocatedMemoryPointer();
+        LibPointer.unsafeWriteWord(free, sentinel);
         bool result = kv.has(key);
-        uint256 freeAfter;
-        bytes32 word;
-        assembly ("memory-safe") {
-            freeAfter := mload(0x40)
-            word := mload(free)
-        }
+        Pointer freeAfter = LibPointer.allocatedMemoryPointer();
+        bytes32 word = LibPointer.unsafeReadWord(free);
         assertTrue(result);
-        assertEq(freeAfter, free, "free memory pointer moved");
+        assertEq(Pointer.unwrap(freeAfter), Pointer.unwrap(free), "free memory pointer moved");
         assertEq(word, sentinel, "word above the free memory pointer was written");
     }
 }
