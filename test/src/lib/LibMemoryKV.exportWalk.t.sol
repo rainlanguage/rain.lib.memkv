@@ -12,11 +12,10 @@ import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
-/// terminator. Heads and next pointers are whole words, so the export has to
-/// read them at full width, exactly as `get` does, wherever in memory the
-/// store lives, or the pairs behind them are lost. Each case builds a two
-/// node list at an address that puts one of those words on the far side of
-/// `0x10000` and exports it in the same frame.
+/// terminator. Heads and next pointers are whole words, and the export reads
+/// them at full width, exactly as `get` does, wherever in memory the store
+/// lives. Each case builds a two node list at an address that puts one of
+/// those words on the far side of `0x10000` and exports it in the same frame.
 contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -37,8 +36,7 @@ contract LibMemoryKVExportWalkTest is Test {
     bytes32 internal constant KEY_TAIL = bytes32(uint256(4));
     bytes32 internal constant KEY_HEAD = bytes32(uint256(5));
 
-    /// Values that share no bits with either key, so a pair assembled from the
-    /// wrong words is a different value rather than a coincidence.
+    /// Values distinct from both keys and from each other.
     bytes32 internal constant VALUE_TAIL = bytes32(uint256(0xDEC0DE));
     bytes32 internal constant VALUE_HEAD = bytes32(uint256(0xC0FFEE));
 
@@ -64,10 +62,9 @@ contract LibMemoryKVExportWalkTest is Test {
         assertEq(slotOf(KEY_HEAD), slotOf(KEY_TAIL), "the two keys share one list");
     }
 
-    /// A head node at `0xFFC0` holds its next word at exactly `0x10000`. The
-    /// export must read that word at full width to find the node behind it: a
-    /// read truncated to 16 bits lands in the scratch space instead, and the
-    /// tail pair never reaches the array.
+    /// A head node whose next word is at exactly `ABOVE_SIXTEEN_BITS`: the
+    /// export reads that word at full width and exports the pair of the node
+    /// behind it.
     function testExportWalksThroughANextWordAtSixteenBits() external pure {
         (MemoryKV kv, bytes32[] memory array) = exportChainAt(NEXT_WORD_AT_SIXTEEN_BITS);
 

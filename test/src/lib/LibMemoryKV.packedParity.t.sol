@@ -5,29 +5,32 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVPacked, PackedMemoryKV, PACKED_MEMORY_KV_EMPTY} from "test/lib/LibMemoryKVPacked.sol";
 import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {keyForSlot, slotOf} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, metaOf, occupancyBitOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVPackedParityTest
 /// `LibMemoryKV` against `LibMemoryKVPacked`, the packed-handle layout. For
 /// any sequence of `set` calls the two answer every `get` and `has` alike and
 /// export the same words in the same order. The occupancy mask, the meta word,
 /// `SLOT_TABLE` and the header the first insert allocates are checked against
-/// the layout the `MemoryKV` NatSpec documents, restated here.
+/// the layout the `MemoryKV` NatSpec documents and the `LibMemoryKV` constants
+/// name.
 contract LibMemoryKVPackedParityTest is Test {
-    /// The word at `pointer + offset`.
-    function wordAt(uint256 pointer, uint256 offset) internal pure returns (uint256 word) {
-        assembly ("memory-safe") {
-            word := mload(add(pointer, offset))
-        }
-    }
+    /// A quarter of every occupancy mask, the share each mask test runs.
+    uint256 internal constant MASK_QUARTER = (LibMemoryKV.OCCUPANCY_MASK + 1) / 4;
 
-    /// The meta word of a non-empty store: the word after its 15 heads.
-    function metaWord(MemoryKV kv) internal pure returns (uint256) {
-        return wordAt(MemoryKV.unwrap(kv), 0x1e0);
+    /// The words the first insert into the empty store allocates: its header,
+    /// then its node.
+    uint256 internal constant FIRST_INSERT_WORDS = (LibMemoryKV.HEADER_BYTES + LibMemoryKV.NODE_BYTES) / 0x20;
+
+    /// The word at `pointer`.
+    function wordAt(uint256 pointer) internal pure returns (uint256) {
+        return uint256(LibPointer.unsafeReadWord(Pointer.wrap(pointer)));
     }
 
     /// The free memory pointer.
@@ -36,8 +39,7 @@ contract LibMemoryKVPackedParityTest is Test {
     }
 
     /// `keccak256(seed, stream << 128 | i)`, hashed in scratch space so that
-    /// building a sequence moves no memory toward the packed store's `0xFFFF`
-    /// node ceiling.
+    /// building a sequence allocates nothing.
     function tag(uint256 seed, uint256 stream, uint256 i) internal pure returns (bytes32 hashed) {
         assembly ("memory-safe") {
             mstore(0, seed)
@@ -49,7 +51,7 @@ contract LibMemoryKVPackedParityTest is Test {
     /// Sets `keys[i]` to `values[i]` in order in a packed store, then in a
     /// `LibMemoryKV` store, and asserts both export the same words in the same
     /// order and answer `get` and `has` alike for every probe. The packed
-    /// store is built first so its nodes stay under its ceiling.
+    /// store is built first, so its nodes sit below every `LibMemoryKV` node.
     function checkParity(bytes32[] memory keys, bytes32[] memory values, bytes32[] memory probes) internal pure {
         PackedMemoryKV packed = PACKED_MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
@@ -104,10 +106,8 @@ contract LibMemoryKVPackedParityTest is Test {
         if (length > 250) {
             length = 250;
         }
-        assembly ("memory-safe") {
-            mstore(keys, length)
-            mstore(values, length)
-        }
+        LibBytes32Array.truncate(keys, length);
+        LibBytes32Array.truncate(values, length);
         bytes32[] memory probes = new bytes32[](length + 1);
         for (uint256 i = 0; i < length; i++) {
             probes[i] = keys[i];
@@ -117,13 +117,13 @@ contract LibMemoryKVPackedParityTest is Test {
     }
 
     /// For every occupancy mask in `[from, to)`, one key in each list the mask
-    /// marks, list `s` marked by bit `14 - s`, set in ascending list order so
-    /// that the set order is not the export order. The meta word is exactly
-    /// the word count above the mask, and both stores export lowest mask bit
-    /// first: list 14 down to list 0.
+    /// marks, list `s` marked by `occupancyBitOf(s)`, set in ascending list
+    /// order so that the set order is not the export order. The meta word is
+    /// exactly the word count above the mask, and both stores export lowest
+    /// mask bit first: the last list down to list 0.
     function checkMasks(uint256 from, uint256 to) internal pure {
-        bytes32[15] memory listKey;
-        for (uint256 s = 0; s < 15; s++) {
+        bytes32[] memory listKey = new bytes32[](LibMemoryKV.LIST_COUNT);
+        for (uint256 s = 0; s < LibMemoryKV.LIST_COUNT; s++) {
             listKey[s] = MemoryKVKey.unwrap(keyForSlot(bytes32(s), s));
         }
         uint256 start = freePointer();
@@ -131,8 +131,8 @@ contract LibMemoryKVPackedParityTest is Test {
             PackedMemoryKV packed = PACKED_MEMORY_KV_EMPTY;
             MemoryKV kv = MEMORY_KV_EMPTY;
             uint256 pairs = 0;
-            for (uint256 s = 0; s < 15; s++) {
-                if (mask & (uint256(0x4000) >> s) != 0) {
+            for (uint256 s = 0; s < LibMemoryKV.LIST_COUNT; s++) {
+                if (mask & occupancyBitOf(s) != 0) {
                     MemoryKVKey key = MemoryKVKey.wrap(listKey[s]);
                     MemoryKVVal value = MemoryKVVal.wrap(bytes32(s + 1));
                     packed = LibMemoryKVPacked.set(packed, key, value);
@@ -143,86 +143,88 @@ contract LibMemoryKVPackedParityTest is Test {
 
             bytes32[] memory expected = new bytes32[](pairs * 2);
             uint256 cursor = 0;
-            for (uint256 bit = 0; bit < 15; bit++) {
-                if (mask & (uint256(1) << bit) != 0) {
-                    expected[cursor] = listKey[14 - bit];
-                    expected[cursor + 1] = bytes32(15 - bit);
+            for (uint256 s = LibMemoryKV.LIST_COUNT; s > 0; s--) {
+                if (mask & occupancyBitOf(s - 1) != 0) {
+                    expected[cursor] = listKey[s - 1];
+                    expected[cursor + 1] = bytes32(s);
                     cursor += 2;
                 }
             }
 
-            assertEq(metaWord(kv), ((pairs * 2) << 16) | mask, "meta");
+            assertEq(metaOf(kv), ((pairs * 2) << LibMemoryKV.COUNT_BIT_OFFSET) | mask, "meta");
             assertEq(LibMemoryKV.toBytes32Array(kv), expected, "export");
             assertEq(LibMemoryKVPacked.toBytes32Array(packed), expected, "packed export");
             setFreePointer(start);
         }
     }
 
-    /// Masks `0x0001` to `0x1fff`.
-    function testMetaAndExportOrderForMasks0x0001To0x1fff() external pure {
-        checkMasks(0x0001, 0x2000);
+    /// The first quarter of the occupancy masks, from the empty store.
+    function testMetaAndExportOrderForTheFirstQuarterOfMasks() external pure {
+        checkMasks(0, MASK_QUARTER);
     }
 
-    /// Masks `0x2000` to `0x3fff`.
-    function testMetaAndExportOrderForMasks0x2000To0x3fff() external pure {
-        checkMasks(0x2000, 0x4000);
+    /// The second quarter of the occupancy masks.
+    function testMetaAndExportOrderForTheSecondQuarterOfMasks() external pure {
+        checkMasks(MASK_QUARTER, 2 * MASK_QUARTER);
     }
 
-    /// Masks `0x4000` to `0x5fff`.
-    function testMetaAndExportOrderForMasks0x4000To0x5fff() external pure {
-        checkMasks(0x4000, 0x6000);
+    /// The third quarter of the occupancy masks.
+    function testMetaAndExportOrderForTheThirdQuarterOfMasks() external pure {
+        checkMasks(2 * MASK_QUARTER, 3 * MASK_QUARTER);
     }
 
-    /// Masks `0x6000` to `0x7fff`.
-    function testMetaAndExportOrderForMasks0x6000To0x7fff() external pure {
-        checkMasks(0x6000, 0x8000);
+    /// The last quarter of the occupancy masks, up to `LibMemoryKV.OCCUPANCY_MASK`.
+    function testMetaAndExportOrderForTheLastQuarterOfMasks() external pure {
+        checkMasks(3 * MASK_QUARTER, LibMemoryKV.OCCUPANCY_MASK + 1);
     }
 
     /// `SLOT_TABLE` is the table its NatSpec defines: the byte at index
-    /// `2^j mod 19` holds `14 - j` and every other byte is zero. The 15
-    /// indices are distinct, so every single occupancy bit reads a byte of its
-    /// own.
+    /// `2^j mod SLOT_TABLE_MODULUS` holds `LIST_COUNT - 1 - j` and every other
+    /// byte is zero. The `LIST_COUNT` indices are distinct, so every single
+    /// occupancy bit reads a byte of its own.
     function testSlotTableIsItsDefinition() external pure {
-        assertEq(LibMemoryKV.SLOT_TABLE_MODULUS, 19, "modulus");
         uint256 table = 0;
         uint256 seen = 0;
-        for (uint256 j = 0; j < 15; j++) {
-            uint256 index = (uint256(1) << j) % 19;
+        for (uint256 j = 0; j < LibMemoryKV.LIST_COUNT; j++) {
+            uint256 index = (uint256(1) << j) % LibMemoryKV.SLOT_TABLE_MODULUS;
             assertEq(seen & (uint256(1) << index), 0, "index collision");
             seen |= uint256(1) << index;
-            table |= (14 - j) << (8 * (31 - index));
+            table |= (LibMemoryKV.LIST_COUNT - 1 - j) << (8 * (31 - index));
         }
         assertEq(table, LibMemoryKV.SLOT_TABLE, "SLOT_TABLE");
     }
 
     /// The first insert into the empty store allocates its header at the free
     /// memory pointer and zeroes it over dirty memory, then allocates the node
-    /// directly after it: `0x260` bytes in all. The key's head points at the
-    /// node, every other head is zero, and the meta word is a count of two
-    /// above the key's occupancy bit.
+    /// directly after it. The key's head points at the node, every other head
+    /// is zero, and the meta word is a count of two above the key's occupancy
+    /// bit.
     function testFirstInsertZeroesHeaderOverDirtyMemory(bytes32 sentinel, bytes32 key, bytes32 value) external pure {
         vm.assume(sentinel != 0);
-        dirtyFreeMemory(sentinel, 0x40);
+        dirtyFreeMemory(sentinel, FIRST_INSERT_WORDS);
         uint256 before = freePointer();
         MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
         // Read before any assert, as an assert message allocates.
         uint256 after_ = freePointer();
 
         uint256 header = MemoryKV.unwrap(kv);
-        uint256 node = header + 0x200;
+        uint256 node = header + LibMemoryKV.HEADER_BYTES;
         assertEq(header, before, "header at the free memory pointer");
-        assertEq(after_, before + 0x260, "header and one node");
+        assertEq(after_, node + LibMemoryKV.NODE_BYTES, "header and one node");
 
         uint256 slot = slotOf(key);
-        for (uint256 s = 0; s < 15; s++) {
-            assertEq(wordAt(header, s * 0x20), s == slot ? node : 0, "head");
+        for (uint256 s = 0; s < LibMemoryKV.LIST_COUNT; s++) {
+            assertEq(headOf(kv, s), s == slot ? node : 0, "head");
         }
-        assertEq(metaWord(kv), (uint256(2) << 16) | (uint256(0x4000) >> slot), "meta");
-        assertEq(wordAt(node, 0), uint256(key), "node key");
-        assertEq(wordAt(node, 0x20), uint256(value), "node value");
-        assertEq(wordAt(node, 0x40), 0, "node next");
+        assertEq(metaOf(kv), (uint256(2) << LibMemoryKV.COUNT_BIT_OFFSET) | occupancyBitOf(slot), "meta");
+        assertEq(wordAt(node), uint256(key), "node key");
+        assertEq(wordAt(node + 0x20), uint256(value), "node value");
+        assertEq(wordAt(node + 0x40), 0, "node next");
 
-        assertFalse(LibMemoryKV.has(kv, keyForSlot(keccak256(abi.encode(key)), (slot + 1) % 15)), "other list empty");
+        assertFalse(
+            LibMemoryKV.has(kv, keyForSlot(keccak256(abi.encode(key)), (slot + 1) % LibMemoryKV.LIST_COUNT)),
+            "other list empty"
+        );
         bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
         assertEq(array.length, 2, "export length");
         assertEq(array[0], key, "export key");

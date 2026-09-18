@@ -17,8 +17,7 @@ import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 /// reach every copy, and there is one word count. Only the empty handle
 /// branches, because every `set` on it allocates a header of its own.
 /// `toBytes32Array` is the only way to hold pairs that a later `set` cannot
-/// move. Each case states the VALUE a handle must report, so a store that
-/// started copying on write is a different number rather than a revert.
+/// move. Each case states the VALUE a handle must report.
 contract LibMemoryKVHandleAliasTest is Test {
     using LibMemoryKV for MemoryKV;
 

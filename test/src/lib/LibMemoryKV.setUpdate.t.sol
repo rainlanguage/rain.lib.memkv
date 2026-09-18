@@ -23,10 +23,7 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 /// @title LibMemoryKVSetUpdateTest
 /// `set` hashes the key to one of `LibMemoryKV.LIST_COUNT` internal lists,
 /// walks that list for a match, and on a match mutates the value in place.
-/// Every case here states the VALUE the store must report afterwards, so a walk
-/// that finds the wrong node, a hash that disagrees with `get`, or an "update"
-/// that allocates or writes the header shows up as a different number rather
-/// than as a revert.
+/// Every case here states the VALUE the store must report afterwards.
 contract LibMemoryKVSetUpdateTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -55,9 +52,8 @@ contract LibMemoryKVSetUpdateTest is Test {
 
     /// `set` must hash into the same list `get` reads from, for EVERY one of the
     /// `LibMemoryKV.LIST_COUNT` lists. The head the store ends up holding names
-    /// the list, so a set that hashed differently (different preimage, different
-    /// modulus, different head stride) parks the head in the wrong word and the
-    /// value is no longer readable.
+    /// the list: it is the head of the list the key hashes to and no other, and
+    /// `get` reads the value back.
     function testSetHashesIntoTheSameListGetReads() external pure {
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             MemoryKVKey key = keyForSlot(bytes32(slot + 1), slot);
@@ -100,9 +96,8 @@ contract LibMemoryKVSetUpdateTest is Test {
     }
 
     /// Updating one key of a list of colliding keys must land on that key's own
-    /// node. The three keys below share one internal list, so a walk that never
-    /// runs, or that compares the wrong word, writes the value onto whichever
-    /// node it stopped at instead.
+    /// node. The three keys below share one internal list, and the update
+    /// through the middle key changes the middle value alone.
     function testUpdateFindsTheRightNodeAmongColliders() external pure {
         MemoryKVKey tail = keyForSlot(bytes32(uint256(0xA)), 0x07);
         MemoryKVKey middle = keyForSlot(bytes32(uint256(0xB)), 0x07);
@@ -256,9 +251,8 @@ contract LibMemoryKVSetUpdateTest is Test {
     }
 
     /// The word count the store carries must stay equal to twice the number of
-    /// distinct keys, however many times those keys are rewritten. A count that
-    /// drifted up on updates would make the export allocate and report slots the
-    /// linked lists never fill.
+    /// distinct keys, however many times those keys are rewritten, and the
+    /// export is that many words long.
     function testWordCountCountsDistinctKeysOnly(MemoryKVKey[] memory keys, MemoryKVVal value) external pure {
         vm.assume(keys.length <= 20);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -289,9 +283,8 @@ contract LibMemoryKVSetUpdateTest is Test {
 
     /// The match compares the whole 256 bit key word. Each pair below shares
     /// one internal list and differs in a single bit, at the top and at the
-    /// bottom of the word, so a comparison narrowed at either end would stop at
-    /// the first key's node and overwrite its value instead of inserting the
-    /// second key, leaving one pair where there must be two.
+    /// bottom of the word, and setting the second key inserts it: two pairs,
+    /// each key with its own value.
     function testSetDistinguishesKeysDifferingInOneBit() external pure {
         uint256[2] memory bits = [uint256(0), 0xff];
         for (uint256 i = 0; i < bits.length; i++) {

@@ -4,52 +4,43 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
-/// Compares gas between paths through the library in one build, never against
-/// a fixed figure: a consumer compiles the library with its own optimizer
-/// settings, so an absolute cost holds only for this repository's build, while
-/// which of two paths costs more follows from what each path does. The rest of
-/// the suite cannot see these comparisons: an export that visited every list,
-/// or a get that took a longer path, produces the same pairs.
+/// Compares the gas of paths through the library against each other within one
+/// build: the export of a pair from each list against the others, the export of
+/// pairs spread over lists against the same number stacked in one list, the
+/// mask walk export against a linear walk over every head, the first insert
+/// against a later insert into an empty list, and an insert into a list, or a
+/// get of the key furthest from its head, against the same with one key fewer
+/// ahead of it.
 contract LibMemoryKVGasClaimsTest is Test {
-    /// The stores the mask walk is claimed to beat the linear loop for, by
-    /// pair count. Each occupied list costs the walk a mask step and a table
-    /// lookup that the linear loop does not pay, so the walk's lead narrows as
-    /// the lists fill.
-    uint256 constant SMALL_STORE_PAIRS = 5;
-
     /// How many keys the colliding measurements put into one list.
-    uint256 constant COLLIDERS = 4;
+    uint256 internal constant COLLIDERS = 4;
 
-    /// The list the colliding measurements build. Any of the 15 would do: an
-    /// insert into an empty list and a get of a key alone in one cost the same
-    /// in every list.
-    uint256 constant COLLIDING_SLOT = 3;
+    /// The list the colliding measurements build. An insert into an empty list
+    /// and a get of a key alone in one cost the same in every list.
+    uint256 internal constant COLLIDING_SLOT = 3;
 
     /// The list of the pair a measurement puts in a store first when it needs
     /// a store that already has its header, so that an insert into
     /// `COLLIDING_SLOT` is not the store's first and does not pay for the
     /// header.
-    uint256 constant OTHER_SLOT = 9;
+    uint256 internal constant OTHER_SLOT = 9;
 
-    /// Expands memory past anything the measurements below allocate, then rewinds
-    /// the free pointer over it. Without this each measurement is taken at a
-    /// higher point in memory than the last and carries a different expansion
-    /// cost, which is a difference between allocations rather than between the
-    /// things being compared.
+    /// Expands memory past anything the measurements below allocate, then
+    /// rewinds the free pointer over it. Every measurement after it allocates
+    /// inside memory that is already expanded, so none of them pays expansion
+    /// and the order two measurements are taken in does not change either one.
     function padMemory() internal pure {
-        uint256 pointer;
-        assembly ("memory-safe") {
-            pointer := mload(0x40)
-        }
+        uint256 pointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         bytes memory pad = new bytes(0x1000);
         (pad);
-        assembly {
-            mstore(0x40, pointer)
-        }
+        setFreePointer(pointer);
     }
 
     function walkGas(MemoryKV kv) internal view returns (uint256) {
@@ -105,11 +96,9 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// `toBytes32Array`: "Empty lists cost nothing beyond the mask test that
-    /// skips them." The same number of pairs costs more to export spread one to
-    /// a list than stacked in one list, and each list the stack leaves empty
-    /// saves exactly the one visit an occupied list costs. A walk that visited
-    /// every list would cost the same for both stores.
+    /// The same number of pairs costs more to export spread one to a list than
+    /// stacked in one list, and each list the stack leaves empty saves exactly
+    /// the one visit an occupied list costs.
     function testAnEmptyListCostsTheExportNothing() public view {
         uint256 listVisit;
         for (uint256 pairs = 2; pairs <= LibMemoryKV.LIST_COUNT; pairs++) {
@@ -128,21 +117,33 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// The mask walk against `LibMemoryKVSlow.toBytes32ArrayLinear`, which
-    /// visits all 15 heads and copies the same pairs with the same inner loop.
-    /// On a small store most lists are empty, and the walk skips them where the
-    /// linear loop reads each head. `padMemory` expands memory past both
-    /// exports first, so neither pays for expansion and the order they are
-    /// measured in does not matter.
-    function testExportWalkBeatsTheLinearLoopForSmallStores() public view {
+    /// Exports the store through the mask walk and through
+    /// `LibMemoryKVSlow.toBytes32ArrayLinear`, a loop over every head that
+    /// produces the same pairs, at every occupancy from the empty store to
+    /// every list occupied, filling lists from list `0` up with one key each.
+    /// At every occupancy the walk costs less. From one occupied list on, the
+    /// saving is no larger than at the occupancy before: each list that fills
+    /// adds a mask step and a table lookup to the walk, and nothing to the
+    /// loop's visit of every head.
+    function testExportGasSavingFallsAsListsFill() public view {
+        uint256 previous = type(uint256).max;
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 pairs = 1; pairs <= SMALL_STORE_PAIRS; pairs++) {
-            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(pairs)), MemoryKVVal.wrap(bytes32(pairs)));
+        for (uint256 occupied = 0; occupied <= LibMemoryKV.LIST_COUNT; occupied++) {
+            if (occupied > 0) {
+                uint256 list = occupied - 1;
+                kv = LibMemoryKV.set(kv, keyForSlot(bytes32(list + 1), list), MemoryKVVal.wrap(bytes32(uint256(1))));
+            }
 
             padMemory();
             uint256 linear = linearGas(kv);
             uint256 walk = walkGas(kv);
-            assertLt(walk, linear, "the walk beats the linear loop");
+            assertGt(linear, walk, "the walk costs less than the linear loop");
+
+            uint256 saving = linear - walk;
+            if (occupied > 1) {
+                assertLe(saving, previous, "the saving never grows as lists fill");
+            }
+            previous = saving;
         }
     }
 
@@ -177,8 +178,8 @@ contract LibMemoryKVGasClaimsTest is Test {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
-        // back walks the whole list. Hoisted out of every measurement below
-        // because an array read inside the window is measured with the call.
+        // back walks the whole list. It is held in a local outside every
+        // measurement window below, so each window holds the call alone.
         MemoryKVKey first = keys[0];
 
         MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, keyForSlot(bytes32(uint256(1)), OTHER_SLOT), value);

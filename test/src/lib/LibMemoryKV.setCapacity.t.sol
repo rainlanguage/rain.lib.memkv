@@ -3,6 +3,7 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
+
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
@@ -14,17 +15,14 @@ import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 /// `set` has no ceiling. The handle is the address of the header, and heads
 /// and next pointers are whole words, so neither where the store lives in
 /// memory nor how many pairs it holds is bounded by anything but the gas that
-/// memory costs. Each case reads EVERY key back and exports the store, so an
-/// address truncated anywhere on the way is a key that no longer reads back
-/// rather than a store that merely looks full.
+/// memory costs. Each case reads every key back and exports the store.
 contract LibMemoryKVSetCapacityTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The first address that does not fit in sixteen bits.
     uint256 internal constant ABOVE_SIXTEEN_BITS = 0x10000;
 
-    /// Pairs the acceptance test sets, three times what a packed sixteen bit
-    /// pointer could reach from the lowest free memory pointer.
+    /// Pairs the acceptance test sets.
     uint256 internal constant ACCEPTANCE_PAIRS = 2000;
 
     /// Nodes the straddling store chains into one list.

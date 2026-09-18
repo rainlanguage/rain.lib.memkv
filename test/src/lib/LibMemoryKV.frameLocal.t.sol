@@ -45,8 +45,8 @@ contract LibMemoryKVFrameLocalTest is Test {
     /// Read `KEY` out of `kv` in a frame whose memory at the builder's
     /// addresses is exactly `filler`. A `bytes memory` argument decodes at
     /// `0x80`, its length word, so the words of `filler` start at `0xA0`,
-    /// which is where the builder put its header. Both facts are required
-    /// rather than assumed so a decode that moved fails loudly.
+    /// which is where the builder put its header. Reverts when either fact
+    /// does not hold.
     function getWithFillerExternal(MemoryKV kv, bytes memory filler) external pure returns (uint256, bytes32) {
         uint256 fillerPointer = Pointer.unwrap(LibBytes.startPointer(filler));
         require(fillerPointer == 0x80, "filler must decode at 0x80");

@@ -159,8 +159,7 @@ contract LibMemoryKVHandleTest is Test {
     /// then a node crafted after it and written as the key's list with one
     /// pair's count, is exactly what that insert builds: the same handle, the
     /// same allocation, and the same header and node words. The memory under
-    /// each is dirtied first, so a word either one leaves unwritten reads as
-    /// the sentinel.
+    /// each is dirtied with the same sentinel first.
     function testCraftingBuildsWhatAnInsertBuilds(MemoryKVKey key, MemoryKVVal value) external pure {
         bytes32 sentinel = keccak256(abi.encode(key, value));
         // Allocated below `at`, so the insert does not reuse it.

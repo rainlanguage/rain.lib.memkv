@@ -13,10 +13,9 @@ import {craftNode, handleWith, lengthOf, occupiedSlots} from "test/lib/LibMemory
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
 /// `set` walks the same list and also stops at the first match, so the node
-/// `set` writes and the node `get` reads MUST be the same node. Nothing in the
-/// public API can build a list holding one key twice, so the only way to state
-/// that agreement as an observable value is to hand both functions a list that
-/// does, which these tests build directly in memory.
+/// `set` writes and the node `get` reads MUST be the same node. These tests
+/// build a list holding one key twice directly in memory, which nothing in the
+/// public API builds, and hand it to both functions.
 ///
 /// The walk is also a read: crossing a list leaves every allocated byte and the
 /// free memory pointer where they were.
@@ -64,7 +63,6 @@ contract LibMemoryKVGetWalkTest is Test {
 
     /// `set` updates the first matching node in place. `get` MUST read that
     /// same node, so the value `set` just wrote is the value `get` reports.
-    /// If `get` kept walking it would report the stale tail node instead.
     function testGetAgreesWithSetOnWhichNodeIsTheKey() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(0xBEEF)));
         (MemoryKV kv, uint256 head, uint256 tail) =
@@ -91,8 +89,8 @@ contract LibMemoryKVGetWalkTest is Test {
 
     /// A node deeper in the list that is NOT the head still answers, and it
     /// answers with its own value rather than the head's. Both keys are forced
-    /// onto ONE internal list, because two keys in different slots are two
-    /// one-node lists and never exercise the walk at all.
+    /// onto ONE internal list, so the walk crosses the head node to reach the
+    /// tail.
     function testGetReadsATailNodeWhenOnlyItMatches() external pure {
         MemoryKVKey tailKey = keyForSlot(bytes32(uint256(1)), 5);
         MemoryKVKey headKey = keyForSlot(bytes32(uint256(2)), 5);
@@ -150,9 +148,7 @@ contract LibMemoryKVGetWalkTest is Test {
     }
 
     /// A hit at the tail crosses every node in front of it and leaves memory
-    /// exactly as it was. A walk that wrote through the pointers it follows, or
-    /// that allocated as it went, would corrupt or leak once per lookup while
-    /// still returning the right pair, so the returned pair cannot state this.
+    /// exactly as it was.
     function testGetHitLeavesMemoryUntouched() external pure {
         (MemoryKV kv, MemoryKVKey deepest,) = threeKeysInOneList();
 

@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
@@ -13,31 +14,21 @@ import {headOf, lengthOf, maskOf, occupancyBitOf} from "test/lib/LibMemoryKVHand
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportOccupancyTest
-/// Pins the occupancy mask walk of `toBytes32Array`, the only path by which
-/// internal lists 0..14 reach the exported array. Each step isolates the
-/// lowest set bit of the mask, clears it, and copies the list that
-/// `SLOT_TABLE` names for it, so which lists are exported is decided by the
-/// mask alone and never by reading a head.
+/// The occupancy mask walk of `toBytes32Array`, the only path by which the
+/// internal lists reach the exported array. Each step isolates the lowest set
+/// bit of the mask, clears it, and copies the list that `SLOT_TABLE` names for
+/// it, so which lists are exported is decided by the mask alone.
 ///
-/// Two layers, and both are wanted.
+/// The named tests each occupy one known list, or one known set of lists, and
+/// name it on failure. The enumerations run every occupancy mask, which is the
+/// walk's whole input: nothing it does branches on a key or a value.
 ///
-/// The named tests each occupy one known list, or one known set of lists. A
-/// store that populates many lists at once fails as "some pair is missing"
-/// with no indication of which; a store built from named lists fails as that
-/// list's key and value, and the test name says which list.
-///
-/// The enumerations then run every combination of which lists are occupied.
-/// That is the walk's whole input: nothing it does branches on what a key or a
-/// value is. Fifteen lists is 32768 combinations, so the enumerations cover
-/// the named cases too, and nothing is sampled. The named cases are kept
-/// anyway, for the name on the failure.
-///
-/// `listKeys` is what makes either affordable: one constant key per list, so
-/// an occupancy is chosen rather than searched for.
+/// `listKeys` holds one constant key per list, so an occupancy is chosen
+/// rather than searched for.
 ///
 /// Every header and node of every case an enumeration builds is allocated from
 /// a free memory pointer that is rewound between cases, so each case builds at
-/// the same addresses. The pair order is unspecified, so nothing here checks
+/// the same addresses. The pair order is unspecified and nothing here checks
 /// it; `LibMemoryKV.packedParity.t.sol` pins the order the walk produces.
 contract LibMemoryKVExportOccupancyTest is Test {
     using LibMemoryKV for MemoryKV;
@@ -45,39 +36,32 @@ contract LibMemoryKVExportOccupancyTest is Test {
     /// Every combination of which lists are occupied: every occupancy mask.
     uint256 constant OCCUPANCY_COMBINATIONS = LibMemoryKV.OCCUPANCY_MASK + 1;
 
-    /// Every other list, starting at list 0: the even lists, whose occupancy
-    /// bits are the even bits of the mask.
-    uint256 constant OCCUPANCY_EVEN_LISTS = 0x5555;
-
-    /// Every other list, starting at list 1: the odd lists.
-    uint256 constant OCCUPANCY_ODD_LISTS = 0x2AAA;
-
     /// The first address that does not fit in sixteen bits. A store built from
     /// here has a header address, and heads and next pointers, that do not.
     uint256 constant ABOVE_SIXTEEN_BITS = 0x10000;
 
-    /// Stands for "no mask", which a 15 bit mask cannot collide with.
+    /// Stands for "no mask": it has bits outside `LibMemoryKV.OCCUPANCY_MASK`.
     uint256 constant NO_MASK = type(uint256).max;
 
-    /// Values sit above every constant key, so a copy that reads the key where
-    /// the value belongs, or that reads another list's value, is a different
-    /// word. The value of the key at index `i` is this base plus `i`, which is
-    /// how `exportMatches` reads a pair's index back out of it.
+    /// Values sit above every constant key. The value of the key at index `i`
+    /// is this base plus `i`, which is how `exportMatches` reads a pair's index
+    /// back out of it.
     uint256 constant VALUE_BASE = 0x100;
 
     /// Pairs `testCountBitsAreNeverReadAsMaskBits` adds to list 0 behind the
-    /// fifteen `listKeys`, taking the count from 30 words to 128.
-    uint256 constant EXTRA_PAIRS = 49;
+    /// `listKeys`, taking the store to 64 pairs: a count of 128 words.
+    uint256 constant EXTRA_PAIRS = 64 - LibMemoryKV.LIST_COUNT;
 
     /// What the words past the end of an export hold before it runs.
     bytes32 constant PAST_THE_END = keccak256("past the end of the export");
 
     /// One key per list: the smallest positive integer whose 32 byte big endian
     /// encoding hashes into that list. Regenerating one is
-    /// `cast keccak $(cast to-uint256 <n>)` reduced modulo 15, and
-    /// `testKeyConstantsLandWhereClaimed` is what holds them to it.
+    /// `cast keccak $(cast to-uint256 <n>)` reduced modulo
+    /// `LibMemoryKV.LIST_COUNT`, and `testKeyConstantsLandWhereClaimed` checks
+    /// each.
     function listKeys() internal pure returns (bytes32[] memory keys) {
-        uint256[15] memory words = [uint256(4), 31, 2, 1, 9, 49, 24, 42, 3, 21, 16, 7, 6, 14, 11];
+        uint256[LibMemoryKV.LIST_COUNT] memory words = [uint256(4), 31, 2, 1, 9, 49, 24, 42, 3, 21, 16, 7, 6, 14, 11];
         keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         for (uint256 list = 0; list < LibMemoryKV.LIST_COUNT; list++) {
             keys[list] = bytes32(words[list]);
@@ -90,6 +74,13 @@ contract LibMemoryKVExportOccupancyTest is Test {
 
     function freePointer() internal pure returns (uint256) {
         return Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+    }
+
+    /// Every other list, starting at list `first`, as an occupancy mask.
+    function alternateLists(uint256 first) internal pure returns (uint256 mask) {
+        for (uint256 list = first; list < LibMemoryKV.LIST_COUNT; list += 2) {
+            mask |= occupancyBitOf(list);
+        }
     }
 
     /// Whether `mask` names `list` as occupied.
@@ -129,9 +120,7 @@ contract LibMemoryKVExportOccupancyTest is Test {
     }
 
     /// The store `mask` names occupies exactly those lists, by its heads and by
-    /// its mask, and exports exactly their pairs, each once. A walk step that
-    /// looks up the wrong list, or clears the wrong bit, or stops early, drops
-    /// a pair or exports one twice: a count other than one.
+    /// its mask, and exports exactly their pairs, each once.
     function checkNamedOccupancy(uint256 mask, string memory name) internal pure {
         bytes32[] memory keys = listKeys();
         checkStore(storeForOccupancy(mask, keys), mask, keys, name);
