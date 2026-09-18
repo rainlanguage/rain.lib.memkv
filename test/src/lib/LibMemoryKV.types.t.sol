@@ -7,6 +7,7 @@ import {Test} from "forge-std-1.16.2/src/Test.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {collidingPairDifferingInBit} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
@@ -28,7 +29,7 @@ contract LibMemoryKVTypesTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY.set(low, MemoryKVVal.wrap(bytes32(uint256(0xA))));
         kv = kv.set(high, MemoryKVVal.wrap(bytes32(uint256(0xB))));
 
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "two pairs counted");
+        assertEq(lengthOf(kv), 4, "two pairs counted");
 
         (uint256 lowExists, MemoryKVVal lowValue) = kv.get(low);
         assertEq(lowExists, 1, "low key exists");
@@ -52,7 +53,7 @@ contract LibMemoryKVTypesTest is Test {
     /// The word count is the top 16 bits of the store, and an empty store has
     /// counted nothing.
     function testEmptyStoreHasNoWordCount() external pure {
-        assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY) >> 0xf0, 0);
+        assertEq(lengthOf(MEMORY_KV_EMPTY), 0);
     }
 
     /// The 15 head pointers are the 240 bits below the count, 16 bits each, and
