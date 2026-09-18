@@ -8,6 +8,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {COUNT_MAX, lengthOf, headOf, withCount} from "test/lib/LibMemoryKVHandle.sol";
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {EMPTY_FRAME_PAIRS} from "test/lib/LibMemoryKVCapacity.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -168,10 +169,15 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// Every other test here forces the count with `withCount`, which is a
     /// `kv` no `set` produced. This one fills an empty store through `set`
     /// alone: carrying the count to `0x10000` needs 32768 inserts, and the node
-    /// address runs out 48 times earlier, at the 683rd, at `0x10040`, so the
-    /// fill reverts `MemoryKVOverflow`, not `MemoryKVLengthOverflow`.
+    /// address runs out first, one pair past `EMPTY_FRAME_PAIRS`, at
+    /// `0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES`, so the fill reverts
+    /// `MemoryKVOverflow`, not `MemoryKVLengthOverflow`.
     function testWordCountBoundIsUnreachableFromAnEmptyStore() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibMemoryKV.MemoryKVOverflow.selector, 0x80 + EMPTY_FRAME_PAIRS * LibMemoryKV.NODE_BYTES
+            )
+        );
         this.fillFromEmptyExternal((COUNT_MAX + 1) / 2);
     }
 }
