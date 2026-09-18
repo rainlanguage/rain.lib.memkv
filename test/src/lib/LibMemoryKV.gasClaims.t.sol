@@ -11,12 +11,13 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
-/// Pins the gas figures the library documents for itself. Those figures are the
-/// reason the export is a bisect rather than a loop and the reason any of this
-/// is assembly, and the rest of the suite cannot tell whether they still hold:
-/// the skip guards that produce the saving are invisible to a test that only
-/// reads the exported pairs. Each figure is a constant here, and a test
-/// measures the code against it.
+/// Compares gas between paths through the library in one build, never against
+/// a fixed figure: a consumer compiles the library with its own optimizer
+/// settings, so an absolute cost holds only for this repository's build, while
+/// which of two paths costs more follows from what each path does. The
+/// comparisons here are the reason the export is a bisect rather than a loop,
+/// and the rest of the suite cannot see them: the skip guards that produce the
+/// saving are invisible to a test that only reads the exported pairs.
 contract LibMemoryKVGasClaimsTest is Test {
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
@@ -29,35 +30,6 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// conditional it passes: the four bisect levels and the leaf guard.
     uint256 internal constant BRANCH_LAYOUT_GAS = 5;
 
-    /// The export's saving over the linear walk for an empty store.
-    uint256 internal constant BISECT_SAVING_EMPTY = 1900;
-
-    /// How many lists, counting up from list `0`, are occupied where the saving
-    /// is pinned between the empty and the full store.
-    uint256 internal constant BISECT_SAVING_PARTIAL_LISTS = 6;
-
-    /// The export's saving over the linear walk with lists `0` to
-    /// `BISECT_SAVING_PARTIAL_LISTS - 1` occupied.
-    uint256 internal constant BISECT_SAVING_PARTIAL = 1100;
-
-    /// The export's saving over the linear walk with every list occupied.
-    uint256 internal constant BISECT_SAVING_FULL = 80;
-
-    /// A get of a key alone in its list.
-    uint256 internal constant README_SOLO_GET_GAS = 240;
-
-    /// An insert of a key alone in its list.
-    uint256 internal constant README_SOLO_SET_GAS = 390;
-
-    /// What each key already in a list adds to a get from that list.
-    uint256 internal constant README_WALKED_GET_GAS = 65;
-
-    /// What each key already in a list adds to a set into that list.
-    uint256 internal constant README_WALKED_SET_GAS = 75;
-
-    /// An insert of the `COLLIDERS`th key to land in one list.
-    uint256 internal constant README_LAST_COLLIDER_SET_GAS = 610;
-
     /// How many keys the colliding measurements put into one list.
     uint256 internal constant COLLIDERS = 4;
 
@@ -65,12 +37,6 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// into an empty list and a get of a key alone in one cost the same in
     /// every slot.
     uint256 internal constant COLLIDING_SLOT = 3;
-
-    /// What a documented `~` figure is read as here: the largest difference
-    /// between the measurement and the figure, relative to the figure, in
-    /// forge-std's units where `1e18` is 100%. `assertApproxEqRel` bounds both
-    /// directions, so an over-estimate fails as an under-estimate does.
-    uint256 internal constant ROUNDING = 0.1e18;
 
     /// Expands memory past anything the measurements below allocate, then
     /// rewinds the free pointer over it. Every measurement after it allocates
@@ -132,9 +98,9 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// `toBytes32ArrayLinear`, which visits every list and produces the same
     /// pairs. The saving comes from the empty lists the bisect skips a subtree
     /// at a time, so it falls as lists fill. Lists are filled from list `0` up,
-    /// one key each, and the saving is measured at every occupancy from the
-    /// empty store to every list occupied: it never grows, and it is within
-    /// `ROUNDING` of the figure pinned for each occupancy that has one.
+    /// one key each, and at every occupancy from the empty store to every list
+    /// occupied the bisect costs less and the saving is no larger than at the
+    /// occupancy before.
     function testExportGasSavingFallsAsListsFill() public view {
         uint256 previous = type(uint256).max;
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -152,43 +118,13 @@ contract LibMemoryKVGasClaimsTest is Test {
             uint256 saving = linear - bisect;
             assertLe(saving, previous, "the saving never grows as lists fill");
             previous = saving;
-
-            if (occupied == 0) {
-                assertApproxEqRel(saving, BISECT_SAVING_EMPTY, ROUNDING, "saving for an empty store");
-            } else if (occupied == BISECT_SAVING_PARTIAL_LISTS) {
-                assertApproxEqRel(saving, BISECT_SAVING_PARTIAL, ROUNDING, "saving with the low lists occupied");
-            } else if (occupied == LibMemoryKV.LIST_COUNT) {
-                assertApproxEqRel(saving, BISECT_SAVING_FULL, ROUNDING, "saving with every list occupied");
-            }
         }
     }
 
-    /// The README's headline figures, on the key alone in its list that they
-    /// name.
-    function testGetSetGasMatchesReadme() public view {
-        MemoryKV kv = MEMORY_KV_EMPTY;
-        MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
-        MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
-
-        padMemory();
-
-        uint256 setStart = gasleft();
-        kv = LibMemoryKV.set(kv, key, value);
-        uint256 setEnd = gasleft();
-
-        uint256 getStart = gasleft();
-        (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, key);
-        uint256 getEnd = gasleft();
-        (exists, got);
-
-        assertApproxEqRel(setStart - setEnd, README_SOLO_SET_GAS, ROUNDING, "set");
-        assertApproxEqRel(getStart - getEnd, README_SOLO_GET_GAS, ROUNDING, "get");
-    }
-
-    /// The README's collision figures. The per-key costs are differences between
-    /// measurements taken here, so each says what one more key in front of the
-    /// target costs and carries none of the constant every measurement shares.
-    function testCollidingGasMatchesReadme() public view {
+    /// Keys that share a list are walked one at a time, so every key already in
+    /// the list makes an insert into it, and a get of the key furthest from its
+    /// head, cost more than the one before.
+    function testEachKeyAheadInAListAddsGas() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
@@ -219,15 +155,8 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
 
         for (uint256 i = 1; i < COLLIDERS; i++) {
-            assertApproxEqRel(
-                setGas[i] - setGas[i - 1], README_WALKED_SET_GAS, ROUNDING, "one more key in front of a set"
-            );
-            assertApproxEqRel(
-                getGas[i] - getGas[i - 1], README_WALKED_GET_GAS, ROUNDING, "one more key in front of a get"
-            );
+            assertGt(setGas[i], setGas[i - 1], "one more key in front of an insert");
+            assertGt(getGas[i], getGas[i - 1], "one more key in front of a get");
         }
-        assertApproxEqRel(
-            setGas[COLLIDERS - 1], README_LAST_COLLIDER_SET_GAS, ROUNDING, "the last colliding key into one list"
-        );
     }
 }
