@@ -1,4 +1,3 @@
 {
-  "detectors_to_exclude": "assembly-usage,solc-version",
-  "filter_paths": "[/](dependencies|test)[/]"
+  "detectors_to_exclude": "assembly-usage,solc-version"
 }
