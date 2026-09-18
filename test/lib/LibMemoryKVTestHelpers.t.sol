@@ -108,9 +108,10 @@ contract LibMemoryKVTestHelpersTest is Test {
         setFreePointer(at);
         dirtyFreeMemory(sentinel, 3);
         MemoryKV inserted = MEMORY_KV_EMPTY.set(key, value);
+        uint256 insertedEnd = freePointer();
 
         assertEq(MemoryKV.unwrap(crafted), MemoryKV.unwrap(inserted), "the handle an insert builds");
-        assertEq(craftedEnd, freePointer(), "the allocation an insert makes");
+        assertEq(craftedEnd, insertedEnd, "the allocation an insert makes");
         assertEq(craftedKey, wordAt(at), "the key word an insert writes");
         assertEq(craftedValue, wordAt(at + 0x20), "the value word an insert writes");
         assertEq(craftedNext, wordAt(at + 0x40), "the next word an insert writes");
@@ -121,8 +122,9 @@ contract LibMemoryKVTestHelpersTest is Test {
     function testCraftNodeLinksToTheNextPointerItIsGiven(uint256 next) external pure {
         dirtyFreeMemory(bytes32(~next), 3);
         uint256 node = craftNode(MemoryKVKey.wrap(bytes32(0)), MemoryKVVal.wrap(bytes32(0)), next);
+        uint256 end = freePointer();
         assertEq(uint256(wordAt(node + 0x40)), next, "next word");
-        assertEq(freePointer(), node + NODE_BYTES, "one node allocated");
+        assertEq(end, node + NODE_BYTES, "one node allocated");
     }
 
     /// A node at `POINTER_MAX` still fits a head slot; one byte higher does not
