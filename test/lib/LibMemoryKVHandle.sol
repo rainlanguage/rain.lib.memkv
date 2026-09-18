@@ -8,6 +8,10 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
+/// @dev The widest word count the meta word holds: every bit from
+/// `LibMemoryKV.COUNT_BIT_OFFSET` up.
+uint256 constant COUNT_MAX = type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET;
+
 /// The occupancy bit of list `slot` in the meta word.
 function occupancyBitOf(uint256 slot) pure returns (uint256) {
     return LibMemoryKV.LIST_0_OCCUPANCY_BIT >> slot;
@@ -93,13 +97,9 @@ function craftHeader() pure returns (MemoryKV kv) {
 /// @param slot The internal list to head. MUST be below
 /// `LibMemoryKV.LIST_COUNT`.
 /// @param head The list's head: a node address, or `0`.
-/// @param words The word count. MUST fit the bits above
-/// `LibMemoryKV.COUNT_BIT_OFFSET`.
+/// @param words The word count. MUST be at most `COUNT_MAX`.
 function writeList(MemoryKV kv, uint256 slot, uint256 head, uint256 words) pure {
-    require(
-        slot < LibMemoryKV.LIST_COUNT && words <= type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET,
-        "list field out of range"
-    );
+    require(slot < LibMemoryKV.LIST_COUNT && words <= COUNT_MAX, "list field out of range");
     uint256 meta = (words << LibMemoryKV.COUNT_BIT_OFFSET) | maskOf(kv) | occupancyBitOf(slot);
     uint256 headAddress = headAddressOf(kv, slot);
     uint256 metaOffset = LibMemoryKV.META_OFFSET;
@@ -131,8 +131,7 @@ function craftNode(MemoryKVKey key, MemoryKVVal value, uint256 next) pure return
 /// @param slot The internal list to head. MUST be below
 /// `LibMemoryKV.LIST_COUNT`.
 /// @param head The list's head: a node address, or `0`.
-/// @param words The word count. MUST fit the bits above
-/// `LibMemoryKV.COUNT_BIT_OFFSET`.
+/// @param words The word count. MUST be at most `COUNT_MAX`.
 /// @return kv The crafted header's address.
 function handleWith(uint256 slot, uint256 head, uint256 words) pure returns (MemoryKV kv) {
     kv = craftHeader();

@@ -9,6 +9,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {
+    COUNT_MAX,
     occupancyBitOf,
     metaOf,
     lengthOf,
@@ -202,7 +203,7 @@ contract LibMemoryKVHandleTest is Test {
     /// occupancy bit is set.
     function testHandleWithHeadsOnlyTheNamedList(uint256 slot, uint256 head, uint256 words) external pure {
         slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
-        words = bound(words, 0, type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET);
+        words = bound(words, 0, COUNT_MAX);
         MemoryKV kv = handleWith(slot, head, words);
 
         for (uint256 other = 0; other < LibMemoryKV.LIST_COUNT; other++) {
@@ -227,8 +228,8 @@ contract LibMemoryKVHandleTest is Test {
         if (slotB >= slotA) {
             slotB++;
         }
-        wordsA = bound(wordsA, 0, type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET);
-        wordsB = bound(wordsB, 0, type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET);
+        wordsA = bound(wordsA, 0, COUNT_MAX);
+        wordsB = bound(wordsB, 0, COUNT_MAX);
         MemoryKV kv = handleWith(slotA, headA, wordsA);
 
         writeList(kv, slotB, headB, wordsB);
@@ -241,19 +242,17 @@ contract LibMemoryKVHandleTest is Test {
         assertEq(maskOf(kv), occupancyBitOf(slotA) | occupancyBitOf(slotB), "occupancy");
     }
 
-    /// A list past the last one, or a count wider than the bits above
-    /// `LibMemoryKV.COUNT_BIT_OFFSET`, reverts, while the widest valid values
-    /// pass through unchanged.
+    /// A list past the last one, or a count above `COUNT_MAX`, reverts, while
+    /// the widest valid values pass through unchanged.
     function testWriteListRejectsAFieldThatDoesNotFit() external {
         uint256 widestSlot = LibMemoryKV.LIST_COUNT - 1;
-        uint256 widestWords = type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET;
-        (uint256 readHead, uint256 readLength) = this.handleWithExternal(widestSlot, type(uint256).max, widestWords);
+        (uint256 readHead, uint256 readLength) = this.handleWithExternal(widestSlot, type(uint256).max, COUNT_MAX);
         assertEq(readHead, type(uint256).max, "the widest head");
-        assertEq(readLength, widestWords, "the widest count");
+        assertEq(readLength, COUNT_MAX, "the widest count");
 
         vm.expectRevert("list field out of range");
         this.handleWithExternal(LibMemoryKV.LIST_COUNT, 0, 0);
         vm.expectRevert("list field out of range");
-        this.handleWithExternal(widestSlot, 0, widestWords + 1);
+        this.handleWithExternal(widestSlot, 0, COUNT_MAX + 1);
     }
 }
