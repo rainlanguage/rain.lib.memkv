@@ -155,8 +155,9 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     }
 
     /// The overflow error carries the OFFENDING pointer, not the bound it
-    /// crossed. `0x10000` is both the first invalid pointer and the value one
-    /// past the bound, so it cannot tell the two apart; `0x12345` can.
+    /// crossed. `LibMemoryKV.POINTER_MASK + 1` is both the first invalid
+    /// pointer and the value one past the bound, so it cannot tell the two
+    /// apart; `0x12345` can.
     function testSetOverflowPayloadIsTheOffendingPointerNotTheBound() external {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));

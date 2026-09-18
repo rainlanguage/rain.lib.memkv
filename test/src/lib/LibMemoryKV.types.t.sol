@@ -12,9 +12,8 @@ import {COUNT_MAX, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
 /// empty store is, the layout that packs the head pointers and the word count
-/// into a word, and the full width of the key and value a store carries. Every
-/// other test reads these downstream, where a wrong one arrives as a wrong
-/// export or a wrong walk. Here they are checked on the word itself.
+/// into a word, and the full width of the key and value a store carries. Here
+/// they are checked on the word itself.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
 

@@ -80,9 +80,8 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
     /// word lands at exactly `LibMemoryKV.POINTER_MASK + 1` and the walk from
     /// that node down to the first one has to read across the bound to find it.
     function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
-        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(
-            key, collidingKey(key), value, LibMemoryKV.POINTER_MASK + 1 - 0x40
-        );
+        (uint256 exists, MemoryKVVal got) =
+            this.insertPairThenGetFirstExternal(key, collidingKey(key), value, LibMemoryKV.POINTER_MASK + 1 - 0x40);
 
         assertEq(exists, 1, "the walk reaches the first key through a next word above the bound");
         assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");
