@@ -5,7 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {collidingPairDifferingInBit, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {collidingPairDifferingInBit} from "test/lib/LibMemoryKVKeys.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
