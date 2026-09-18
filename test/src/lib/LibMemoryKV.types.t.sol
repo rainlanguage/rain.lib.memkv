@@ -4,19 +4,31 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {collidingPairDifferingInBit, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {
+    LIST_COUNT,
+    SLOT_BITS,
+    POINTER_MAX,
+    NODE_BYTES,
+    COUNT_BIT_OFFSET,
+    COUNT_MAX,
+    collidingPairDifferingInBit,
+    countPair,
+    headOf,
+    keyForSlot,
+    lengthOf
+} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
-/// empty store is, and the full width of the key and value it carries. Every
-/// other test reads these three calls downstream, where a wrong empty store
-/// arrives as a wrong export or a wrong walk. Here they are the word itself.
+/// empty store is, the layout that packs the head pointers and the word count
+/// into a word, and the full width of the key and value a store carries. Every
+/// other test reads these downstream, where a wrong one arrives as a wrong
+/// export or a wrong walk. Here they are checked on the word itself.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// One head pointer per internal linked list.
-    uint256 internal constant SLOTS = 15;
 
     /// The bit a key keeps that no random fuzz pair differs in alone.
     uint256 internal constant TOP_BIT = 0xff;
@@ -27,7 +39,7 @@ contract LibMemoryKVTypesTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY.set(low, MemoryKVVal.wrap(bytes32(uint256(0xA))));
         kv = kv.set(high, MemoryKVVal.wrap(bytes32(uint256(0xB))));
 
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "two pairs counted");
+        assertEq(lengthOf(kv), 4, "two pairs counted");
 
         (uint256 lowExists, MemoryKVVal lowValue) = kv.get(low);
         assertEq(lowExists, 1, "low key exists");
@@ -39,8 +51,8 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(countPair(array, MemoryKVKey.unwrap(low), bytes32(uint256(0xA))) != 0, "low key pair exported");
-        assertTrue(countPair(array, MemoryKVKey.unwrap(high), bytes32(uint256(0xB))) != 0, "high key pair exported");
+        assertEq(countPair(array, MemoryKVKey.unwrap(low), bytes32(uint256(0xA))), 1, "low key pair exported once");
+        assertEq(countPair(array, MemoryKVKey.unwrap(high), bytes32(uint256(0xB))), 1, "high key pair exported once");
     }
 
     /// The empty store is the zero word.
@@ -48,22 +60,47 @@ contract LibMemoryKVTypesTest is Test {
         assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY), 0);
     }
 
-    /// The word count is the top 16 bits of the store, and an empty store has
-    /// counted nothing.
-    function testEmptyStoreHasNoWordCount() external pure {
-        assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY) >> 0xf0, 0);
+    /// The test tree states the layout independently of the library, and the
+    /// two agree. The layout tiles the word: the head pointer slots fill the
+    /// bits below the count, the count is the one slot above them, and the
+    /// widest pointer and the widest count are each exactly one slot wide.
+    function testLayoutConstantsAgreeWithTheLibraryAndTileTheWord() external pure {
+        assertEq(LibMemoryKV.LIST_COUNT, LIST_COUNT, "list count");
+        assertEq(LibMemoryKV.SLOT_BITS, SLOT_BITS, "slot bits");
+        assertEq(LibMemoryKV.POINTER_MASK, POINTER_MAX, "pointer mask");
+        assertEq(LibMemoryKV.COUNT_BIT_OFFSET, COUNT_BIT_OFFSET, "count bit offset");
+        assertEq(LibMemoryKV.NODE_BYTES, NODE_BYTES, "node bytes");
+
+        assertEq(COUNT_BIT_OFFSET, LIST_COUNT * SLOT_BITS, "the count sits directly above the last list");
+        assertEq(COUNT_BIT_OFFSET + SLOT_BITS, 256, "the count is the top slot of the word");
+        assertEq(POINTER_MAX, 2 ** SLOT_BITS - 1, "a pointer is one slot wide");
+        assertEq(COUNT_MAX, POINTER_MAX, "the count is one slot wide");
     }
 
-    /// The 15 head pointers are the 240 bits below the count, 16 bits each, and
-    /// every one of them is empty. Slot 14 is the one that abuts the count, so
-    /// a count wider than 16 bits would read here as a pointer that is not
-    /// there.
-    function testEmptyStoreHasNoHeadPointerInAnySlot() external pure {
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
+    /// With every internal list holding one pair, the count and the head
+    /// pointers tile the word as the layout states: the slot at
+    /// `COUNT_BIT_OFFSET` counts two words per pair, and the slot at
+    /// `slot * SLOT_BITS` points at the node holding the key that belongs to
+    /// list `slot`, with that key's value after it.
+    function testCountAndHeadPointersTileTheWord() external pure {
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        MemoryKVKey[] memory keys = new MemoryKVKey[](LIST_COUNT);
+        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+            keys[slot] = keyForSlot(bytes32(slot), slot);
+            kv = kv.set(keys[slot], MemoryKVVal.wrap(bytes32(slot + 1)));
+        }
+
+        assertEq(lengthOf(kv), LIST_COUNT * 2, "the count is two words per pair");
+
+        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+            string memory name = string.concat("slot ", vm.toString(slot));
+            Pointer head = Pointer.wrap(headOf(kv, slot));
+            assertTrue(Pointer.unwrap(head) != 0, string.concat(name, " occupied"));
+            assertEq(LibPointer.unsafeReadWord(head), MemoryKVKey.unwrap(keys[slot]), string.concat(name, " key"));
             assertEq(
-                (MemoryKV.unwrap(MEMORY_KV_EMPTY) >> (slot * 0x10)) & 0xFFFF,
-                0,
-                string.concat("slot ", vm.toString(slot))
+                LibPointer.unsafeReadWord(LibPointer.unsafeAddWord(head)),
+                bytes32(slot + 1),
+                string.concat(name, " value")
             );
         }
     }
@@ -103,7 +140,7 @@ contract LibMemoryKVTypesTest is Test {
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 4, "array length");
-        assertTrue(countPair(array, bytes32(0), bytes32(type(uint256).max)) != 0, "zero key pair exported");
-        assertTrue(countPair(array, bytes32(type(uint256).max), bytes32(0)) != 0, "max key pair exported");
+        assertEq(countPair(array, bytes32(0), bytes32(type(uint256).max)), 1, "zero key pair exported once");
+        assertEq(countPair(array, bytes32(type(uint256).max), bytes32(0)), 1, "max key pair exported once");
     }
 }
