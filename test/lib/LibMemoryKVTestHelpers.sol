@@ -4,8 +4,6 @@ pragma solidity ^0.8.25;
 
 import {StdConstants} from "forge-std-1.16.1/src/StdConstants.sol";
 
-import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
-
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @dev How many candidates a key or key-pair search tries before reverting. One
@@ -174,64 +172,4 @@ function setFreePointer(uint256 pointer) pure {
     assembly ("memory-safe") {
         mstore(0x40, pointer)
     }
-}
-
-/// Advance the free memory pointer to `floor` if it is below it, so every later
-/// allocation, and so every node an insert writes, sits at or above `floor`. A
-/// pointer already at or above `floor` is left where it is.
-/// @param floor The lowest address the next allocation may start at.
-function raiseFreePointerTo(uint256 floor) pure {
-    if (Pointer.unwrap(LibPointer.allocatedMemoryPointer()) < floor) {
-        setFreePointer(floor);
-    }
-}
-
-/// A list node allocated at the free memory pointer: `NODE_BYTES` holding the
-/// key, value and next pointer words in the order an insert writes them. Lets a
-/// test build a list no sequence of `set` calls builds. Reverts when the node's
-/// address is above `POINTER_MAX`, which no head slot holds.
-/// @param key The node's key word.
-/// @param value The node's value word.
-/// @param next The node's next pointer word; `0` ends the list.
-/// @return node The node's address, which the free memory pointer is now
-/// `NODE_BYTES` past.
-function craftNode(MemoryKVKey key, MemoryKVVal value, uint256 next) pure returns (uint256 node) {
-    assembly ("memory-safe") {
-        node := mload(0x40)
-        mstore(0x40, add(node, NODE_BYTES))
-        mstore(node, key)
-        mstore(add(node, 0x20), value)
-        mstore(add(node, 0x40), next)
-    }
-    require(node <= POINTER_MAX, "crafted node pointer must fit a head slot");
-}
-
-/// A handle whose only list is `slot`, headed by `head`, carrying word count
-/// `words`. Reverts when a field does not fit its place in the handle.
-/// @param slot The internal list to head. MUST be below `LIST_COUNT`.
-/// @param head The head pointer of that list. MUST be at most `POINTER_MAX`.
-/// @param words The word count. MUST be at most `COUNT_MAX`.
-/// @return The handle.
-function handleWith(uint256 slot, uint256 head, uint256 words) pure returns (MemoryKV) {
-    require(slot < LIST_COUNT && head <= POINTER_MAX && words <= COUNT_MAX, "handle field out of range");
-    return MemoryKV.wrap((words << COUNT_BIT_OFFSET) | (head << (slot * SLOT_BITS)));
-}
-
-/// Assert `text` contains `phrase` verbatim, naming `source` in the failure.
-/// @param text The text to search.
-/// @param phrase The exact phrase `text` must contain.
-/// @param source What `text` is, for the failure message.
-function assertTextStates(string memory text, string memory phrase, string memory source) pure {
-    StdConstants.VM
-        .assertTrue(StdConstants.VM.contains(text, phrase), string.concat(source, " does not state \"", phrase, "\""));
-}
-
-/// Assert the file at `path` contains `phrase` verbatim. A test renders
-/// `phrase` from the constant it checks the code against, so the file and the
-/// constant cannot drift apart without a failure. Reading `path` needs a read
-/// `fs_permissions` entry for it in `foundry.toml`.
-/// @param path The file, relative to the project root.
-/// @param phrase The exact phrase the file must contain.
-function assertDocumentStates(string memory path, string memory phrase) view {
-    assertTextStates(StdConstants.VM.readFile(path), phrase, path);
 }
