@@ -76,7 +76,7 @@ contract LibMemoryKVBisectTest is Test {
     /// The top bit of a head pointer slot. A pointer is valid all the way to
     /// `POINTER_MAX`, so every mask and shift on the way down the tree must
     /// carry this bit.
-    uint256 internal constant POINTER_HIGH_BIT = 1 << (SLOT_BITS - 1);
+    uint256 internal constant POINTER_HIGH_BIT = 2 ** (SLOT_BITS - 1);
 
     /// Stands for "no mask", which a 15 bit mask cannot collide with.
     uint256 internal constant NO_MASK = type(uint256).max;
@@ -203,7 +203,7 @@ contract LibMemoryKVBisectTest is Test {
         checkExportedPairs(kv, mask, keys);
     }
 
-    /// The store `mask` names, with every pointer in it above
+    /// The store `mask` names, with every pointer in it at or above
     /// `POINTER_HIGH_BIT`. A 16 bit pointer is valid all the way to
     /// `POINTER_MAX`, so every mask and shift on the way down must carry bit 15.
     function checkNamedOccupancyFromHighPointers(uint256 mask) internal pure {
@@ -483,7 +483,7 @@ contract LibMemoryKVBisectTest is Test {
         checkEveryOccupancy(0, POINTER_HIGH_BIT - 1);
     }
 
-    /// Every occupancy combination again with every pointer above
+    /// Every occupancy combination again with every pointer at or above
     /// `POINTER_HIGH_BIT`, so both states of a pointer's top bit are enumerated
     /// rather than left to wherever the allocator happened to be.
     function testEveryOccupancyCombinationExportedFromHighPointers() public pure {
