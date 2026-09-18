@@ -8,33 +8,57 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, slotOf, collidingPairDifferingInBit, val} from "test/lib/LibMemoryKVKeys.sol";
-import {lengthOf, headOf} from "test/lib/LibMemoryKVHandle.sol";
+import {lengthOf, headOf, maskOf, occupancyBitOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVSetUpdateTest
-/// `set` hashes the key to one of 15 internal lists, walks that list for a
-/// match, and on a match mutates the value in place. Every case here states the
-/// VALUE the store must report afterwards, so a walk that finds the wrong node,
-/// a hash that disagrees with `get`, or an "update" that allocates shows up as a
-/// different number rather than as a revert.
+/// `set` hashes the key to one of `LibMemoryKV.LIST_COUNT` internal lists,
+/// walks that list for a match, and on a match mutates the value in place.
+/// Every case here states the VALUE the store must report afterwards, so a walk
+/// that finds the wrong node, a hash that disagrees with `get`, or an "update"
+/// that allocates or writes the header shows up as a different number rather
+/// than as a revert.
 contract LibMemoryKVSetUpdateTest is Test {
     using LibMemoryKV for MemoryKV;
 
+    /// The words in a header.
+    uint256 internal constant HEADER_WORDS = LibMemoryKV.HEADER_BYTES / 0x20;
+
+    /// A copy of every word of the header at `kv`, so an update can be checked
+    /// against the header it started from.
+    function headerWords(MemoryKV kv) internal pure returns (bytes32[] memory words) {
+        words = new bytes32[](HEADER_WORDS);
+        for (uint256 i = 0; i < HEADER_WORDS; i++) {
+            words[i] = LibPointer.unsafeReadWord(Pointer.wrap(MemoryKV.unwrap(kv) + i * 0x20));
+        }
+    }
+
+    /// Every word of the header at `kv` is the word `before` holds for it.
+    function assertHeaderIs(MemoryKV kv, bytes32[] memory before, string memory err) internal pure {
+        for (uint256 i = 0; i < HEADER_WORDS; i++) {
+            assertEq(
+                LibPointer.unsafeReadWord(Pointer.wrap(MemoryKV.unwrap(kv) + i * 0x20)),
+                before[i],
+                string.concat(err, " header word ", vm.toString(i))
+            );
+        }
+    }
+
     /// `set` must hash into the same list `get` reads from, for EVERY one of the
-    /// 15 lists. The head pointer the store ends up holding names the list, so a
-    /// set that hashed differently (different preimage, different modulus,
-    /// different bit stride) parks the pointer in the wrong slot and the value
-    /// is no longer readable.
+    /// `LibMemoryKV.LIST_COUNT` lists. The head the store ends up holding names
+    /// the list, so a set that hashed differently (different preimage, different
+    /// modulus, different head stride) parks the head in the wrong word and the
+    /// value is no longer readable.
     function testSetHashesIntoTheSameListGetReads() external pure {
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             MemoryKVKey key = keyForSlot(bytes32(slot + 1), slot);
             MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(0xBEEF00 + slot));
 
-            // The pointer went into the slot the key hashes to and nowhere else.
+            // The head went into the list the key hashes to and nowhere else.
             assertTrue(headOf(kv, slot) > 0, "head");
-            for (uint256 other = 0; other < 15; other++) {
+            for (uint256 other = 0; other < LibMemoryKV.LIST_COUNT; other++) {
                 if (other != slot) {
-                    assertEq(headOf(kv, other), 0, "other slot");
+                    assertEq(headOf(kv, other), 0, "other list");
                 }
             }
             assertValue(kv, key, 0xBEEF00 + slot, "roundtrip");
@@ -42,21 +66,22 @@ contract LibMemoryKVSetUpdateTest is Test {
         }
     }
 
-    /// An update mutates the value word and NOTHING else: the returned store is
-    /// bit for bit the store that went in, the word count is unchanged, and no
-    /// memory was allocated.
+    /// An update mutates the value word and NOTHING else: the returned handle is
+    /// the handle that went in, every header word is unchanged, and no memory
+    /// was allocated.
     function testUpdateChangesOnlyTheValue() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(11));
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
 
         Pointer alloc0 = LibPointer.allocatedMemoryPointer();
         kv = kv.set(key, val(22));
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
 
         assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0), "allocated");
-        assertEq(MemoryKV.unwrap(kv), before, "kv word");
-        assertEq(lengthOf(kv), 2, "length");
+        assertEq(MemoryKV.unwrap(kv), before, "handle");
+        assertHeaderIs(kv, header, "update");
         assertValue(kv, key, 22, "updated");
 
         bytes32[] memory array = kv.toBytes32Array();
@@ -79,9 +104,10 @@ contract LibMemoryKVSetUpdateTest is Test {
 
         // `c` was inserted last so it is the head. Update the MIDDLE node.
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
         kv = kv.set(b, val(200));
-        assertEq(MemoryKV.unwrap(kv), before, "kv word");
-        assertEq(lengthOf(kv), 6, "length after");
+        assertEq(MemoryKV.unwrap(kv), before, "handle");
+        assertHeaderIs(kv, header, "update");
 
         assertValue(kv, a, 1, "a");
         assertValue(kv, b, 200, "b");
@@ -103,9 +129,10 @@ contract LibMemoryKVSetUpdateTest is Test {
 
         // keys[0] is the tail.
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
         kv = kv.set(keys[0], val(0xF00D));
-        assertEq(MemoryKV.unwrap(kv), before, "kv word");
-        assertEq(lengthOf(kv), count * 2, "length after");
+        assertEq(MemoryKV.unwrap(kv), before, "handle");
+        assertHeaderIs(kv, header, "update");
 
         assertValue(kv, keys[0], 0xF00D, "tail");
         for (uint256 i = 1; i < count; i++) {
@@ -114,7 +141,8 @@ contract LibMemoryKVSetUpdateTest is Test {
     }
 
     /// Repeatedly upserting the same key allocates memory exactly once, for the
-    /// single insert, and never grows the word count.
+    /// single insert's header and node, and never grows the word count or moves
+    /// the head.
     function testRepeatedUpsertAllocatesOnce() external pure {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(0x5EED)));
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -131,10 +159,16 @@ contract LibMemoryKVSetUpdateTest is Test {
         }
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
 
-        // One insert of 3 words, then 63 updates of nothing.
-        assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + 0x60, "allocated");
-        assertEq(MemoryKV.unwrap(kv), word, "kv word");
+        // One insert of a header and a node, then 63 updates of nothing.
+        assertEq(
+            Pointer.unwrap(alloc1),
+            Pointer.unwrap(alloc0) + LibMemoryKV.HEADER_BYTES + LibMemoryKV.NODE_BYTES,
+            "allocated"
+        );
+        assertEq(MemoryKV.unwrap(kv), word, "handle");
+        assertEq(headOf(kv, key), Pointer.unwrap(alloc0) + LibMemoryKV.HEADER_BYTES, "head");
         assertEq(lengthOf(kv), 2, "length");
+        assertEq(maskOf(kv), occupancyBitOf(slotOf(MemoryKVKey.unwrap(key))), "mask");
         assertValue(kv, key, 64, "latest");
 
         bytes32[] memory array = kv.toBytes32Array();
@@ -144,10 +178,11 @@ contract LibMemoryKVSetUpdateTest is Test {
     }
 
     /// Writing the value a key already holds is a no-op on every observable: the
-    /// store word, the word count, the allocation, and the export.
+    /// handle, the header, the allocation, and the export.
     function testUpdateToTheSameValueIsIdempotent(MemoryKVKey key, MemoryKVVal value) external pure {
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
         bytes32[] memory arrayBefore = kv.toBytes32Array();
 
         Pointer alloc0 = LibPointer.allocatedMemoryPointer();
@@ -155,7 +190,8 @@ contract LibMemoryKVSetUpdateTest is Test {
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
 
         assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0), "allocated");
-        assertEq(MemoryKV.unwrap(kv), before, "kv word");
+        assertEq(MemoryKV.unwrap(kv), before, "handle");
+        assertHeaderIs(kv, header, "update");
 
         bytes32[] memory arrayAfter = kv.toBytes32Array();
         assertEq(arrayAfter.length, 2, "array length");
@@ -169,40 +205,44 @@ contract LibMemoryKVSetUpdateTest is Test {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(0)));
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(0));
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
         assertValue(kv, key, 0, "zero");
 
         kv = kv.set(key, MemoryKVVal.wrap(bytes32(type(uint256).max)));
-        assertEq(MemoryKV.unwrap(kv), before, "kv word max");
+        assertEq(MemoryKV.unwrap(kv), before, "handle max");
+        assertHeaderIs(kv, header, "max");
         assertValue(kv, key, type(uint256).max, "max");
 
         kv = kv.set(key, val(0));
-        assertEq(MemoryKV.unwrap(kv), before, "kv word back");
+        assertEq(MemoryKV.unwrap(kv), before, "handle back");
+        assertHeaderIs(kv, header, "back");
         assertValue(kv, key, 0, "back to zero");
-        assertEq(lengthOf(kv), 2, "length");
     }
 
-    /// Updating a key in one internal list leaves the other 14 lists alone: same
-    /// head pointers, same values.
+    /// Updating a key in one internal list leaves every other list alone: same
+    /// heads, same values.
     function testUpdateIsIsolatedBetweenLists() external pure {
-        MemoryKVKey[] memory keys = new MemoryKVKey[](15);
+        MemoryKVKey[] memory keys = new MemoryKVKey[](LibMemoryKV.LIST_COUNT);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = keyForSlot(bytes32(0x1000 + slot), slot);
             kv = kv.set(keys[slot], val(slot + 1));
         }
-        assertEq(lengthOf(kv), 30, "length before");
+        uint256 words = 2 * LibMemoryKV.LIST_COUNT;
+        assertEq(lengthOf(kv), words, "length before");
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = headerWords(kv);
 
-        // Update each list in turn, including list 14 whose pointer sits
-        // directly under the word count in the top 16 bits.
-        for (uint256 target = 0; target < 15; target++) {
+        // Update each list in turn, including the last, whose head word sits
+        // directly under the meta word.
+        for (uint256 target = 0; target < LibMemoryKV.LIST_COUNT; target++) {
             kv = kv.set(keys[target], val(0xABC00 + target));
-            assertEq(MemoryKV.unwrap(kv), before, "kv word");
-            assertEq(lengthOf(kv), 30, "length after");
-            for (uint256 slot = 0; slot < 15; slot++) {
+            assertEq(MemoryKV.unwrap(kv), before, "handle");
+            assertHeaderIs(kv, header, "update");
+            for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
                 assertValue(kv, keys[slot], slot <= target ? 0xABC00 + slot : slot + 1, "value");
             }
-            assertEq(kv.toBytes32Array().length, 30, "array length");
+            assertEq(kv.toBytes32Array().length, words, "array length");
         }
     }
 
@@ -224,13 +264,17 @@ contract LibMemoryKVSetUpdateTest is Test {
         }
         assertEq(lengthOf(kv), distinct * 2, "length");
 
-        // Rewriting every key changes neither the count nor the store word.
+        // Rewriting every key changes neither the handle nor the header. The
+        // empty store has no header to compare.
         uint256 before = MemoryKV.unwrap(kv);
+        bytes32[] memory header = before == 0 ? new bytes32[](0) : headerWords(kv);
         for (uint256 i = 0; i < keys.length; i++) {
             kv = kv.set(keys[i], value);
         }
-        assertEq(MemoryKV.unwrap(kv), before, "kv word");
-        assertEq(lengthOf(kv), distinct * 2, "length after");
+        assertEq(MemoryKV.unwrap(kv), before, "handle");
+        if (before != 0) {
+            assertHeaderIs(kv, header, "rewrite");
+        }
         assertEq(kv.toBytes32Array().length, distinct * 2, "array length");
     }
 
