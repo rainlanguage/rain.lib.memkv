@@ -49,7 +49,8 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     /// AT the free memory pointer, and returns the header's address. The
     /// header heads the key's list with the node and its meta word counts one
     /// pair and marks that list alone occupied. The node is key, then value,
-    /// then the old head of the list.
+    /// then the old head of the list, and the allocation ends after those three
+    /// words.
     function testSetInsertIntoTheEmptyStoreAllocatesAHeaderThenANode(MemoryKVKey key, MemoryKVVal value) external pure {
         uint256 start = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
@@ -68,6 +69,11 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         assertEq(nodeKey, MemoryKVKey.unwrap(key), "key at node+0x00");
         assertEq(nodeValue, MemoryKVVal.unwrap(value), "value at node+0x20");
         assertEq(next, 0, "next at node+0x40 is the old (empty) head");
+        assertEq(
+            allocatedAfter,
+            Pointer.unwrap(LibPointer.unsafeAddWords(Pointer.wrap(node), 3)),
+            "the allocation ends after the node's next word"
+        );
     }
 
     /// An insert WRITES all three words of its node: the node lands on memory
