@@ -15,3 +15,13 @@ function dirtyFreeMemory(bytes32 sentinel, uint256 words) pure {
         }
     }
 }
+
+/// Move the free memory pointer to `pointer`, so the next allocation, and so
+/// the next node an insert writes, starts there. Memory at and above `pointer`
+/// is free to the next allocation from then on, whatever it held.
+/// @param pointer The new free memory pointer.
+function setFreePointer(uint256 pointer) pure {
+    assembly ("memory-safe") {
+        mstore(0x40, pointer)
+    }
+}

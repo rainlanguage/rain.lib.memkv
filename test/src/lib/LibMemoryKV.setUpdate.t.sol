@@ -7,15 +7,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {
-    keyForSlot,
-    slotOf,
-    collidingPairDifferingInBit,
-    lengthOf,
-    headOf,
-    assertValue,
-    val
-} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot, slotOf, collidingPairDifferingInBit, val} from "test/lib/LibMemoryKVKeys.sol";
+import {lengthOf, headOf} from "test/lib/LibMemoryKVHandle.sol";
+import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVSetUpdateTest
 /// `set` hashes the key to one of 15 internal lists, walks that list for a

@@ -5,7 +5,8 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, headOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the

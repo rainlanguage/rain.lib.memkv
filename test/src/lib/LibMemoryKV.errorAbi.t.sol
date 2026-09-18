@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {withCount} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {withCount} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVErrorAbiTest
 /// Every other test that expects one of these errors builds the expectation

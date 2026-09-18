@@ -3,7 +3,7 @@
 pragma solidity ^0.8.25;
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
-import {setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title SetAtFreePointer
 /// Inherited by tests that need `set` to place its node at an exact address.
