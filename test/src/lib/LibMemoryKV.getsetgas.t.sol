@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {Test} from "forge-std-1.16.2/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 
@@ -10,11 +10,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "
 /// carries the cost of the gets or sets it performs and nothing else. A set row
 /// is named by the sets it performs: an insert sets a key not yet in the store
 /// and an update sets a key already in it. A row's figure is a whole-test total
-/// and no test asserts one. `LibMemoryKV.gasClaims.t.sol` measures two of the
-/// operations performed here on their own, as the README's figures for a key
-/// alone in its list: the insert in `testSetGas1Insert` and the get in
-/// `testGetHitGas`. It measures none of the others: the miss, the update, and
-/// every insert after a row's first.
+/// and no test asserts one.
 contract LibMemoryKVGetSetGasTest is Test {
     /// A get against an empty store. There is no list to walk, so this is a
     /// miss, and its figure is not the cost of a get that finds its key.
