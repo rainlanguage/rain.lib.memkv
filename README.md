@@ -1,7 +1,5 @@
 # rain.lib.memkv
 
-Docs at https://rainprotocol.github.io/rain.lib.memkv
-
 ## Key/Value store
 
 Implements an in-memory key/value store that can be snapshotted/exported to a
