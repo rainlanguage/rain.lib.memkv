@@ -6,10 +6,11 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
-import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {dirtyFreeMemory, raiseFreePointerTo} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibFreeMemoryTest
-/// The promises `dirtyFreeMemory` makes and other tests rest on.
+/// The promises `dirtyFreeMemory` and `raiseFreePointerTo` make and other tests
+/// rest on.
 contract LibFreeMemoryTest is Test {
     function freePointer() internal pure returns (uint256) {
         return Pointer.unwrap(LibPointer.allocatedMemoryPointer());
@@ -40,5 +41,20 @@ contract LibFreeMemoryTest is Test {
         assertEq(end, start, "pointer not moved");
         assertEq(sentinelWords, words, "every word dirtied");
         assertEq(pastWord, ~sentinel, "the word after them");
+    }
+
+    /// A free memory pointer below the floor is raised to exactly the floor.
+    function testRaiseFreePointerToLiftsAPointerBelowTheFloor(uint16 gap) external pure {
+        uint256 floor = freePointer() + uint256(gap) + 1;
+        raiseFreePointerTo(floor);
+        assertEq(freePointer(), floor, "raised to the floor");
+    }
+
+    /// A free memory pointer at or above the floor stays where it is.
+    function testRaiseFreePointerToLeavesAPointerAtOrAboveTheFloor(uint256 floor) external pure {
+        uint256 before = freePointer();
+        floor = bound(floor, 0, before);
+        raiseFreePointerTo(floor);
+        assertEq(freePointer(), before, "left where it was");
     }
 }
