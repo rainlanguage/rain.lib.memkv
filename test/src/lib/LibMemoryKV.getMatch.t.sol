@@ -7,7 +7,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot, craftNode, handleWith, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {craftNode, handleWith} from "test/lib/CraftedMemoryKV.sol";
+import {slotOf, keyForSlot, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
@@ -68,7 +69,7 @@ contract LibMemoryKVGetMatchTest is Test {
     /// `(0, 0)`. Both returns keep their zero initialisation, so the value of a
     /// node the walk passed over cannot come back beside a zero `exists`. The
     /// three keys are driven onto one list rather than left to collide by
-    /// chance, which two arbitrary keys do one time in `LIST_COUNT`.
+    /// chance, which two arbitrary keys do one time in `LibMemoryKV.LIST_COUNT`.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
         MemoryKVKey head = keyForSlot(bytes32(uint256(1)), 5);
         MemoryKVKey tail = keyForSlot(bytes32(uint256(2)), 5);

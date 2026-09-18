@@ -7,7 +7,8 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot, occupiedSlots, craftNode, handleWith, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {craftNode, handleWith} from "test/lib/CraftedMemoryKV.sol";
+import {slotOf, keyForSlot, occupiedSlots, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.

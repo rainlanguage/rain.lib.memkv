@@ -8,7 +8,7 @@ import {LibBytes} from "rain-solmem-0.1.28/src/lib/LibBytes.sol";
 import {Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {headOf, lengthOf, setFreePointer, NODE_BYTES} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {headOf, lengthOf, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call
@@ -46,7 +46,7 @@ contract LibMemoryKVFrameLocalTest is Test {
     {
         uint256 fillerPointer = Pointer.unwrap(LibBytes.startPointer(filler));
         require(fillerPointer == 0x80, "filler must decode at 0x80");
-        require(filler.length == NODE_BYTES, "filler must be one node");
+        require(filler.length == LibMemoryKV.NODE_BYTES, "filler must be one node");
 
         (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (exists, MemoryKVVal.unwrap(got));
