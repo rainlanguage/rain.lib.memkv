@@ -191,17 +191,17 @@ contract LibMemoryKVTestHelpersTest is Test {
 
     /// A phrase the text holds verbatim passes.
     function testAssertTextStatesPassesOnAPhraseTheTextHolds() external pure {
-        assertTextStates("a key alone costs ~390 gas to insert", "~390 gas", "text");
+        assertTextStates("the fixture text states ~120 gas here", "~120 gas", "text");
     }
 
     /// A phrase the text does not hold verbatim fails, naming the source and
     /// the phrase, even when the text holds a longer or shorter figure around
     /// the same digits.
     function testAssertTextStatesFailsOnAPhraseTheTextDoesNotHold() external {
-        vm.expectRevert(bytes("text does not state \"~39 gas\""));
-        this.assertTextStatesExternal("a key alone costs ~390 gas to insert", "~39 gas", "text");
-        vm.expectRevert(bytes("text does not state \"~3900 gas\""));
-        this.assertTextStatesExternal("a key alone costs ~390 gas to insert", "~3900 gas", "text");
+        vm.expectRevert(bytes("text does not state \"~12 gas\""));
+        this.assertTextStatesExternal("the fixture text states ~120 gas here", "~12 gas", "text");
+        vm.expectRevert(bytes("text does not state \"~1200 gas\""));
+        this.assertTextStatesExternal("the fixture text states ~120 gas here", "~1200 gas", "text");
     }
 
     /// A key the store holds with exactly the expected value passes.
