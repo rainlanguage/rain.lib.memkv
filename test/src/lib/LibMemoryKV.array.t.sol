@@ -156,9 +156,9 @@ contract LibMemoryKVArrayTest is Test {
 
         // Counted over every pair at once, a pair exported twice pays for a
         // pair not exported at all, so each pair is counted on its own. The
-        // linear walk names the pairs because it visits each of the 15 slots
-        // exactly once, so a list the bisect reads twice shows up as a linear
-        // pair matched twice.
+        // linear walk names the pairs because it visits each of the
+        // `LibMemoryKV.LIST_COUNT` slots exactly once, so a list the bisect
+        // reads twice shows up as a linear pair matched twice.
         for (uint256 i = 0; i < arrayLinear.length; i += 2) {
             assertEq(countPair(array, arrayLinear[i], arrayLinear[i + 1]), 1, "each pair exported exactly once");
         }

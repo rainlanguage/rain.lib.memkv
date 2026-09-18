@@ -9,7 +9,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {collidingPairDifferingInBit, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
-import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {COUNT_MAX, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The store's declarations: the one word an empty store is, the layout that
@@ -46,6 +46,21 @@ contract LibMemoryKVTypesTest is Test {
     /// The empty store is the zero word.
     function testEmptyStoreIsTheZeroWord() external pure {
         assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY), 0);
+    }
+
+    /// The library's layout constants tile the word: the head pointer slots
+    /// fill the bits below the count, the count is the one slot above them, and
+    /// `LibMemoryKV.POINTER_MASK`, the widest head pointer, and `COUNT_MAX`, the
+    /// widest count, are each exactly one slot wide.
+    function testLayoutConstantsTileTheWord() external pure {
+        assertEq(
+            LibMemoryKV.COUNT_BIT_OFFSET,
+            LibMemoryKV.LIST_COUNT * LibMemoryKV.SLOT_BITS,
+            "the count sits directly above the last list"
+        );
+        assertEq(LibMemoryKV.COUNT_BIT_OFFSET + LibMemoryKV.SLOT_BITS, 256, "the count is the top slot of the word");
+        assertEq(LibMemoryKV.POINTER_MASK, 2 ** LibMemoryKV.SLOT_BITS - 1, "a pointer is one slot wide");
+        assertEq(COUNT_MAX, LibMemoryKV.POINTER_MASK, "the count is one slot wide");
     }
 
     /// With every internal list holding one pair, the count and the head
