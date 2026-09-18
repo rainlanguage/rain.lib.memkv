@@ -67,7 +67,8 @@ library LibMemoryKVSlow {
     /// `LibMemoryKV.toBytes32Array` with the occupancy mask walk replaced by a
     /// walk over every head in the header, list 0 first. This is the linear
     /// loop the mask walk is measured against, so it MUST stay a plain walk
-    /// over every head. Like the fast path, it sizes the array from the word
+    /// over every head, copying each list with the same inner loop as the
+    /// mask walk. Like the fast path, it sizes the array from the word
     /// count in the meta word, fills it by walking every list, and leaves the
     /// free memory pointer past every word written. It exports the same pairs
     /// as `toBytes32Array`; the pair order is not guaranteed to match.
@@ -84,19 +85,14 @@ library LibMemoryKVSlow {
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
-            function copyFromPtr(cursor, pointer) -> end {
-                for {} iszero(iszero(pointer)) {
-                    pointer := mload(add(pointer, 0x40))
-                    cursor := add(cursor, 0x40)
-                } {
+            let cursor := add(array, 0x20)
+            for {} lt(head, headsEnd) { head := add(head, 0x20) } {
+                for { let pointer := mload(head) } pointer { pointer := mload(add(pointer, 0x40)) } {
                     mstore(cursor, mload(pointer))
                     mstore(add(cursor, 0x20), mload(add(pointer, 0x20)))
+                    cursor := add(cursor, 0x40)
                 }
-                end := cursor
             }
-
-            let cursor := add(array, 0x20)
-            for {} lt(head, headsEnd) { head := add(head, 0x20) } { cursor := copyFromPtr(cursor, mload(head)) }
         }
     }
 }
