@@ -10,10 +10,12 @@ import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
-/// Two claims about a `MemoryKV` handle that no mutation of the library can
-/// falsify, because they are about the handle as a `uint256` rather than about
-/// anything the library computes: every bit of it survives an external call,
-/// and the update/insert asymmetry holds however many handles are live at once.
+/// Two properties of `MemoryKV` handles that take more than one call frame or
+/// more than one live handle to observe. The packed word `set` builds, its
+/// count at `COUNT_BIT_OFFSET` and list `i`'s head at `i * SLOT_BITS` over
+/// nodes `NODE_BYTES` apart, survives an external call bit for bit. An update
+/// reaches every live handle holding the key, while an insert changes only the
+/// handle `set` returns.
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
