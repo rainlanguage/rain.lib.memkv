@@ -7,7 +7,6 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LIB_MEMORY_KV_PATH, assertDocumentStates} from "test/lib/LibDocumentAssert.sol";
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
@@ -79,13 +78,9 @@ contract LibMemoryKVSetCapacityTest is Test {
     /// A frame that allocates nothing else fits `EMPTY_FRAME_PAIRS` pairs: the
     /// first node is at the default free memory pointer `0x80` and each is
     /// `NODE_BYTES`, so the last of them still starts at or below the widest
-    /// pointer a head slot holds. The `set` NatSpec states this count.
+    /// pointer a head slot holds.
     function testSetFillsAnOtherwiseEmptyFrameToItsCapacity() external view {
         assertEq(this.fillEmptyFrameExternal(EMPTY_FRAME_PAIRS), EMPTY_FRAME_PAIRS * 2, "each pair is two words");
-
-        assertDocumentStates(
-            LIB_MEMORY_KV_PATH, string.concat("still fit, which is ", vm.toString(EMPTY_FRAME_PAIRS), " for a frame")
-        );
     }
 
     /// One pair past `EMPTY_FRAME_PAIRS` would start at

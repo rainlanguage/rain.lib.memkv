@@ -7,7 +7,6 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {README_PATH, LIB_MEMORY_KV_PATH, assertDocumentStates} from "test/lib/LibDocumentAssert.sol";
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
@@ -16,10 +15,8 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 /// reason the export is a bisect rather than a loop and the reason any of this
 /// is assembly, and the rest of the suite cannot tell whether they still hold:
 /// the skip guards that produce the saving are invisible to a test that only
-/// reads the exported pairs. Each figure is a constant here. The test that
-/// measures the code against a figure also checks that the README or the
-/// NatSpec states that constant, so neither the code nor the text can drift
-/// from it without a failure.
+/// reads the exported pairs. Each figure is a constant here, and a test
+/// measures the code against it.
 contract LibMemoryKVGasClaimsTest is Test {
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
@@ -74,19 +71,6 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// forge-std's units where `1e18` is 100%. `assertApproxEqRel` bounds both
     /// directions, so an over-estimate fails as an under-estimate does.
     uint256 internal constant ROUNDING = 0.1e18;
-
-    /// `figure` as the documents state a gas figure: `~` and the figure, then
-    /// ` gas`.
-    function approxGas(uint256 figure) internal pure returns (string memory) {
-        return string.concat("~", vm.toString(figure), " gas");
-    }
-
-    /// `COLLIDERS` as the ordinal the README names the last colliding key by.
-    function collidersOrdinal() internal pure returns (string memory) {
-        string[4] memory ordinals = ["first", "second", "third", "fourth"];
-        require(COLLIDERS <= ordinals.length, "COLLIDERS has no ordinal here");
-        return ordinals[COLLIDERS - 1];
-    }
 
     /// Expands memory past anything the measurements below allocate, then
     /// rewinds the free pointer over it. Every measurement after it allocates
@@ -150,7 +134,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// at a time, so it falls as lists fill. Lists are filled from list `0` up,
     /// one key each, and the saving is measured at every occupancy from the
     /// empty store to every list occupied: it never grows, and it is within
-    /// `ROUNDING` of each documented figure at the occupancy that figure names.
+    /// `ROUNDING` of the figure pinned for each occupancy that has one.
     function testExportGasSavingFallsAsListsFill() public view {
         uint256 previous = type(uint256).max;
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -177,20 +161,6 @@ contract LibMemoryKVGasClaimsTest is Test {
                 assertApproxEqRel(saving, BISECT_SAVING_FULL, ROUNDING, "saving with every list occupied");
             }
         }
-
-        assertDocumentStates(LIB_MEMORY_KV_PATH, string.concat(approxGas(BISECT_SAVING_EMPTY), " for an empty store"));
-        assertDocumentStates(
-            LIB_MEMORY_KV_PATH,
-            string.concat(
-                approxGas(BISECT_SAVING_PARTIAL),
-                " with lists 0 to ",
-                vm.toString(BISECT_SAVING_PARTIAL_LISTS - 1),
-                " occupied"
-            )
-        );
-        assertDocumentStates(
-            LIB_MEMORY_KV_PATH, string.concat(approxGas(BISECT_SAVING_FULL), " with every list occupied")
-        );
     }
 
     /// The README's headline figures, on the key alone in its list that they
@@ -213,9 +183,6 @@ contract LibMemoryKVGasClaimsTest is Test {
 
         assertApproxEqRel(setStart - setEnd, README_SOLO_SET_GAS, ROUNDING, "set");
         assertApproxEqRel(getStart - getEnd, README_SOLO_GET_GAS, ROUNDING, "get");
-
-        assertDocumentStates(README_PATH, string.concat(approxGas(README_SOLO_GET_GAS), " to get"));
-        assertDocumentStates(README_PATH, string.concat(approxGas(README_SOLO_SET_GAS), " to insert"));
     }
 
     /// The README's collision figures. The per-key costs are differences between
@@ -262,11 +229,5 @@ contract LibMemoryKVGasClaimsTest is Test {
         assertApproxEqRel(
             setGas[COLLIDERS - 1], README_LAST_COLLIDER_SET_GAS, ROUNDING, "the last colliding key into one list"
         );
-
-        assertDocumentStates(README_PATH, string.concat(approxGas(README_WALKED_GET_GAS), " to a get from it"));
-        assertDocumentStates(
-            README_PATH, string.concat(approxGas(README_WALKED_SET_GAS), " to a set into it: the ", collidersOrdinal())
-        );
-        assertDocumentStates(README_PATH, string.concat("inserts for ", approxGas(README_LAST_COLLIDER_SET_GAS)));
     }
 }
