@@ -70,11 +70,10 @@ contract LibMemoryKVGasClaimsTest is Test {
         assertGe(measured + tolerance, published, reason);
     }
 
-    /// Expands memory past anything the measurements below allocate, then rewinds
-    /// the free pointer over it. Without this each measurement is taken at a
-    /// higher point in memory than the last and carries a different expansion
-    /// cost, which is a difference between allocations rather than between the
-    /// things being compared.
+    /// Expands memory past anything the measurements below allocate, then
+    /// rewinds the free pointer over it. Every measurement after it allocates
+    /// inside memory that is already expanded, so none of them pays expansion
+    /// and the order two measurements are taken in does not change either one.
     function padMemory() internal pure {
         uint256 pointer;
         assembly ("memory-safe") {
@@ -134,8 +133,7 @@ contract LibMemoryKVGasClaimsTest is Test {
 
     /// The naive linear loop the NatSpec measures the saving against is
     /// `toBytes32ArrayLinear`, which visits all 15 slots and produces the same
-    /// pairs. Measuring the linear walk first leaves the bisect allocating higher
-    /// in memory, so the saving asserted here is the pessimistic one.
+    /// pairs.
     function testExportGasBeatsLinearWalk() public view {
         for (uint256 pairs = 0; pairs <= BISECT_SAVING_MAX_PAIRS; pairs++) {
             MemoryKV kv = MEMORY_KV_EMPTY;
