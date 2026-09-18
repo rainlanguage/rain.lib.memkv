@@ -13,11 +13,12 @@ import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
-/// Two claims about a `MemoryKV` handle as a `uint256` rather than about
-/// anything the library computes from it: the word that crosses an external
-/// call is the header's address and carries nothing of the store's contents,
-/// and every live copy of a non-empty handle is the one store, however many
-/// copies there are.
+/// Two claims about a `MemoryKV` handle that only hold across call frames or
+/// across several live copies, which no single-handle test reaches: the word
+/// that crosses an external call is the header's address and carries nothing
+/// of the store's contents, and every live copy of a non-empty handle is the
+/// one store, however many copies there are. Both rest on what `set` computes:
+/// where it puts the header, and that it writes inserts and updates in place.
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -60,7 +61,7 @@ contract LibMemoryKVCrossFunctionTest is Test {
 
     /// Every copy of a non-empty handle is the one store, with a whole chain
     /// of copies live at once. After the first insert every copy is the same
-    /// word, and neither an insert nor an update changes it (#107); every copy
+    /// word, and neither an insert nor an update changes it; every copy
     /// sees every key, whichever copy it was set through, and every copy
     /// reports the one word count.
     function testEveryLiveCopyIsTheOneStore(bytes32 seed) external pure {

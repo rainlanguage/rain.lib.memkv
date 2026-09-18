@@ -157,9 +157,9 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// The mask walk against `LibMemoryKVSlow.toBytes32ArrayLinear`, which
     /// visits all 15 heads and copies the same pairs with the same inner loop.
     /// On a small store most lists are empty, and the walk skips them where the
-    /// linear loop reads each head. Measuring the linear loop first leaves the
-    /// walk allocating higher in memory, so the win asserted here is the
-    /// pessimistic one.
+    /// linear loop reads each head. `padMemory` expands memory past both
+    /// exports first, so neither pays for expansion and the order they are
+    /// measured in does not matter.
     function testExportWalkBeatsTheLinearLoopForSmallStores() public view {
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 pairs = 1; pairs <= SMALL_STORE_PAIRS; pairs++) {

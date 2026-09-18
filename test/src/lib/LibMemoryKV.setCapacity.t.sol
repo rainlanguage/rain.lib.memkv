@@ -48,11 +48,11 @@ contract LibMemoryKVSetCapacityTest is Test {
         }
     }
 
-    /// The #13 acceptance test. The free memory pointer is above sixteen bits
-    /// before the first insert, so the header and every node are too, and the
-    /// store then takes `ACCEPTANCE_PAIRS` distinct keys. Every key reads back
-    /// with its value, the count is every pair, the export holds every pair
-    /// once, and the allocation is exactly one header and one node per pair.
+    /// The free memory pointer is above sixteen bits before the first insert,
+    /// so the header and every node are too, and the store then takes
+    /// `ACCEPTANCE_PAIRS` distinct keys. Every key reads back with its value,
+    /// the count is every pair, the export holds every pair once, and the
+    /// allocation is exactly one header and one node per pair.
     function testTwoThousandPairsFromAboveSixteenBits() external pure {
         setFreePointer(ABOVE_SIXTEEN_BITS);
         MemoryKV kv = MEMORY_KV_EMPTY;
