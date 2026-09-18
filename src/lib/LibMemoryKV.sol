@@ -2,26 +2,50 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.18;
 
-/// Entrypoint into the key/value store. Is a mutable pointer to the head of the
-/// linked list. Initially points to `0` for an empty list. The total word count
-/// of all inserts is also encoded alongside the pointer to allow efficient O(1)
-/// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
+/// Entrypoint into the key/value store.
 ///
-/// A `MemoryKV` is a handle into shared memory, not a snapshot, although
-/// Solidity silently copies it as a value type. Handles derived from the same
-/// store share its list items, so an update is visible through every handle
-/// that holds the key, including handles copied before the update, while an
-/// insert is visible only through the handle `set` returned. Keep exactly one
-/// live handle per store, or snapshot with `toBytes32Array`.
+/// `0` is the empty store, which owns no memory. Any other value is the memory
+/// address of the store's header, which the first insert allocates at the free
+/// memory pointer. Nothing is packed into the handle itself, so there is no
+/// ceiling on where in memory the store lives or on how many pairs it holds.
 ///
-/// A handle is valid ONLY inside the call frame that created it. The pointers
-/// it packs are offsets into that frame's memory. Being a `uint256` it crosses
-/// an external call unchanged while the list items it names do not, so a
-/// `MemoryKV` MUST NOT be returned from or passed into an external call. In
-/// another frame those same offsets name whatever that frame holds at them, so
-/// a read answers with unrelated memory, or follows a junk word as a pointer
-/// and expands memory until the gas is gone. Cross a call boundary with
-/// `toBytes32Array` instead.
+/// ```
+/// header, LibMemoryKV.HEADER_BYTES at kv
+///   kv + 0x20 * s   head of list s, for s in 0..14: the address of the list's
+///                   newest node, 0 while the list is empty
+///   kv + 0x1e0      meta: bits 16..255 the word count, two per pair
+///                         bit 15 zero
+///                         bits 0..14 the occupancy mask: list s is non-empty
+///                         exactly when bit 14 - s is set
+///
+/// node, LibMemoryKV.NODE_BYTES at p
+///   p + 0x00        key
+///   p + 0x20        value
+///   p + 0x40        next: the node that headed the list before this one, 0
+///                   at the end of the list
+/// ```
+///
+/// A key belongs to list `keccak256(key) % LibMemoryKV.LIST_COUNT`. An insert
+/// prepends its node to that list and adds one pair to the word count, which
+/// lets `toBytes32Array` allocate its `bytes32[]` in O(1), and sets the list's
+/// occupancy bit, which lets it skip the empty lists without reading their
+/// heads.
+///
+/// A `MemoryKV` is a handle to memory, not a snapshot, although Solidity
+/// silently copies it as a value type. Once a store is non-empty every copy of
+/// its handle is the same store: an insert or an update through any copy is
+/// visible through every copy, and they share one word count. Only the empty
+/// handle branches, because every `set` on `0` allocates a header of its own.
+/// Snapshot with `toBytes32Array`.
+///
+/// A handle is valid ONLY inside the call frame that created it. The header
+/// and the nodes are addresses in that frame's memory. Being a `uint256` a
+/// handle crosses an external call unchanged while the memory it names does
+/// not, so a `MemoryKV` MUST NOT be returned from or passed into an external
+/// call. In another frame the same address names whatever that frame holds
+/// there, so a read answers with unrelated memory, or follows a junk word as a
+/// pointer and expands memory until the gas is gone. Cross a call boundary
+/// with `toBytes32Array` instead.
 type MemoryKV is uint256;
 
 /// @dev The only valid starting value for a `MemoryKV`. A store MUST begin here
@@ -37,23 +61,47 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
-    /// Thrown when an insert would allocate its node at a pointer above
-    /// `0xFFFF`, which is the widest head pointer a list slot can hold, so the
-    /// slot would truncate it and the bits above the slot would overwrite the
-    /// neighbouring slots and the word count.
-    ///
-    /// Only the head is bounded: the node's three words MAY extend above
-    /// `0xFFFF`, as every field is reached by full width arithmetic from the
-    /// head. An update allocates nothing, so it never throws this.
-    /// @param pointer The offending pointer, not the bound it crossed.
-    error MemoryKVOverflow(uint256 pointer);
+    /// The number of internal linked lists a store keeps a head for.
+    uint256 internal constant LIST_COUNT = 15;
 
-    /// Thrown when an insert would push the 16 bit word count past `0xFFFF`.
-    /// The count is written by shifting into the top bits of `MemoryKV`, so
-    /// without this the sum silently loses its high bit, and `toBytes32Array`,
-    /// which sizes its allocation from the count, then copies every pair it
-    /// walks past the end of that array.
-    error MemoryKVLengthOverflow(uint256 length);
+    /// The bytes of memory `set` allocates for one node: the key, the value
+    /// and the next pointer.
+    uint256 internal constant NODE_BYTES = 0x60;
+
+    /// The bytes of memory the first insert into an empty store allocates for
+    /// its header: one head per list, then the meta word.
+    uint256 internal constant HEADER_BYTES = 0x200;
+
+    /// The offset of the meta word from the start of the header, directly
+    /// after the last head.
+    uint256 internal constant META_OFFSET = 0x1e0;
+
+    /// The bit offset of the word count in the meta word, above the occupancy
+    /// mask and the zero bit 15.
+    uint256 internal constant COUNT_BIT_OFFSET = 0x10;
+
+    /// What one insert adds to the meta word: the pair's two words in the
+    /// count, `2 << COUNT_BIT_OFFSET`. A literal, because inline assembly
+    /// accepts only literal constants and does not fold a `shl` of two.
+    uint256 internal constant PAIR_COUNT_INCREMENT = 0x20000;
+
+    /// The occupancy mask's bits in the meta word, one per list.
+    uint256 internal constant OCCUPANCY_MASK = 0x7fff;
+
+    /// The occupancy bit of list 0. List `s` has the bit `s` places below it,
+    /// so the lowest set bit of the mask is the highest occupied list.
+    uint256 internal constant LIST_0_OCCUPANCY_BIT = 0x4000;
+
+    /// Maps a single occupancy bit, reduced modulo `SLOT_TABLE_MODULUS`, to the
+    /// list it marks: the byte at index `2^j mod 19` holds `14 - j`, the list
+    /// whose occupancy bit is `j`. 2 is a primitive root modulo 19, so the 15
+    /// indices `2^0 .. 2^14 mod 19` are distinct and every bit has a byte of
+    /// its own.
+    uint256 internal constant SLOT_TABLE = 0x000e0d010c0000080b060002000907030a040500000000000000000000000000;
+
+    /// The modulus that turns a single occupancy bit into its `SLOT_TABLE`
+    /// index.
+    uint256 internal constant SLOT_TABLE_MODULUS = 19;
 
     /// Gets the value associated with a given key.
     /// The value returned will be `0` if the key exists and was set to zero OR
@@ -70,19 +118,22 @@ library LibMemoryKV {
     /// even if the `key` exists. It is possible to set any key to a `0` value.
     function get(MemoryKV kv, MemoryKVKey key) internal pure returns (uint256 exists, MemoryKVVal value) {
         assembly ("memory-safe") {
-            // Hash to find the internal linked list to walk.
-            // Hash logic MUST match set.
-            mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 15), 0x10)
+            // The empty store has no header. Reading one at `0` would take the
+            // scratch space and the free memory pointer for heads.
+            if kv {
+                // Hash to find the internal linked list to walk.
+                // Hash logic MUST match set.
+                mstore(0, key)
 
-            // Loop until k found or give up if pointer is zero.
-            for { let pointer := and(shr(bitOffset, kv), 0xFFFF) } iszero(iszero(pointer)) {
-                pointer := mload(add(pointer, 0x40))
-            } {
-                if eq(key, mload(pointer)) {
-                    exists := 1
-                    value := mload(add(pointer, 0x20))
-                    break
+                // Loop until key found or give up if pointer is zero.
+                for { let pointer := mload(add(kv, shl(5, mod(keccak256(0, 0x20), LIST_COUNT)))) } pointer {
+                    pointer := mload(add(pointer, 0x40))
+                } {
+                    if eq(key, mload(pointer)) {
+                        exists := 1
+                        value := mload(add(pointer, 0x20))
+                        break
+                    }
                 }
             }
         }
@@ -109,47 +160,49 @@ library LibMemoryKV {
 
     /// Upserts a value in the set by its key. I.e. if the key exists then the
     /// associated value will be mutated in place, else a new key/value pair will
-    /// be inserted. The key/value store pointer is returned rather than mutated
-    /// in place, as it MAY point to a new list item in memory.
+    /// be inserted.
     ///
-    /// `kv` is a value, so an insert's new head pointer exists only in the
-    /// return. The caller MUST assign the return back over the `kv` it passed
-    /// in, or the inserted pair is discarded with no revert. A dropped return
-    /// on an update path appears to work only because that pair is already
-    /// reachable from the unchanged pointer, which is not a guarantee.
+    /// An insert into the empty store first allocates the header at the free
+    /// memory pointer and zeroes it, because memory above the free memory
+    /// pointer is not guaranteed to be zero. Every insert then allocates one
+    /// node. An update allocates nothing. `set` never reverts.
     ///
-    /// An update writes through a shared list item, so it is visible to every
-    /// handle that holds the key, including handles copied before this call. An
-    /// insert is visible only through the returned handle.
+    /// The caller MUST assign the return back over the `kv` it passed in. The
+    /// first insert into the empty store returns the address of the header it
+    /// allocated, and the return is the only thing that holds it, so a dropped
+    /// return there loses the whole store with no revert. For any other `kv`
+    /// the return is the `kv` passed in.
     ///
-    /// Reverts `MemoryKVOverflow` when an INSERT would allocate its node above
-    /// `0xFFFF`, the widest head pointer a list slot can hold. An update
-    /// allocates nothing and so never reverts. The ceiling is on the frame's
-    /// free memory pointer rather than on a pair count: the node takes its
-    /// address from there, so every unrelated allocation in the frame lowers
-    /// how many pairs still fit, which is 682 for a frame that allocates
-    /// nothing else.
-    /// @param kv The key/value store pointer to modify.
+    /// Every write lands in memory shared by every copy of a non-empty handle,
+    /// so an insert or an update is visible through all of them, including
+    /// copies taken before this call.
+    /// @param kv The key/value store to modify.
     /// @param key The key to upsert against.
     /// @param value The value to associate with the upserted key.
-    /// @return The final value of `kv` as it MAY be modified if the upsert
-    /// resulted in an insert operation.
+    /// @return The store, which differs from `kv` only when `kv` is the empty
+    /// store.
     function set(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) internal pure returns (MemoryKV) {
-        uint256 pointer;
-        uint256 length;
         assembly ("memory-safe") {
+            if iszero(kv) {
+                kv := mload(0x40)
+                mstore(0x40, add(kv, HEADER_BYTES))
+                // Copying from past the end of calldata writes zeros.
+                calldatacopy(kv, calldatasize(), HEADER_BYTES)
+            }
+
             // Hash to spread inserts across internal lists.
             // This MUST remain in sync with `get` logic.
             mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 15), 0x10)
+            let list := mod(keccak256(0, 0x20), LIST_COUNT)
+            let head := add(kv, shl(5, list))
 
-            // Set aside the starting pointer as we'll need to include it in any
-            // newly inserted linked list items.
-            let startPointer := and(shr(bitOffset, kv), 0xFFFF)
+            // Set aside the starting pointer as an insert links its node to
+            // it.
+            let startPointer := mload(head)
 
             // Find a key match then break so that we populate a nonzero pointer.
-            pointer := startPointer
-            for {} iszero(iszero(pointer)) { pointer := mload(add(pointer, 0x40)) } {
+            let pointer := startPointer
+            for {} pointer { pointer := mload(add(pointer, 0x40)) } {
                 if eq(key, mload(pointer)) { break }
             }
 
@@ -160,206 +213,70 @@ library LibMemoryKV {
             case 0 { mstore(add(pointer, 0x20), value) }
             // Insert.
             default {
-                // Allocate 3 words of memory.
+                // Allocate the node.
                 pointer := mload(0x40)
-                mstore(0x40, add(pointer, 0x60))
+                mstore(0x40, add(pointer, NODE_BYTES))
 
                 // Write key/value/pointer.
                 mstore(pointer, key)
                 mstore(add(pointer, 0x20), value)
                 mstore(add(pointer, 0x40), startPointer)
 
-                // Update total stored word count.
-                length := add(shr(0xf0, kv), 2)
+                // The node heads its list.
+                mstore(head, pointer)
 
-                kv := add(kv, shl(0xf0, 2))
-
-                // kv must point to new insertion.
+                // One more pair in the count, and the list is occupied.
+                let meta := add(kv, META_OFFSET)
                 //slither-disable-next-line incorrect-shift
-                kv := or(
-                    shl(bitOffset, pointer),
-                    // Mask out the old pointer
-                    and(kv, not(shl(bitOffset, 0xFFFF)))
-                )
+                mstore(meta, or(add(mload(meta), PAIR_COUNT_INCREMENT), shr(list, LIST_0_OCCUPANCY_BIT)))
             }
-        }
-        // Neither bound can be crossed without setting a bit above the low 16,
-        // so one comparison covers both and the nested test only runs once
-        // something has already overflowed.
-        if ((pointer | length) > 0xFFFF) {
-            if (pointer > 0xFFFF) {
-                revert MemoryKVOverflow(pointer);
-            }
-            revert MemoryKVLengthOverflow(length);
         }
         return kv;
     }
 
-    /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `bytes32[]`. Reads the total length to preallocate the
-    /// `bytes32[]` then bisects the bits of the `kv` to find non-zero pointers
-    /// to linked lists, walking each found list to the end to extract all
-    /// values. As a single `kv` has 15 slots for pointers to linked lists it is
-    /// likely for smallish structures that many slots can simply be skipped, so
-    /// the bisect approach can save ~1-1.5k gas vs. a naive linear loop over
-    /// all 15 slots for every export.
+    /// Export/snapshot the key/value store into a standard `bytes32[]`. Reads
+    /// the word count to preallocate the `bytes32[]`, then walks the
+    /// occupancy mask from its lowest set bit up, copying out every pair of
+    /// each occupied list from its head to its end. Empty lists cost nothing
+    /// beyond the mask test that skips them.
     ///
     /// Note this is a one time export, if the key/value store is subsequently
     /// mutated the built array will not reflect these mutations.
     ///
-    /// The allocation is sized from the word count in `kv` and filled by walking the lists, so the two must agree.
+    /// The allocation is sized from the word count and filled by walking the
+    /// lists, so the two must agree.
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
     /// The pair order is unspecified and MUST NOT be relied upon; a caller that
     /// needs a canonical form MUST sort.
-    // Slither is not wrong about the cyclomatic complexity but I don't know
-    // another way to implement the bisect and keep the gas savings.
-    //slither-disable-next-line cyclomatic-complexity
     function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
-        uint256 mask16 = type(uint16).max;
-        uint256 mask32 = type(uint32).max;
-        uint256 mask64 = type(uint64).max;
-        uint256 mask128 = type(uint128).max;
         assembly ("memory-safe") {
             // Manually create a `bytes32[]`.
             // No need to zero out memory as we're about to write to it.
             array := mload(0x40)
-            let length := shr(0xf0, kv)
-            mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
+
+            // The empty store has no header, so no meta word to read.
+            let meta := 0
+            if kv { meta := mload(add(kv, META_OFFSET)) }
+
+            let length := shr(COUNT_BIT_OFFSET, meta)
+            mstore(0x40, add(array, add(0x20, shl(5, length))))
             mstore(array, length)
 
-            // Known false positives in slither
-            // https://github.com/crytic/slither/issues/1815
-            //slither-disable-next-line naming-convention
-            function copyFromPtr(cursor, pointer) -> end {
-                for {} iszero(iszero(pointer)) {
+            let cursor := add(array, 0x20)
+            for { let mask := and(meta, OCCUPANCY_MASK) } mask {} {
+                // Isolate the lowest set bit and clear it from the mask.
+                let bit := and(mask, sub(0, mask))
+                mask := xor(mask, bit)
+
+                // Copy the list that bit marks, newest node first.
+                for { let pointer := mload(add(kv, shl(5, byte(mod(bit, SLOT_TABLE_MODULUS), SLOT_TABLE)))) } pointer {
                     pointer := mload(add(pointer, 0x40))
-                    cursor := add(cursor, 0x40)
                 } {
                     mstore(cursor, mload(pointer))
                     mstore(add(cursor, 0x20), mload(add(pointer, 0x20)))
-                }
-                end := cursor
-            }
-
-            // Bisect.
-            // This crazy tree saves ~1-1.5k gas vs. a simple loop with larger
-            // relative savings for small-medium sized structures.
-            // The internal scoping blocks are to provide some safety against
-            // typos causing the incorrect symbol to be referenced by enforcing
-            // each symbol is as tightly scoped as it can be.
-            let cursor := add(array, 0x20)
-            {
-                // Remove the length from kv before iffing to save ~100 gas.
-                let p0 := shr(0x90, shl(0x10, kv))
-                if iszero(iszero(p0)) {
-                    {
-                        let p00 := shr(0x40, p0)
-                        if iszero(iszero(p00)) {
-                            {
-                                // This branch is a special case because we
-                                // already zeroed out the high bits which are
-                                // used by the length and are NOT a pointer.
-                                // We can skip processing where the pointer would
-                                // have been if it were not the length, and do
-                                // not need to scrub the high bits to move from
-                                // `p00` to `p0001`.
-                                let p0001 := shr(0x20, p00)
-                                if iszero(iszero(p0001)) { cursor := copyFromPtr(cursor, p0001) }
-                            }
-                            let p001 := and(mask32, p00)
-                            if iszero(iszero(p001)) {
-                                {
-                                    let p0010 := shr(0x10, p001)
-                                    if iszero(iszero(p0010)) { cursor := copyFromPtr(cursor, p0010) }
-                                }
-                                let p0011 := and(mask16, p001)
-                                if iszero(iszero(p0011)) { cursor := copyFromPtr(cursor, p0011) }
-                            }
-                        }
-                    }
-                    let p01 := and(mask64, p0)
-                    if iszero(iszero(p01)) {
-                        {
-                            let p010 := shr(0x20, p01)
-                            if iszero(iszero(p010)) {
-                                {
-                                    let p0100 := shr(0x10, p010)
-                                    if iszero(iszero(p0100)) { cursor := copyFromPtr(cursor, p0100) }
-                                }
-                                let p0101 := and(mask16, p010)
-                                if iszero(iszero(p0101)) { cursor := copyFromPtr(cursor, p0101) }
-                            }
-                        }
-
-                        let p011 := and(mask32, p01)
-                        if iszero(iszero(p011)) {
-                            {
-                                let p0110 := shr(0x10, p011)
-                                if iszero(iszero(p0110)) { cursor := copyFromPtr(cursor, p0110) }
-                            }
-
-                            let p0111 := and(mask16, p011)
-                            if iszero(iszero(p0111)) { cursor := copyFromPtr(cursor, p0111) }
-                        }
-                    }
-                }
-            }
-
-            {
-                let p1 := and(mask128, kv)
-                if iszero(iszero(p1)) {
-                    {
-                        let p10 := shr(0x40, p1)
-                        if iszero(iszero(p10)) {
-                            {
-                                let p100 := shr(0x20, p10)
-                                if iszero(iszero(p100)) {
-                                    {
-                                        let p1000 := shr(0x10, p100)
-                                        if iszero(iszero(p1000)) { cursor := copyFromPtr(cursor, p1000) }
-                                    }
-                                    let p1001 := and(mask16, p100)
-                                    if iszero(iszero(p1001)) { cursor := copyFromPtr(cursor, p1001) }
-                                }
-                            }
-                            let p101 := and(mask32, p10)
-                            if iszero(iszero(p101)) {
-                                {
-                                    let p1010 := shr(0x10, p101)
-                                    if iszero(iszero(p1010)) { cursor := copyFromPtr(cursor, p1010) }
-                                }
-                                let p1011 := and(mask16, p101)
-                                if iszero(iszero(p1011)) { cursor := copyFromPtr(cursor, p1011) }
-                            }
-                        }
-                    }
-                    let p11 := and(mask64, p1)
-                    if iszero(iszero(p11)) {
-                        {
-                            let p110 := shr(0x20, p11)
-                            if iszero(iszero(p110)) {
-                                {
-                                    let p1100 := shr(0x10, p110)
-                                    if iszero(iszero(p1100)) { cursor := copyFromPtr(cursor, p1100) }
-                                }
-                                let p1101 := and(mask16, p110)
-                                if iszero(iszero(p1101)) { cursor := copyFromPtr(cursor, p1101) }
-                            }
-                        }
-
-                        let p111 := and(mask32, p11)
-                        if iszero(iszero(p111)) {
-                            {
-                                let p1110 := shr(0x10, p111)
-                                if iszero(iszero(p1110)) { cursor := copyFromPtr(cursor, p1110) }
-                            }
-
-                            let p1111 := and(mask16, p111)
-                            if iszero(iszero(p1111)) { cursor := copyFromPtr(cursor, p1111) }
-                        }
-                    }
+                    cursor := add(cursor, 0x40)
                 }
             }
         }
