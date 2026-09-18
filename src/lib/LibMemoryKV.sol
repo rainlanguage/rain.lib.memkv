@@ -191,6 +191,7 @@ library LibMemoryKV {
                 // Update total stored word count.
                 length := add(shr(COUNT_BIT_OFFSET, kv), 2)
 
+                //slither-disable-next-line incorrect-shift
                 kv := add(kv, shl(COUNT_BIT_OFFSET, 2))
 
                 // kv must point to new insertion.
