@@ -9,6 +9,7 @@
 .vscode
 CLAUDE.md
 /audit
+/test
 /cache
 /dependencies
 /flake.lock

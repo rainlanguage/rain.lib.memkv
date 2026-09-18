@@ -5,7 +5,10 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {POINTER_MAX, NODE_BYTES, slotOf, headOf, countPair, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
@@ -20,13 +23,14 @@ contract LibMemoryKVExportWalkTest is Test {
 
     /// The free memory pointer the chain below is built from. The first node
     /// lands here and the second, which is the one the list's slot points at,
-    /// `NODE_BYTES` above it.
+    /// `LibMemoryKV.NODE_BYTES` above it.
     uint256 internal constant CHAIN_POINTER = 0xFF60;
 
     /// Where the head node lands: the lowest head whose next word, at
     /// `HEAD_POINTER + 0x40`, sits wholly above the bound. Every head above it
-    /// that `set` accepts, up to `POINTER_MAX`, keeps its next word higher still.
-    uint256 internal constant HEAD_POINTER = CHAIN_POINTER + NODE_BYTES;
+    /// that `set` accepts, up to `LibMemoryKV.POINTER_MASK`, keeps its next
+    /// word higher still.
+    uint256 internal constant HEAD_POINTER = CHAIN_POINTER + LibMemoryKV.NODE_BYTES;
 
     /// Two keys that hash into one internal list.
     bytes32 internal constant KEY_TAIL = bytes32(uint256(4));
@@ -55,7 +59,11 @@ contract LibMemoryKVExportWalkTest is Test {
     /// `toBytes32Array` leaves it unspecified.
     function testExportWalksThroughANextWordAboveTheBound() external view {
         assertEq(slotOf(KEY_HEAD), slotOf(KEY_TAIL), "the two keys share one list");
-        assertEq(HEAD_POINTER + 0x40, POINTER_MAX + 1, "the head node's next word is the first word above the bound");
+        assertEq(
+            HEAD_POINTER + 0x40,
+            LibMemoryKV.POINTER_MASK + 1,
+            "the head node's next word is the first word above the bound"
+        );
 
         (MemoryKV kv, bytes32[] memory array) = this.exportChainAtExternal(CHAIN_POINTER);
 

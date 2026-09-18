@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: LicenseRef-DCL-1.0
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.25;
 
-/// Entrypoint into the key/value store. Is a mutable pointer to the head of the
-/// linked list. Initially points to `0` for an empty list. The total word count
-/// of all inserts is also encoded alongside the pointer to allow efficient O(1)
-/// memory allocation for a `bytes32[]` in the case of a final snapshot/export.
+/// Entrypoint into the key/value store: a `uint256` packing the head pointers
+/// of `LibMemoryKV.LIST_COUNT` internal linked lists and one word count, each
+/// in its own `LibMemoryKV.SLOT_BITS` wide slot. A key belongs to list
+/// `i = keccak256(key) % LIST_COUNT`, whose head pointer is the slot at bit
+/// `i * SLOT_BITS` and is `0` while that list is empty, so `0` is the empty
+/// store. The word count is the slot at `COUNT_BIT_OFFSET`, above the last
+/// list, and counts two words per inserted pair, so `toBytes32Array` allocates
+/// its `bytes32[]` in O(1). A list item is `NODE_BYTES` of memory: the key,
+/// the value, then the pointer to the next item in the list, `0` after the
+/// last.
 ///
 /// A `MemoryKV` is a handle into shared memory, not a snapshot, although
 /// Solidity silently copies it as a value type. Handles derived from the same
@@ -37,22 +43,42 @@ type MemoryKVVal is bytes32;
 
 /// @title LibMemoryKV
 library LibMemoryKV {
+    /// The number of internal linked lists a `MemoryKV` holds a head pointer
+    /// for.
+    uint256 internal constant LIST_COUNT = 15;
+
+    /// The width in bits of one slot of a `MemoryKV`, whether it holds a head
+    /// pointer or the word count.
+    uint256 internal constant SLOT_BITS = 0x10;
+
+    /// The mask of one slot, so both the widest head pointer and the widest
+    /// word count a `MemoryKV` holds.
+    uint256 internal constant POINTER_MASK = 0xFFFF;
+
+    /// The bit offset of the word count's slot in a `MemoryKV`.
+    uint256 internal constant COUNT_BIT_OFFSET = 0xf0;
+
+    /// The bytes of memory `set` allocates for one list item.
+    uint256 internal constant NODE_BYTES = 0x60;
+
     /// Thrown when an insert would allocate its node at a pointer above
-    /// `0xFFFF`, which is the widest head pointer a list slot can hold, so the
+    /// `POINTER_MASK`, the widest head pointer a list slot can hold, so the
     /// slot would truncate it and the bits above the slot would overwrite the
     /// neighbouring slots and the word count.
     ///
-    /// Only the head is bounded: the node's three words MAY extend above
-    /// `0xFFFF`, as every field is reached by full width arithmetic from the
-    /// head. An update allocates nothing, so it never throws this.
+    /// Only the head is bounded: the rest of the node MAY extend above
+    /// `POINTER_MASK`, as every field is reached by full width arithmetic from
+    /// the head. An update allocates nothing, so it never throws this.
     /// @param pointer The offending pointer, not the bound it crossed.
     error MemoryKVOverflow(uint256 pointer);
 
-    /// Thrown when an insert would push the 16 bit word count past `0xFFFF`.
+    /// Thrown when an insert would push the word count past `POINTER_MASK`.
     /// The count is written by shifting into the top bits of `MemoryKV`, so
     /// without this the sum silently loses its high bit, and `toBytes32Array`,
     /// which sizes its allocation from the count, then copies every pair it
     /// walks past the end of that array.
+    /// @param length The word count the insert would have produced, not the
+    /// stored count before it and not the `POINTER_MASK` bound it crossed.
     error MemoryKVLengthOverflow(uint256 length);
 
     /// Gets the value associated with a given key.
@@ -73,10 +99,10 @@ library LibMemoryKV {
             // Hash to find the internal linked list to walk.
             // Hash logic MUST match set.
             mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 15), 0x10)
+            let bitOffset := mul(mod(keccak256(0, 0x20), LIST_COUNT), SLOT_BITS)
 
-            // Loop until k found or give up if pointer is zero.
-            for { let pointer := and(shr(bitOffset, kv), 0xFFFF) } iszero(iszero(pointer)) {
+            // Loop until key found or give up if pointer is zero.
+            for { let pointer := and(shr(bitOffset, kv), POINTER_MASK) } iszero(iszero(pointer)) {
                 pointer := mload(add(pointer, 0x40))
             } {
                 if eq(key, mload(pointer)) {
@@ -88,17 +114,10 @@ library LibMemoryKV {
         }
     }
 
-    /// Whether a key exists in the store.
+    /// Whether a key exists in the store. Equivalent to the `exists` half of
+    /// `get` as a `bool`, so usable inside an expression.
     ///
-    /// The same walk as `get`, answering only the half of it that says whether
-    /// the key is there. A caller asking membership wants a `bool` it can put
-    /// inside an expression, and `get` returns a tuple, which Solidity cannot
-    /// destructure inside one: every such caller otherwise writes a line to
-    /// unpack the answer before it can use it.
-    ///
-    /// A key SET TO ZERO exists. Existence is not the value, which is why `get`
-    /// reports them separately and why this reads the first of the two rather
-    /// than comparing the second against zero.
+    /// A key SET TO ZERO exists; existence is independent of the value.
     /// @param kv The entrypoint to the key/value store.
     /// @param key The key to look for.
     /// @return Whether the key is in the store.
@@ -123,7 +142,7 @@ library LibMemoryKV {
     /// insert is visible only through the returned handle.
     ///
     /// Reverts `MemoryKVOverflow` when an INSERT would allocate its node above
-    /// `0xFFFF`, the widest head pointer a list slot can hold. An update
+    /// `POINTER_MASK`, the widest head pointer a list slot can hold. An update
     /// allocates nothing and so never reverts. The ceiling is on the frame's
     /// free memory pointer rather than on a pair count: the node takes its
     /// address from there, so every unrelated allocation in the frame lowers
@@ -141,11 +160,11 @@ library LibMemoryKV {
             // Hash to spread inserts across internal lists.
             // This MUST remain in sync with `get` logic.
             mstore(0, key)
-            let bitOffset := mul(mod(keccak256(0, 0x20), 15), 0x10)
+            let bitOffset := mul(mod(keccak256(0, 0x20), LIST_COUNT), SLOT_BITS)
 
             // Set aside the starting pointer as we'll need to include it in any
             // newly inserted linked list items.
-            let startPointer := and(shr(bitOffset, kv), 0xFFFF)
+            let startPointer := and(shr(bitOffset, kv), POINTER_MASK)
 
             // Find a key match then break so that we populate a nonzero pointer.
             pointer := startPointer
@@ -160,9 +179,9 @@ library LibMemoryKV {
             case 0 { mstore(add(pointer, 0x20), value) }
             // Insert.
             default {
-                // Allocate 3 words of memory.
+                // Allocate the list item.
                 pointer := mload(0x40)
-                mstore(0x40, add(pointer, 0x60))
+                mstore(0x40, add(pointer, NODE_BYTES))
 
                 // Write key/value/pointer.
                 mstore(pointer, key)
@@ -170,24 +189,25 @@ library LibMemoryKV {
                 mstore(add(pointer, 0x40), startPointer)
 
                 // Update total stored word count.
-                length := add(shr(0xf0, kv), 2)
+                length := add(shr(COUNT_BIT_OFFSET, kv), 2)
 
-                kv := add(kv, shl(0xf0, 2))
+                //slither-disable-next-line incorrect-shift
+                kv := add(kv, shl(COUNT_BIT_OFFSET, 2))
 
                 // kv must point to new insertion.
                 //slither-disable-next-line incorrect-shift
                 kv := or(
                     shl(bitOffset, pointer),
                     // Mask out the old pointer
-                    and(kv, not(shl(bitOffset, 0xFFFF)))
+                    and(kv, not(shl(bitOffset, POINTER_MASK)))
                 )
             }
         }
-        // Neither bound can be crossed without setting a bit above the low 16,
-        // so one comparison covers both and the nested test only runs once
-        // something has already overflowed.
-        if ((pointer | length) > 0xFFFF) {
-            if (pointer > 0xFFFF) {
+        // Neither bound can be crossed without setting a bit above
+        // `POINTER_MASK`, so one comparison covers both and the nested test
+        // only runs once something has already overflowed.
+        if ((pointer | length) > POINTER_MASK) {
+            if (pointer > POINTER_MASK) {
                 revert MemoryKVOverflow(pointer);
             }
             revert MemoryKVLengthOverflow(length);
@@ -195,19 +215,22 @@ library LibMemoryKV {
         return kv;
     }
 
-    /// Export/snapshot the underlying linked list of the key/value store into
-    /// a standard `bytes32[]`. Reads the total length to preallocate the
-    /// `bytes32[]` then bisects the bits of the `kv` to find non-zero pointers
-    /// to linked lists, walking each found list to the end to extract all
-    /// values. As a single `kv` has 15 slots for pointers to linked lists it is
-    /// likely for smallish structures that many slots can simply be skipped, so
-    /// the bisect approach can save ~1-1.5k gas vs. a naive linear loop over
-    /// all 15 slots for every export.
+    /// Export/snapshot the key/value store into a standard `bytes32[]`. Reads
+    /// the word count to preallocate the `bytes32[]`, then bisects the head
+    /// pointers in `kv` to find the non-zero ones, walking each found list to
+    /// its end to copy out every pair.
+    ///
+    /// The bisect tests an empty subtree once where a linear loop visits every
+    /// list in it, so its saving over a loop over every list depends on which
+    /// lists are occupied, not on how many pairs they hold, and falls as they
+    /// fill: ~1900 gas for an empty store, ~1100 gas with lists 0 to 5 occupied
+    /// and ~60 gas with every list occupied.
     ///
     /// Note this is a one time export, if the key/value store is subsequently
     /// mutated the built array will not reflect these mutations.
     ///
-    /// The allocation is sized from the word count in `kv` and filled by walking the lists, so the two must agree.
+    /// The allocation is sized from the word count in `kv` and filled by
+    /// walking the lists, so the two must agree.
     ///
     /// @param kv The entrypoint into the key/value store.
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
@@ -225,7 +248,7 @@ library LibMemoryKV {
             // Manually create a `bytes32[]`.
             // No need to zero out memory as we're about to write to it.
             array := mload(0x40)
-            let length := shr(0xf0, kv)
+            let length := shr(COUNT_BIT_OFFSET, kv)
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
@@ -243,9 +266,8 @@ library LibMemoryKV {
                 end := cursor
             }
 
-            // Bisect.
-            // This crazy tree saves ~1-1.5k gas vs. a simple loop with larger
-            // relative savings for small-medium sized structures.
+            // Bisect. The gas this tree saves over a linear loop is documented
+            // in the NatSpec above.
             // The internal scoping blocks are to provide some safety against
             // typos causing the incorrect symbol to be referenced by enforcing
             // each symbol is as tightly scoped as it can be.

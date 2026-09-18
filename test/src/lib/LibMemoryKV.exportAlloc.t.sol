@@ -7,8 +7,10 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {LIST_COUNT, slotOf, keyForSlot, countPair, occupiedSlots, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {occupiedSlots, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportAllocTest
 /// The export's ARRAY: where it is allocated, how big it is, and that every
@@ -242,7 +244,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// every pair on it lands in the array, adjacent and in one piece. This is
     /// the multi-step walk: the chain, not the bisect.
     function testExportWalksOneListToTheEnd(bytes32 seed, uint256 slot) external pure {
-        slot = bound(slot, 0, LIST_COUNT - 1);
+        slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
 
         bytes32[] memory keys = new bytes32[](5);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -270,7 +272,8 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](4);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
-            keys[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : LIST_COUNT - 1));
+            keys[i] =
+                MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : LibMemoryKV.LIST_COUNT - 1));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
@@ -282,21 +285,21 @@ contract LibMemoryKVExportAllocTest is Test {
         }
     }
 
-    /// Every one of the `LIST_COUNT` internal lists is reachable by the export.
-    /// With one key in each list, the array holds each list's pair exactly
-    /// once, key and value together, and nothing else.
+    /// Every one of the `LibMemoryKV.LIST_COUNT` internal lists is reachable by
+    /// the export. With one key in each list, the array holds each list's pair
+    /// exactly once, key and value together, and nothing else.
     function testExportReachesEverySlot(bytes32 seed) external pure {
-        bytes32[] memory keys = new bytes32[](LIST_COUNT);
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(bytes32(slot + 1)));
         }
 
         bytes32[] memory array = kv.toBytes32Array();
-        assertEq(array.length, LIST_COUNT * 2, "two words per slot");
+        assertEq(array.length, LibMemoryKV.LIST_COUNT * 2, "two words per slot");
 
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             assertEq(countPair(array, keys[slot], bytes32(slot + 1)), 1, "slot exported exactly once");
         }
     }

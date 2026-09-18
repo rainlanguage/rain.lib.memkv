@@ -5,16 +5,19 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {LIST_COUNT, keyForSlot, countPair, lengthOf, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {lengthOf, occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVSaturateTest
-/// All `LIST_COUNT` internal lists are non-empty at the same time, and the word
-/// count, every `get` and the export all still match what was set.
+/// All `LibMemoryKV.LIST_COUNT` internal lists are non-empty at the same time,
+/// and the word count, every `get` and the export all still match what was
+/// set.
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// Two pairs per internal list, so every list has a node behind its head.
-    uint256 internal constant PAIR_COUNT = 2 * LIST_COUNT;
+    uint256 internal constant PAIR_COUNT = 2 * LibMemoryKV.LIST_COUNT;
 
     /// `PAIR_COUNT` pairs are set, spread evenly over the lists. After that,
     /// every list holds a head pointer, the word count is two per pair, every
@@ -32,13 +35,13 @@ contract LibMemoryKVSaturateTest is Test {
         // Rehash each key until it lands in its list, so the pairs spread
         // evenly across every list.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LIST_COUNT);
+            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LibMemoryKV.LIST_COUNT);
             kvs[i] = MemoryKVKey.unwrap(key);
 
             kv = kv.set(key, MemoryKVVal.wrap(kvs[i + 1]));
         }
 
-        assertEq(occupiedSlots(kv), LIST_COUNT, "every list holds a head pointer");
+        assertEq(occupiedSlots(kv), LibMemoryKV.LIST_COUNT, "every list holds a head pointer");
         assertEq(lengthOf(kv), kvs.length, "word count");
 
         for (uint256 i = 0; i < kvs.length; i += 2) {

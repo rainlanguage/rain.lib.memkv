@@ -7,18 +7,10 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {
-    LIST_COUNT,
-    SLOT_BITS,
-    POINTER_MAX,
-    NODE_BYTES,
-    slotOf,
-    headOf,
-    lengthOf,
-    countPair,
-    setFreePointer,
-    raiseFreePointerTo
-} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {setFreePointer, raiseFreePointerTo} from "test/lib/LibFreeMemory.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
@@ -62,7 +54,7 @@ contract LibMemoryKVBisectTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// Every combination of which slots are occupied.
-    uint256 internal constant OCCUPANCY_COMBINATIONS = 2 ** LIST_COUNT;
+    uint256 internal constant OCCUPANCY_COMBINATIONS = 2 ** LibMemoryKV.LIST_COUNT;
 
     /// Every slot occupied.
     uint256 internal constant OCCUPANCY_FULL = OCCUPANCY_COMBINATIONS - 1;
@@ -74,9 +66,9 @@ contract LibMemoryKVBisectTest is Test {
     uint256 internal constant OCCUPANCY_HIGH_HALF = 0x7F00;
 
     /// The top bit of a head pointer slot. A pointer is valid all the way to
-    /// `POINTER_MAX`, so every mask and shift on the way down the tree must
-    /// carry this bit.
-    uint256 internal constant POINTER_HIGH_BIT = 2 ** (SLOT_BITS - 1);
+    /// `LibMemoryKV.POINTER_MASK`, so every mask and shift on the way down the
+    /// tree must carry this bit.
+    uint256 internal constant POINTER_HIGH_BIT = 2 ** (LibMemoryKV.SLOT_BITS - 1);
 
     /// Stands for "no mask", which a 15 bit mask cannot collide with.
     uint256 internal constant NO_MASK = type(uint256).max;
@@ -89,26 +81,26 @@ contract LibMemoryKVBisectTest is Test {
 
     /// One key per slot: the smallest positive integer whose 32 byte big endian
     /// encoding hashes into that slot. Regenerating one is
-    /// `cast keccak $(cast to-uint256 <n>)` reduced modulo `LIST_COUNT`, and
-    /// `testKeyConstantsLandWhereClaimed` is what holds them to it.
-    function slotKeys() internal pure returns (bytes32[LIST_COUNT] memory) {
-        return [
-            bytes32(uint256(4)),
-            bytes32(uint256(31)),
-            bytes32(uint256(2)),
-            bytes32(uint256(1)),
-            bytes32(uint256(9)),
-            bytes32(uint256(49)),
-            bytes32(uint256(24)),
-            bytes32(uint256(42)),
-            bytes32(uint256(3)),
-            bytes32(uint256(21)),
-            bytes32(uint256(16)),
-            bytes32(uint256(7)),
-            bytes32(uint256(6)),
-            bytes32(uint256(14)),
-            bytes32(uint256(11))
-        ];
+    /// `cast keccak $(cast to-uint256 <n>)` reduced modulo
+    /// `LibMemoryKV.LIST_COUNT`, and `testKeyConstantsLandWhereClaimed` is what
+    /// holds them to it.
+    function slotKeys() internal pure returns (bytes32[] memory keys) {
+        keys = new bytes32[](LibMemoryKV.LIST_COUNT);
+        keys[0] = bytes32(uint256(4));
+        keys[1] = bytes32(uint256(31));
+        keys[2] = bytes32(uint256(2));
+        keys[3] = bytes32(uint256(1));
+        keys[4] = bytes32(uint256(9));
+        keys[5] = bytes32(uint256(49));
+        keys[6] = bytes32(uint256(24));
+        keys[7] = bytes32(uint256(42));
+        keys[8] = bytes32(uint256(3));
+        keys[9] = bytes32(uint256(21));
+        keys[10] = bytes32(uint256(16));
+        keys[11] = bytes32(uint256(7));
+        keys[12] = bytes32(uint256(6));
+        keys[13] = bytes32(uint256(14));
+        keys[14] = bytes32(uint256(11));
     }
 
     /// The twelve smallest positive integers that all hash into slot 0, for the
@@ -143,7 +135,7 @@ contract LibMemoryKVBisectTest is Test {
     /// How many slots `mask` names.
     function occupiedCount(uint256 mask) internal pure returns (uint256) {
         uint256 count = 0;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (occupies(mask, slot)) {
                 count++;
             }
@@ -155,9 +147,9 @@ contract LibMemoryKVBisectTest is Test {
     /// mask.
     function occupancyOf(MemoryKV kv) internal pure returns (uint256) {
         uint256 occupancy = 0;
-        for (uint256 i = 0; i < LIST_COUNT; i++) {
+        for (uint256 i = 0; i < LibMemoryKV.LIST_COUNT; i++) {
             occupancy <<= 1;
-            if (headOf(kv, LIST_COUNT - 1 - i) != 0) {
+            if (headOf(kv, LibMemoryKV.LIST_COUNT - 1 - i) != 0) {
                 occupancy |= 1;
             }
         }
@@ -169,9 +161,9 @@ contract LibMemoryKVBisectTest is Test {
     }
 
     /// The store holding one key in each slot `mask` names.
-    function storeForOccupancy(uint256 mask, bytes32[LIST_COUNT] memory keys) internal pure returns (MemoryKV) {
+    function storeForOccupancy(uint256 mask, bytes32[] memory keys) internal pure returns (MemoryKV) {
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (occupies(mask, slot)) {
                 kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(valueFor(slot)));
             }
@@ -184,10 +176,10 @@ contract LibMemoryKVBisectTest is Test {
     /// duplicates a pair, one that is too narrow drops it, and a leaf that does
     /// not carry the cursor forward is overwritten by the next one — all three
     /// are a count other than one. Order is not checked, per `exportMatches`.
-    function checkExportedPairs(MemoryKV kv, uint256 mask, bytes32[LIST_COUNT] memory keys) internal pure {
+    function checkExportedPairs(MemoryKV kv, uint256 mask, bytes32[] memory keys) internal pure {
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, occupiedCount(mask) * 2, "one pair per occupied slot");
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (occupies(mask, slot)) {
                 assertEq(countPair(array, keys[slot], valueFor(slot)), 1, "occupied slot exported exactly once");
             }
@@ -197,7 +189,7 @@ contract LibMemoryKVBisectTest is Test {
     /// The store `mask` names, occupying exactly those slots and exporting
     /// exactly their pairs.
     function checkNamedOccupancy(uint256 mask) internal pure {
-        bytes32[LIST_COUNT] memory keys = slotKeys();
+        bytes32[] memory keys = slotKeys();
         MemoryKV kv = storeForOccupancy(mask, keys);
         assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
         checkExportedPairs(kv, mask, keys);
@@ -205,14 +197,15 @@ contract LibMemoryKVBisectTest is Test {
 
     /// The store `mask` names, with every pointer in it at or above
     /// `POINTER_HIGH_BIT`. A 16 bit pointer is valid all the way to
-    /// `POINTER_MAX`, so every mask and shift on the way down must carry bit 15.
+    /// `LibMemoryKV.POINTER_MASK`, so every mask and shift on the way down must
+    /// carry bit 15.
     function checkNamedOccupancyFromHighPointers(uint256 mask) internal pure {
         raiseFreePointerTo(POINTER_HIGH_BIT);
 
-        bytes32[LIST_COUNT] memory keys = slotKeys();
+        bytes32[] memory keys = slotKeys();
         MemoryKV kv = storeForOccupancy(mask, keys);
         assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (occupies(mask, slot)) {
                 assertGe(headOf(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
             }
@@ -225,7 +218,7 @@ contract LibMemoryKVBisectTest is Test {
     /// reaches it with a mangled pointer, exports something other than the key
     /// where the key belongs.
     function checkSoleSlot(uint256 slot) internal pure {
-        bytes32[LIST_COUNT] memory keys = slotKeys();
+        bytes32[] memory keys = slotKeys();
         MemoryKV kv = storeForOccupancy(2 ** slot, keys);
         assertEq(occupancyOf(kv), 2 ** slot, "only the slot under test is populated");
 
@@ -397,11 +390,7 @@ contract LibMemoryKVBisectTest is Test {
     /// The named tests above check the same thing through `countPair`, which
     /// costs a scan per pair but names the slot it checked. Here the whole
     /// point is 32768 cases, so the check is the cheap one.
-    function exportMatches(bytes32[] memory array, uint256 mask, bytes32[LIST_COUNT] memory keys)
-        internal
-        pure
-        returns (bool)
-    {
+    function exportMatches(bytes32[] memory array, uint256 mask, bytes32[] memory keys) internal pure returns (bool) {
         if (array.length % 2 != 0) {
             return false;
         }
@@ -409,7 +398,7 @@ contract LibMemoryKVBisectTest is Test {
         uint256 found = 0;
         for (uint256 cursor = 0; cursor < array.length; cursor += 2) {
             uint256 value = uint256(array[cursor + 1]);
-            if (value < VALUE_BASE || value >= VALUE_BASE + LIST_COUNT) {
+            if (value < VALUE_BASE || value >= VALUE_BASE + LibMemoryKV.LIST_COUNT) {
                 return false;
             }
 
@@ -433,16 +422,20 @@ contract LibMemoryKVBisectTest is Test {
     ///
     /// Every case is built from one free memory pointer, `free`, taken after
     /// `slotKeys` has allocated, so every node of every case lies in
-    /// `[free, free + (LIST_COUNT - 1) * NODE_BYTES]`. That range is what
-    /// `floor` and `ceiling` are checked against.
+    /// `[free, free + (LibMemoryKV.LIST_COUNT - 1) * LibMemoryKV.NODE_BYTES]`.
+    /// That range is what `floor` and `ceiling` are checked against.
     /// @param floor The lowest node pointer the caller requires.
     /// @param ceiling The highest node pointer the caller requires.
     function checkEveryOccupancy(uint256 floor, uint256 ceiling) internal pure {
-        bytes32[LIST_COUNT] memory keys = slotKeys();
+        bytes32[] memory keys = slotKeys();
 
         uint256 free = freePointer();
         assertGe(free, floor, "lowest node pointer below the required floor");
-        assertLe(free + (LIST_COUNT - 1) * NODE_BYTES, ceiling, "highest node pointer above the required ceiling");
+        assertLe(
+            free + (LibMemoryKV.LIST_COUNT - 1) * LibMemoryKV.NODE_BYTES,
+            ceiling,
+            "highest node pointer above the required ceiling"
+        );
 
         uint256 failed = NO_MASK;
         for (uint256 mask = 0; mask < OCCUPANCY_COMBINATIONS; mask++) {
@@ -466,8 +459,8 @@ contract LibMemoryKVBisectTest is Test {
     /// rather than fifteen keys that each hash somewhere. `set` routes on the
     /// key alone, so that plus one key per slot is every occupancy.
     function testKeyConstantsLandWhereClaimed() public pure {
-        bytes32[LIST_COUNT] memory keys = slotKeys();
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        bytes32[] memory keys = slotKeys();
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             assertEq(slotOf(keys[slot]), slot, "slot key hashes into its slot");
         }
         assertEq(occupancyOf(storeForOccupancy(OCCUPANCY_FULL, keys)), OCCUPANCY_FULL, "fifteen keys, fifteen slots");
@@ -488,7 +481,7 @@ contract LibMemoryKVBisectTest is Test {
     /// rather than left to wherever the allocator happened to be.
     function testEveryOccupancyCombinationExportedFromHighPointers() public pure {
         raiseFreePointerTo(POINTER_HIGH_BIT);
-        checkEveryOccupancy(POINTER_HIGH_BIT, POINTER_MAX);
+        checkEveryOccupancy(POINTER_HIGH_BIT, LibMemoryKV.POINTER_MASK);
     }
 
     /// The length is not a slot. It sits directly above slot 14, which is the

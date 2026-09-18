@@ -4,8 +4,7 @@ pragma solidity ^0.8.25;
 
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
-import {MemoryKV} from "src/lib/LibMemoryKV.sol";
-import {COUNT_BIT_OFFSET, POINTER_MAX, SLOT_BITS} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {LibMemoryKV, MemoryKV} from "src/lib/LibMemoryKV.sol";
 
 /// @title LibMemoryKVSlow
 /// Independent reference implementations that `LibMemoryKV` is tested against.
@@ -75,9 +74,14 @@ library LibMemoryKVSlow {
     /// @param kv The entrypoint into the key/value store.
     /// @return array Every key and value in `kv`, copied pairwise.
     function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory array) {
+        // Inline assembly cannot name `LibMemoryKV`'s constants, so the layout
+        // comes in as locals.
+        uint256 countBitOffset = LibMemoryKV.COUNT_BIT_OFFSET;
+        uint256 slotBits = LibMemoryKV.SLOT_BITS;
+        uint256 pointerMask = LibMemoryKV.POINTER_MASK;
         assembly ("memory-safe") {
             array := mload(0x40)
-            let length := shr(COUNT_BIT_OFFSET, kv)
+            let length := shr(countBitOffset, kv)
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
@@ -95,10 +99,10 @@ library LibMemoryKVSlow {
             let cursor := add(array, 0x20)
             for {
                 let bitOffset := 0
-                let pointer := and(kv, POINTER_MAX)
-            } lt(bitOffset, COUNT_BIT_OFFSET) {
-                bitOffset := add(bitOffset, SLOT_BITS)
-                pointer := and(shr(bitOffset, kv), POINTER_MAX)
+                let pointer := and(kv, pointerMask)
+            } lt(bitOffset, countBitOffset) {
+                bitOffset := add(bitOffset, slotBits)
+                pointer := and(shr(bitOffset, kv), pointerMask)
             } { cursor := copyFromPtr(cursor, pointer) }
         }
     }
