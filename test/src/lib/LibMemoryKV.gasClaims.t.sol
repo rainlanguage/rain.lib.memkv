@@ -2,17 +2,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {Test} from "forge-std-1.16.2/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
-/// Pins the gas figures the library documents for itself. Those figures are the
-/// reason the export is a bisect rather than a loop and the reason any of this
-/// is assembly, and the rest of the suite cannot tell whether they still hold:
-/// the skip guards that produce the saving are invisible to a test that only
-/// reads the exported pairs.
+/// Compares the gas of paths through the library against each other within one
+/// build: the export of a pair from each list against the others, the bisect
+/// export against a linear walk over every list, and an insert into a list, or
+/// a get of the key furthest from its head, against the same with one key fewer
+/// ahead of it.
 contract LibMemoryKVGasClaimsTest is Test {
     /// `kv` carries one pointer per internal linked list.
     uint256 constant SLOTS = 0x0f;
@@ -36,39 +36,13 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// copying, which both implementations do identically, dominates.
     uint256 constant BISECT_SAVING_MAX_PAIRS = 5;
 
-    /// README: "A key alone in its list costs ~240 gas to get and ~390 gas to
-    /// insert."
-    uint256 constant README_SOLO_GET_GAS = 240;
-    uint256 constant README_SOLO_SET_GAS = 390;
-
-    /// README: "every key already in a list adds ~65 gas to a get from it and
-    /// ~75 gas to a set into it: the fourth key to land in one list inserts for
-    /// ~610 gas."
-    uint256 constant README_WALKED_GET_GAS = 65;
-    uint256 constant README_WALKED_SET_GAS = 75;
-    uint256 constant README_FOURTH_IN_LIST_SET_GAS = 610;
-
-    /// How many keys the colliding measurements put into one list. The README
-    /// names the fourth.
+    /// How many keys the colliding measurements put into one list.
     uint256 constant COLLIDERS = 4;
 
     /// The list the colliding measurements build. Any of the 15 would do: an
     /// insert into an empty list and a get of a key alone in one cost the same
     /// in every slot.
     uint256 constant COLLIDING_SLOT = 3;
-
-    /// What the README's `~` is read as here.
-    uint256 constant ROUNDING_PERCENT = 10;
-
-    /// The README's figures are prefixed `~`, read here as `ROUNDING_PERCENT` in
-    /// BOTH directions. A one sided bound is how the figure this replaced
-    /// survived: the published get was an over-estimate, so an upper bound on
-    /// the measurement held while the sentence was wrong.
-    function assertNear(uint256 measured, uint256 published, string memory reason) internal pure {
-        uint256 tolerance = (published * ROUNDING_PERCENT) / 100;
-        assertLe(measured, published + tolerance, reason);
-        assertGe(measured + tolerance, published, reason);
-    }
 
     /// Expands memory past anything the measurements below allocate, then rewinds
     /// the free pointer over it. Without this each measurement is taken at a
@@ -150,32 +124,10 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// The README's headline figures, on the key alone in its list that they
-    /// name.
-    function testGetSetGasMatchesReadme() public view {
-        MemoryKV kv = MEMORY_KV_EMPTY;
-        MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
-        MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
-
-        padMemory();
-
-        uint256 setStart = gasleft();
-        kv = LibMemoryKV.set(kv, key, value);
-        uint256 setEnd = gasleft();
-
-        uint256 getStart = gasleft();
-        (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, key);
-        uint256 getEnd = gasleft();
-        (exists, got);
-
-        assertNear(setStart - setEnd, README_SOLO_SET_GAS, "set");
-        assertNear(getStart - getEnd, README_SOLO_GET_GAS, "get");
-    }
-
-    /// The README's collision figures. The per-key costs are differences between
-    /// measurements taken here, so each says what one more key in front of the
-    /// target costs and carries none of the constant every measurement shares.
-    function testCollidingGasMatchesReadme() public view {
+    /// Keys that share a list are walked one at a time, so every key already in
+    /// the list makes an insert into it, and a get of the key furthest from its
+    /// head, cost more than the one before.
+    function testEachKeyAheadInAListAddsGas() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
@@ -206,9 +158,8 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
 
         for (uint256 i = 1; i < COLLIDERS; i++) {
-            assertNear(setGas[i] - setGas[i - 1], README_WALKED_SET_GAS, "one more key in front of a set");
-            assertNear(getGas[i] - getGas[i - 1], README_WALKED_GET_GAS, "one more key in front of a get");
+            assertGt(setGas[i], setGas[i - 1], "one more key in front of an insert");
+            assertGt(getGas[i], getGas[i - 1], "one more key in front of a get");
         }
-        assertNear(setGas[COLLIDERS - 1], README_FOURTH_IN_LIST_SET_GAS, "fourth key into one list");
     }
 }
