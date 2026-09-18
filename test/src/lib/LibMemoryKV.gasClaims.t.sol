@@ -74,6 +74,30 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
+    /// `padMemory` leaves the free memory pointer where it found it, and the
+    /// order two measurements are taken in after it changes neither one. The
+    /// two measured are the most the tests here allocate after one pad: a
+    /// linear export and a walk export of a store with every list occupied.
+    /// Each costs the same measured first after a pad as measured second.
+    function testPadMemoryRewindsThePointerAndMeasurementOrderChangesNeither() public view {
+        MemoryKV kv = spreadStore(LibMemoryKV.LIST_COUNT);
+
+        uint256 start = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+        padMemory();
+        uint256 rewound = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+
+        uint256 linearFirst = linearGas(kv);
+        uint256 walkSecond = walkGas(kv);
+
+        padMemory();
+        uint256 walkFirst = walkGas(kv);
+        uint256 linearSecond = linearGas(kv);
+
+        assertEq(rewound, start, "the free pointer is back where it started");
+        assertEq(linearFirst, linearSecond, "the linear export measured first and second");
+        assertEq(walkFirst, walkSecond, "the walk export measured first and second");
+    }
+
     /// Exporting one pair costs exactly the same whichever list it landed in.
     /// The walk reaches every list through one mask step and one table lookup,
     /// so no list is nearer or further than another.
