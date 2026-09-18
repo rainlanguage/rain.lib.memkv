@@ -5,7 +5,7 @@ pragma solidity ^0.8.25;
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV} from "src/lib/LibMemoryKV.sol";
-import {headAddressOf, lengthOf} from "test/lib/LibMemoryKVLayout.sol";
+import {headAddressOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSlow
 /// Independent reference implementations that `LibMemoryKV` is tested against.

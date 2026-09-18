@@ -2,11 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
-import {StdConstants} from "forge-std-1.16.1/src/StdConstants.sol";
-
-import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
-
-import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
+import {LibMemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
 
 /// @dev How many candidates a key or key-pair search tries before reverting. One
 /// key in `LibMemoryKV.LIST_COUNT` lands in any given list, and one candidate
@@ -94,64 +90,4 @@ function collidingPairDifferingInBit(uint256 seed, uint256 bit) pure returns (Me
         }
     }
     revert("no pair differing in the bit shares a list within the candidate limit");
-}
-
-/// How many times the pairwise `array`, a key at every even index and its
-/// value after it as `toBytes32Array` lays it out, holds `key` then `value`.
-function countPair(bytes32[] memory array, bytes32 key, bytes32 value) pure returns (uint256) {
-    uint256 count = 0;
-    for (uint256 i = 0; i < array.length; i += 2) {
-        if (array[i] == key && array[i + 1] == value) {
-            count++;
-        }
-    }
-    return count;
-}
-
-/// Assert the store reports exactly `value` for `key`: the key exists and its
-/// value word is `value`. `StdConstants.VM.assertEq` is what forge-std's
-/// `assertEq(uint256,uint256,string)` calls, so the failure is the same one.
-function assertValue(MemoryKV kv, MemoryKVKey key, uint256 value, string memory err) pure {
-    (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, key);
-    StdConstants.VM.assertEq(exists, 1, string.concat(err, " exists"));
-    StdConstants.VM.assertEq(uint256(MemoryKVVal.unwrap(got)), value, string.concat(err, " value"));
-}
-
-/// Move the free memory pointer to `pointer`, so the next allocation, and so
-/// the next node an insert writes, starts there. Memory at and above `pointer`
-/// is free to the next allocation from then on, whatever it held.
-/// @param pointer The new free memory pointer.
-function setFreePointer(uint256 pointer) pure {
-    assembly ("memory-safe") {
-        mstore(0x40, pointer)
-    }
-}
-
-/// Advance the free memory pointer to `floor` if it is below it, so every later
-/// allocation, and so every node an insert writes, sits at or above `floor`. A
-/// pointer already at or above `floor` is left where it is.
-/// @param floor The lowest address the next allocation may start at.
-function raiseFreePointerTo(uint256 floor) pure {
-    if (Pointer.unwrap(LibPointer.allocatedMemoryPointer()) < floor) {
-        setFreePointer(floor);
-    }
-}
-
-/// Assert `text` contains `phrase` verbatim, naming `source` in the failure.
-/// @param text The text to search.
-/// @param phrase The exact phrase `text` must contain.
-/// @param source What `text` is, for the failure message.
-function assertTextStates(string memory text, string memory phrase, string memory source) pure {
-    StdConstants.VM
-        .assertTrue(StdConstants.VM.contains(text, phrase), string.concat(source, " does not state \"", phrase, "\""));
-}
-
-/// Assert the file at `path` contains `phrase` verbatim. A test renders
-/// `phrase` from the constant it checks the code against, so the file and the
-/// constant cannot drift apart without a failure. Reading `path` needs a read
-/// `fs_permissions` entry for it in `foundry.toml`.
-/// @param path The file, relative to the project root.
-/// @param phrase The exact phrase the file must contain.
-function assertDocumentStates(string memory path, string memory phrase) view {
-    assertTextStates(StdConstants.VM.readFile(path), phrase, path);
 }

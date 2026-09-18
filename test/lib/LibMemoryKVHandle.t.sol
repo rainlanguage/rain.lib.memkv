@@ -7,7 +7,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
+import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {
     occupancyBitOf,
     metaOf,
@@ -19,13 +19,13 @@ import {
     writeList,
     craftNode,
     handleWith
-} from "test/lib/LibMemoryKVLayout.sol";
-import {keyForSlot, collidingKey, slotOf, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+} from "test/lib/LibMemoryKVHandle.sol";
+import {keyForSlot, collidingKey, slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
-/// @title LibMemoryKVLayoutTest
+/// @title LibMemoryKVHandleTest
 /// The layout readers read what `set` writes, and the crafting functions write
 /// what `set` writes.
-contract LibMemoryKVLayoutTest is Test {
+contract LibMemoryKVHandleTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The words in a header.

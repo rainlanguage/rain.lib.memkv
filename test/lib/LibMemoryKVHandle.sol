@@ -2,8 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
-import {slotOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
 /// The occupancy bit of list `slot` in the meta word.
 function occupancyBitOf(uint256 slot) pure returns (uint256) {
@@ -115,14 +118,12 @@ function writeList(MemoryKV kv, uint256 slot, uint256 head, uint256 words) pure 
 /// @return node The node's address, which the free memory pointer is now
 /// `LibMemoryKV.NODE_BYTES` past.
 function craftNode(MemoryKVKey key, MemoryKVVal value, uint256 next) pure returns (uint256 node) {
-    uint256 nodeBytes = LibMemoryKV.NODE_BYTES;
-    assembly ("memory-safe") {
-        node := mload(0x40)
-        mstore(0x40, add(node, nodeBytes))
-        mstore(node, key)
-        mstore(add(node, 0x20), value)
-        mstore(add(node, 0x40), next)
-    }
+    Pointer pointer = LibPointer.allocatedMemoryPointer();
+    node = Pointer.unwrap(pointer);
+    setFreePointer(node + LibMemoryKV.NODE_BYTES);
+    LibPointer.unsafeWriteWord(pointer, MemoryKVKey.unwrap(key));
+    LibPointer.unsafeWriteWord(LibPointer.unsafeAddWord(pointer), MemoryKVVal.unwrap(value));
+    LibPointer.unsafeWriteWord(LibPointer.unsafeAddWords(pointer, 2), bytes32(next));
 }
 
 /// A store whose only list is `slot`, headed by `head`, carrying word count

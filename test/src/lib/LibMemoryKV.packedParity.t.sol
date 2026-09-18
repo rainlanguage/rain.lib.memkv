@@ -8,8 +8,8 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {LibMemoryKVPacked, PackedMemoryKV, PACKED_MEMORY_KV_EMPTY} from "test/lib/LibMemoryKVPacked.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {keyForSlot, setFreePointer, slotOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {keyForSlot, slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
 /// @title LibMemoryKVPackedParityTest
 /// `LibMemoryKV` against `LibMemoryKVPacked`, the packed-handle layout. For
