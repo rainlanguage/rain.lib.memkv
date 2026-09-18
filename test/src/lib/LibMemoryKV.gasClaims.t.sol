@@ -7,7 +7,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {keyForSlot, keysInSlot, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {README_PATH, LIB_MEMORY_KV_PATH, assertDocumentStates} from "test/lib/LibDocumentAssert.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
@@ -19,13 +21,6 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 /// NatSpec states that constant, so neither the code nor the text can drift
 /// from it without a failure.
 contract LibMemoryKVGasClaimsTest is Test {
-    /// The document that states the get and set figures.
-    string internal constant README = "README.md";
-
-    /// The source whose `toBytes32Array` NatSpec states the export saving
-    /// figures.
-    string internal constant SOURCE = "src/lib/LibMemoryKV.sol";
-
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
@@ -175,9 +170,9 @@ contract LibMemoryKVGasClaimsTest is Test {
             }
         }
 
-        assertDocumentStates(SOURCE, string.concat(approxGas(BISECT_SAVING_EMPTY), " for an empty store"));
+        assertDocumentStates(LIB_MEMORY_KV_PATH, string.concat(approxGas(BISECT_SAVING_EMPTY), " for an empty store"));
         assertDocumentStates(
-            SOURCE,
+            LIB_MEMORY_KV_PATH,
             string.concat(
                 approxGas(BISECT_SAVING_PARTIAL),
                 " with lists 0 to ",
@@ -185,7 +180,9 @@ contract LibMemoryKVGasClaimsTest is Test {
                 " occupied"
             )
         );
-        assertDocumentStates(SOURCE, string.concat(approxGas(BISECT_SAVING_FULL), " with every list occupied"));
+        assertDocumentStates(
+            LIB_MEMORY_KV_PATH, string.concat(approxGas(BISECT_SAVING_FULL), " with every list occupied")
+        );
     }
 
     /// The README's headline figures, on the key alone in its list that they
@@ -209,8 +206,8 @@ contract LibMemoryKVGasClaimsTest is Test {
         assertApproxEqRel(setStart - setEnd, README_SOLO_SET_GAS, ROUNDING, "set");
         assertApproxEqRel(getStart - getEnd, README_SOLO_GET_GAS, ROUNDING, "get");
 
-        assertDocumentStates(README, string.concat(approxGas(README_SOLO_GET_GAS), " to get"));
-        assertDocumentStates(README, string.concat(approxGas(README_SOLO_SET_GAS), " to insert"));
+        assertDocumentStates(README_PATH, string.concat(approxGas(README_SOLO_GET_GAS), " to get"));
+        assertDocumentStates(README_PATH, string.concat(approxGas(README_SOLO_SET_GAS), " to insert"));
     }
 
     /// The README's collision figures. The per-key costs are differences between
@@ -258,10 +255,10 @@ contract LibMemoryKVGasClaimsTest is Test {
             setGas[COLLIDERS - 1], README_LAST_COLLIDER_SET_GAS, ROUNDING, "the last colliding key into one list"
         );
 
-        assertDocumentStates(README, string.concat(approxGas(README_WALKED_GET_GAS), " to a get from it"));
+        assertDocumentStates(README_PATH, string.concat(approxGas(README_WALKED_GET_GAS), " to a get from it"));
         assertDocumentStates(
-            README, string.concat(approxGas(README_WALKED_SET_GAS), " to a set into it: the ", collidersOrdinal())
+            README_PATH, string.concat(approxGas(README_WALKED_SET_GAS), " to a set into it: the ", collidersOrdinal())
         );
-        assertDocumentStates(README, string.concat("inserts for ", approxGas(README_LAST_COLLIDER_SET_GAS)));
+        assertDocumentStates(README_PATH, string.concat("inserts for ", approxGas(README_LAST_COLLIDER_SET_GAS)));
     }
 }

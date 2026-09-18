@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf, withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, withCount} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -97,14 +97,14 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     function testSetUpdateAtAFullWordCountIsNotRefused() external view {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         (MemoryKV kv, uint256 exists, bytes32 value) = this.updateAtForcedCount(
-            COUNT_MAX,
+            LibMemoryKV.POINTER_MASK,
             key,
             MemoryKVVal.wrap(bytes32(uint256(2))),
             MemoryKVVal.wrap(bytes32(uint256(3))),
             LOW_FREE_POINTER
         );
 
-        assertEq(lengthOf(kv), COUNT_MAX, "an update leaves the count alone");
+        assertEq(lengthOf(kv), LibMemoryKV.POINTER_MASK, "an update leaves the count alone");
         assertEq(exists, 1, "the key is still there");
         assertEq(uint256(value), 3, "the update took effect");
     }
@@ -192,6 +192,6 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// header's claim above is a measurement rather than an assurance.
     function testWordCountBoundIsUnreachableFromAnEmptyStore() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
-        this.fillFromEmptyExternal((COUNT_MAX + 1) / 2);
+        this.fillFromEmptyExternal((LibMemoryKV.POINTER_MASK + 1) / 2);
     }
 }

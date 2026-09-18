@@ -5,7 +5,9 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {keyForSlot, lengthOf, assertValue} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two claims about a `MemoryKV` handle that no mutation of the library can

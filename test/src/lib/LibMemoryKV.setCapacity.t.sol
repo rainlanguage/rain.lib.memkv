@@ -7,7 +7,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {LIB_MEMORY_KV_PATH, assertDocumentStates} from "test/lib/LibDocumentAssert.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -18,9 +20,6 @@ import {lengthOf, setFreePointer, assertDocumentStates} from "test/lib/LibMemory
 /// here.
 contract LibMemoryKVSetCapacityTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// The source whose `set` NatSpec states `EMPTY_FRAME_PAIRS`.
-    string internal constant SOURCE = "src/lib/LibMemoryKV.sol";
 
     /// The pairs a frame that allocates nothing else holds before the next
     /// insert reverts.
@@ -85,7 +84,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         assertEq(this.fillEmptyFrameExternal(EMPTY_FRAME_PAIRS), EMPTY_FRAME_PAIRS * 2, "each pair is two words");
 
         assertDocumentStates(
-            SOURCE, string.concat("still fit, which is ", vm.toString(EMPTY_FRAME_PAIRS), " for a frame")
+            LIB_MEMORY_KV_PATH, string.concat("still fit, which is ", vm.toString(EMPTY_FRAME_PAIRS), " for a frame")
         );
     }
 

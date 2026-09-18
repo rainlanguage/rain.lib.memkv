@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {headOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {headOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call
