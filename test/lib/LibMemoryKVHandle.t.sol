@@ -7,14 +7,15 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {craftNode, handleWith} from "test/lib/CraftedMemoryKV.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {slotOf, lengthOf, headOf, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {withCount, lengthOf, headOf, craftNode, handleWith} from "test/lib/LibMemoryKVHandle.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
-/// @title CraftedMemoryKVTest
-/// `craftNode` and `handleWith` build the node and handle an insert builds, so
-/// a list crafted with them reads as one `set` built.
-contract CraftedMemoryKVTest is Test {
+/// @title LibMemoryKVHandleTest
+/// The promises `withCount`, `craftNode` and `handleWith` make and other tests
+/// rest on. `craftNode` and `handleWith` build the node and handle an insert
+/// builds, so a list crafted with them reads as one `set` built.
+contract LibMemoryKVHandleTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The words in one list node.
@@ -115,5 +116,21 @@ contract CraftedMemoryKVTest is Test {
         this.handleWithExternal(lastSlot, widest + 1, widest);
         vm.expectRevert("handle field out of range");
         this.handleWithExternal(lastSlot, widest, widest + 1);
+    }
+
+    /// `withCount` rewrites the count and nothing under it: from any word,
+    /// every head pointer comes through unchanged, the count reads back as the
+    /// one forced, and every bit below the count's slot is the bit it was.
+    function testWithCountKeepsEveryBitUnderTheCount(uint256 word, uint256 forced) external pure {
+        forced = bound(forced, 0, LibMemoryKV.POINTER_MASK);
+        MemoryKV kv = MemoryKV.wrap(word);
+        MemoryKV changed = withCount(kv, forced);
+
+        assertEq(lengthOf(changed), forced, "count forced");
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+            assertEq(headOf(changed, slot), headOf(kv, slot), string.concat("head of slot ", vm.toString(slot)));
+        }
+        uint256 underTheCount = (uint256(1) << LibMemoryKV.COUNT_BIT_OFFSET) - 1;
+        assertEq(MemoryKV.unwrap(changed) & underTheCount, word & underTheCount, "every bit under the count kept");
     }
 }

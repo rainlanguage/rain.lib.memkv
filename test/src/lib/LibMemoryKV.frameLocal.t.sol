@@ -8,7 +8,8 @@ import {LibBytes} from "rain-solmem-0.1.28/src/lib/LibBytes.sol";
 import {Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {headOf, lengthOf, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call

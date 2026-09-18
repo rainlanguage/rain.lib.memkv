@@ -8,8 +8,9 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {keysInSlot, headOf, lengthOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetInsertTest
 /// The insert half of `set`, asserted against the documented SHAPE of the store

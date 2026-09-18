@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf, withCount} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, withCount} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a

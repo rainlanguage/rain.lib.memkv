@@ -7,7 +7,8 @@ import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKVKey, MemoryKVVal, MemoryKV, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {headOf, collidingKey} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {collidingKey} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf} from "test/lib/LibMemoryKVHandle.sol";
 
 contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
     function setOverflowExternal(MemoryKV kv, MemoryKVKey key, MemoryKVVal value) external pure returns (MemoryKV) {

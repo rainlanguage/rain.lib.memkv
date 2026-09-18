@@ -5,7 +5,45 @@ pragma solidity ^0.8.25;
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemoryKV.sol";
-import {setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
+
+/// `kv` with its word count replaced by `newCount`, every other bit kept;
+/// `newCount` is not checked against `LibMemoryKV.POINTER_MASK`, the widest
+/// count the slot holds.
+function withCount(MemoryKV kv, uint256 newCount) pure returns (MemoryKV) {
+    return MemoryKV.wrap(
+        (MemoryKV.unwrap(kv) & ~(LibMemoryKV.POINTER_MASK << LibMemoryKV.COUNT_BIT_OFFSET))
+            | (newCount << LibMemoryKV.COUNT_BIT_OFFSET)
+    );
+}
+
+/// The word count the store carries at `LibMemoryKV.COUNT_BIT_OFFSET`.
+function lengthOf(MemoryKV kv) pure returns (uint256) {
+    return MemoryKV.unwrap(kv) >> LibMemoryKV.COUNT_BIT_OFFSET;
+}
+
+/// The head pointer `kv` holds for internal list `slot`.
+function headOf(MemoryKV kv, uint256 slot) pure returns (uint256) {
+    return (MemoryKV.unwrap(kv) >> (slot * LibMemoryKV.SLOT_BITS)) & LibMemoryKV.POINTER_MASK;
+}
+
+/// The head pointer `kv` holds for the internal list `key` belongs to.
+function headOf(MemoryKV kv, MemoryKVKey key) pure returns (uint256) {
+    return headOf(kv, slotOf(MemoryKVKey.unwrap(key)));
+}
+
+/// How many of the `LibMemoryKV.LIST_COUNT` internal lists of `kv` hold a head
+/// pointer.
+function occupiedSlots(MemoryKV kv) pure returns (uint256) {
+    uint256 count = 0;
+    for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+        if (headOf(kv, slot) != 0) {
+            count++;
+        }
+    }
+    return count;
+}
 
 /// A list node allocated at the free memory pointer: `LibMemoryKV.NODE_BYTES`
 /// holding the key, value and next pointer words in the order an insert writes

@@ -5,7 +5,9 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, headOf, lengthOf, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// Pins the whole `toBytes32Array` bisect tree: the root split of `kv` and both
 /// halves below it, which are together the only path by which internal list
