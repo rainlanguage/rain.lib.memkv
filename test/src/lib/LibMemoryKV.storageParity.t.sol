@@ -24,7 +24,7 @@ contract LibMemoryKVStorageParityTest is Test {
         assertEq(sStorageKV[key], MemoryKVVal.unwrap(got), "storage");
     }
 
-    /// A single get/set pair that we can fuzz.
+    /// A key/value pair to set, fuzzable as an array.
     /// @param key The key to set.
     /// @param value The value to set.
     //forge-lint: disable-next-line(pascal-case-struct)
