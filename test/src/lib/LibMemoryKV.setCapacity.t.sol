@@ -38,9 +38,14 @@ contract LibMemoryKVSetCapacityTest is Test {
     }
 
     /// The value the acceptance test sets for pair `i`, distinct from every
-    /// key it sets.
-    function valueFor(uint256 i) internal pure returns (bytes32) {
-        return keccak256(abi.encode("value", i));
+    /// key it sets: `keccak256(i, 1)`, hashed in scratch space so that the
+    /// free memory pointer does not move between the inserts.
+    function valueFor(uint256 i) internal pure returns (bytes32 value) {
+        assembly ("memory-safe") {
+            mstore(0, i)
+            mstore(0x20, 1)
+            value := keccak256(0, 0x40)
+        }
     }
 
     /// The #13 acceptance test. The free memory pointer is above sixteen bits

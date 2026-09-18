@@ -4,35 +4,36 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
-/// Two claims about a `MemoryKV` handle that no mutation of the library can
-/// falsify, because they are about the handle as a `uint256` rather than about
-/// anything the library computes: every bit of it survives an external call,
-/// and the update/insert asymmetry holds however many handles are live at once.
+/// Two claims about a `MemoryKV` handle as a `uint256` rather than about
+/// anything the library computes from it: the word that crosses an external
+/// call is the header's address and carries nothing of the store's contents,
+/// and every live copy of a non-empty handle is the one store, however many
+/// copies there are.
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    uint256 internal constant LIST_COUNT = 15;
-    uint256 internal constant SLOT_BITS = 0x10;
-    uint256 internal constant NODE_SIZE = 0x60;
+    /// Where the stores below are built. At or above the free memory pointer
+    /// after the `keys` argument is decoded, which `buildExternal` checks on
+    /// entry so the store cannot land on the keys it is still reading.
+    uint256 internal constant STORE_BASE = 0x300;
 
-    /// Where the saturated store below is built. Above the decoded `keys`
-    /// argument so the nodes cannot land on it, and low enough that fifteen
-    /// nodes all fit under the `0xFFFF` head pointer bound.
-    uint256 internal constant SATURATED_BASE = 0x300;
-
-    /// Build a store holding one key in each of the fifteen internal lists,
-    /// from a free memory pointer this frame fixes, and hand back only the
-    /// handle. The nodes are gone when this returns.
-    function buildSaturatedExternal(bytes32[] memory keys) external pure returns (MemoryKV) {
-        assembly ("memory-safe") {
-            mstore(0x40, SATURATED_BASE)
-        }
+    /// Build a store holding `keys`, from a free memory pointer this frame
+    /// fixes, and hand back only the handle. The header and the nodes are gone
+    /// when this returns.
+    function buildExternal(bytes32[] memory keys) external pure returns (MemoryKV) {
+        require(
+            Pointer.unwrap(LibPointer.allocatedMemoryPointer()) <= STORE_BASE, "the keys must end at or below the store"
+        );
+        setFreePointer(STORE_BASE);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
@@ -40,30 +41,29 @@ contract LibMemoryKVCrossFunctionTest is Test {
         return kv;
     }
 
-    /// A handle with every one of its sixteen fields in use arrives on the
-    /// other side of an external call bit for bit. The word it must equal is
-    /// computed here from the addresses the building frame was forced to
-    /// allocate at, so a handle that lost the word count, or a slot, or the top
-    /// bit of one pointer, is a different number rather than a store that
-    /// merely reads oddly.
-    function testSaturatedHandleCrossesTheCallBoundaryBitForBit(bytes32 seed) external view {
-        bytes32[] memory keys = new bytes32[](LIST_COUNT);
-        uint256 expected = (LIST_COUNT * 2) << 0xf0;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
-            keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
-            expected |= (SATURATED_BASE + slot * NODE_SIZE) << (slot * SLOT_BITS);
+    /// A store with a key in every one of the fifteen lists and a store with
+    /// one key, built at the same address, cross an external call as the same
+    /// word: the header's address. The count, the heads and the occupancy
+    /// mask are in the building frame's memory, so nothing about what the
+    /// store held crosses with it.
+    function testTheWordThatCrossesIsTheHeaderAddressAlone(bytes32 seed) external view {
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
+        for (uint256 list = 0; list < LibMemoryKV.LIST_COUNT; list++) {
+            keys[list] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, list)), list));
         }
+        bytes32[] memory oneKey = new bytes32[](1);
+        oneKey[0] = keys[0];
 
-        MemoryKV kv = this.buildSaturatedExternal(keys);
-
-        assertEq(MemoryKV.unwrap(kv), expected, "handle word");
+        assertEq(MemoryKV.unwrap(this.buildExternal(keys)), STORE_BASE, "every list occupied");
+        assertEq(MemoryKV.unwrap(this.buildExternal(oneKey)), STORE_BASE, "one key");
     }
 
-    /// The asymmetry holds with a whole chain of handles live at once: the
-    /// update reaches all five, while each insert reaches only the handles from
-    /// the one `set` returned onwards. Each handle also keeps its own word
-    /// count, which is the only part of a handle an insert changes.
-    function testAsymmetryHoldsAcrossManyLiveHandles(bytes32 seed) external pure {
+    /// Every copy of a non-empty handle is the one store, with a whole chain
+    /// of copies live at once. After the first insert every copy is the same
+    /// word, and neither an insert nor an update changes it (#107); every copy
+    /// sees every key, whichever copy it was set through, and every copy
+    /// reports the one word count.
+    function testEveryLiveCopyIsTheOneStore(bytes32 seed) external pure {
         MemoryKVKey[] memory keys = new MemoryKVKey[](5);
         MemoryKV[] memory handles = new MemoryKV[](5);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -73,25 +73,28 @@ contract LibMemoryKVCrossFunctionTest is Test {
             handles[i] = kv;
         }
 
-        // Every handle carries the count of the inserts it was branched after,
-        // and sees exactly those keys.
+        // Every copy is the first insert's header, and sees every key,
+        // including the ones set after it was copied.
         for (uint256 i = 0; i < handles.length; i++) {
-            assertEq(lengthOf(handles[i]), (i + 1) * 2, "count");
+            assertEq(MemoryKV.unwrap(handles[i]), MemoryKV.unwrap(handles[0]), "one word");
+            assertEq(lengthOf(handles[i]), keys.length * 2, "one count");
             for (uint256 j = 0; j < keys.length; j++) {
-                if (j <= i) {
-                    assertValue(handles[i], keys[j], j + 1, "before branch");
-                } else {
-                    assertFalse(handles[i].has(keys[j]), "after branch");
-                }
+                assertValue(handles[i], keys[j], j + 1, "every key");
             }
         }
 
-        // One update through the newest handle moves the value every handle
-        // holding that key reports, oldest included.
-        handles[handles.length - 1] = handles[handles.length - 1].set(keys[0], MemoryKVVal.wrap(bytes32(uint256(999))));
+        // One update through the newest copy and one insert through the oldest
+        // reach every copy, oldest and newest included, and move no copy's
+        // word.
+        MemoryKV updated = handles[handles.length - 1].set(keys[0], MemoryKVVal.wrap(bytes32(uint256(999))));
+        MemoryKVKey late = MemoryKVKey.wrap(keccak256(abi.encode(seed, keys.length)));
+        MemoryKV inserted = handles[0].set(late, MemoryKVVal.wrap(bytes32(uint256(777))));
+        assertEq(MemoryKV.unwrap(updated), MemoryKV.unwrap(handles[0]), "an update returns the one word");
+        assertEq(MemoryKV.unwrap(inserted), MemoryKV.unwrap(handles[0]), "an insert returns the one word");
         for (uint256 i = 0; i < handles.length; i++) {
-            assertValue(handles[i], keys[0], 999, "after update");
-            assertEq(lengthOf(handles[i]), (i + 1) * 2, "count after update");
+            assertValue(handles[i], keys[0], 999, "after the update");
+            assertValue(handles[i], late, 777, "after the insert");
+            assertEq(lengthOf(handles[i]), (keys.length + 1) * 2, "one count after the insert");
         }
     }
 }

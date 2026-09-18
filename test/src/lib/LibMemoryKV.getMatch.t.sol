@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {craftNode, handleWith, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVGetMatchTest
 /// What `get` does with a node the walk has already reached: which bits of the
@@ -23,22 +24,10 @@ contract LibMemoryKVGetMatchTest is Test {
     function craftNodeInSlotOf(MemoryKVKey queryKey, MemoryKVKey nodeKey, MemoryKVVal value)
         internal
         pure
-        returns (MemoryKV, uint256)
+        returns (MemoryKV kv, uint256 node)
     {
-        MemoryKV kv;
-        uint256 node;
-        uint256 bitOffset = slotOf(MemoryKVKey.unwrap(queryKey)) * 0x10;
-        assembly ("memory-safe") {
-            node := mload(0x40)
-            mstore(0x40, add(node, 0x60))
-            mstore(node, nodeKey)
-            mstore(add(node, 0x20), value)
-            mstore(add(node, 0x40), 0)
-
-            kv := or(shl(0xf0, 0x02), shl(bitOffset, node))
-        }
-        require(node <= 0xFFFF, "crafted node pointer must fit 16 bits");
-        return (kv, node);
+        node = craftNode(nodeKey, value, 0);
+        kv = handleWith(slotOf(MemoryKVKey.unwrap(queryKey)), node, 2);
     }
 
     /// Overwrite the key word of a crafted node, leaving its value and next
@@ -92,8 +81,8 @@ contract LibMemoryKVGetMatchTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(tail, MemoryKVVal.wrap(bytes32(uint256(0x222))));
         kv = kv.set(head, MemoryKVVal.wrap(bytes32(uint256(0x111))));
-        assertTrue(((MemoryKV.unwrap(kv) >> 0x50) & 0xFFFF) != 0, "the absent key's list is occupied");
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "both pairs are in the store");
+        assertTrue(headOf(kv, 5) != 0, "the absent key's list is occupied");
+        assertEq(lengthOf(kv), 4, "both pairs are in the store");
 
         (uint256 exists, MemoryKVVal value) = kv.get(absent);
         assertEq(exists, 0, "the absent key is not in the store");
