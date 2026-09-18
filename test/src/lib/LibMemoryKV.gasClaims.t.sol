@@ -8,11 +8,12 @@ import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
-/// Pins the gas figures the library documents for itself: the README's get and
-/// insert figures, and the `toBytes32Array` claim that the occupancy mask walk
-/// visits only the occupied lists. The rest of the suite cannot tell whether
-/// they still hold: an export that visited every list, or a get that took a
-/// longer path, produces the same pairs.
+/// Compares gas between paths through the library in one build, never against
+/// a fixed figure: a consumer compiles the library with its own optimizer
+/// settings, so an absolute cost holds only for this repository's build, while
+/// which of two paths costs more follows from what each path does. The rest of
+/// the suite cannot see these comparisons: an export that visited every list,
+/// or a get that took a longer path, produces the same pairs.
 contract LibMemoryKVGasClaimsTest is Test {
     /// The stores the mask walk is claimed to beat the linear loop for, by
     /// pair count. Each occupied list costs the walk a mask step and a table
@@ -20,23 +21,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// the lists fill.
     uint256 constant SMALL_STORE_PAIRS = 5;
 
-    /// README: "A key alone in its list costs ~250 gas to get and ~345 gas to
-    /// insert."
-    uint256 constant README_SOLO_GET_GAS = 250;
-    uint256 constant README_SOLO_SET_GAS = 345;
-
-    /// README: "The first insert into an empty store costs ~430 gas, because it
-    /// also allocates and zeroes the header."
-    uint256 constant README_FIRST_SET_GAS = 430;
-
-    /// README: "every key already in a list adds ~65 gas to a get from it or a
-    /// set into it: the fourth key to land in one list inserts for ~540 gas."
-    uint256 constant README_WALKED_GET_GAS = 65;
-    uint256 constant README_WALKED_SET_GAS = 65;
-    uint256 constant README_FOURTH_IN_LIST_SET_GAS = 540;
-
-    /// How many keys the colliding measurements put into one list. The README
-    /// names the fourth.
+    /// How many keys the colliding measurements put into one list.
     uint256 constant COLLIDERS = 4;
 
     /// The list the colliding measurements build. Any of the 15 would do: an
@@ -44,22 +29,11 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// in every list.
     uint256 constant COLLIDING_SLOT = 3;
 
-    /// The list holding the pair the colliding measurements start from, so that
-    /// the first key into `COLLIDING_SLOT` is not the store's first insert and
-    /// does not pay for the header.
+    /// The list of the pair a measurement puts in a store first when it needs
+    /// a store that already has its header, so that an insert into
+    /// `COLLIDING_SLOT` is not the store's first and does not pay for the
+    /// header.
     uint256 constant OTHER_SLOT = 9;
-
-    /// What the README's `~` is read as here.
-    uint256 constant ROUNDING_PERCENT = 10;
-
-    /// The README's figures are prefixed `~`, read here as `ROUNDING_PERCENT` in
-    /// BOTH directions. A one sided bound is how an over-estimate survives: the
-    /// measurement stays under it while the sentence is wrong.
-    function assertNear(uint256 measured, uint256 published, string memory reason) internal pure {
-        uint256 tolerance = (published * ROUNDING_PERCENT) / 100;
-        assertLe(measured, published + tolerance, reason);
-        assertGe(measured + tolerance, published, reason);
-    }
 
     /// Expands memory past anything the measurements below allocate, then rewinds
     /// the free pointer over it. Without this each measurement is taken at a
@@ -172,28 +146,34 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// The README's first insert: the header's allocation and zeroing on top of
-    /// an insert into an empty list.
-    function testFirstInsertGasMatchesReadme() public view {
-        MemoryKV kv = MEMORY_KV_EMPTY;
-        MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
+    /// The first insert into an empty store allocates and zeroes the header on
+    /// top of an insert into an empty list, so it costs more than the same
+    /// insert into an empty list of a store that already has its header.
+    function testTheFirstInsertCostsMoreThanALaterInsertIntoAnEmptyList() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
+        MemoryKVKey key = keyForSlot(bytes32(uint256(1)), COLLIDING_SLOT);
+        MemoryKV headed = LibMemoryKV.set(MEMORY_KV_EMPTY, keyForSlot(bytes32(uint256(1)), OTHER_SLOT), value);
 
         padMemory();
-        uint256 setStart = gasleft();
-        kv = LibMemoryKV.set(kv, key, value);
-        uint256 setEnd = gasleft();
+        uint256 firstStart = gasleft();
+        MemoryKV first = LibMemoryKV.set(MEMORY_KV_EMPTY, key, value);
+        uint256 firstEnd = gasleft();
 
-        assertNear(setStart - setEnd, README_FIRST_SET_GAS, "first insert");
+        padMemory();
+        uint256 laterStart = gasleft();
+        MemoryKV later = LibMemoryKV.set(headed, key, value);
+        uint256 laterEnd = gasleft();
+        (first, later);
+
+        assertGt(firstStart - firstEnd, laterStart - laterEnd, "the first insert pays for the header");
     }
 
-    /// The README's get and set figures, in a store that already holds a pair
-    /// in another list so that no measurement pays for the header. The first
-    /// key into the list is the key alone in its list. The per-key costs are
-    /// differences between measurements taken here, so each says what one more
-    /// key in front of the target costs and carries none of the constant every
-    /// measurement shares.
-    function testGetSetGasMatchesReadme() public view {
+    /// Keys that share a list are walked one at a time, so every key already in
+    /// the list makes an insert into it, and a get of the key furthest from its
+    /// head, cost more than the one before. The store already holds a pair in
+    /// another list, so no insert measured here is the store's first and pays
+    /// for the header.
+    function testEachKeyAheadInAListAddsGas() public view {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
@@ -223,12 +203,9 @@ contract LibMemoryKVGasClaimsTest is Test {
             getGas[i] = getStart - getEnd;
         }
 
-        assertNear(setGas[0], README_SOLO_SET_GAS, "insert of a key alone in its list");
-        assertNear(getGas[0], README_SOLO_GET_GAS, "get of a key alone in its list");
         for (uint256 i = 1; i < COLLIDERS; i++) {
-            assertNear(setGas[i] - setGas[i - 1], README_WALKED_SET_GAS, "one more key in front of a set");
-            assertNear(getGas[i] - getGas[i - 1], README_WALKED_GET_GAS, "one more key in front of a get");
+            assertGt(setGas[i], setGas[i - 1], "one more key in front of an insert");
+            assertGt(getGas[i], getGas[i - 1], "one more key in front of a get");
         }
-        assertNear(setGas[COLLIDERS - 1], README_FOURTH_IN_LIST_SET_GAS, "fourth key into one list");
     }
 }

@@ -13,14 +13,14 @@ a mask of the occupied lists, which lets an export skip the empty ones. A
 memory a store lives or on how many pairs it holds.
 
 Roughly O(1) for gets and sets for the amounts of data commonly handled in
-Solidity. A key alone in its list costs ~250 gas to get and ~345 gas to insert.
-The first insert into an empty store costs ~430 gas, because it also allocates
-and zeroes the header.
+Solidity. A get of a key alone in its list, or an insert into an empty list,
+walks nothing. The first insert into an empty store also allocates and zeroes
+the header, so it costs more than a later insert into an empty list.
 
-Keys that hash into the same list are walked one at a time, so every key already
-in a list adds ~65 gas to a get from it or a set into it: the fourth key to land
-in one list inserts for ~540 gas. With only 15 lists a store of five distinct
-keys is already more likely than not to hold a collision.
+Keys that hash into the same list are walked one at a time, so a get or a set
+pays one more step for every key it walks past in that list. With only 15 lists
+a store of five distinct keys is already more likely than not to hold a
+collision.
 
 The key/value store can differentiate between a key that is set to `0` and a key
 that is unset for gets. However it is NOT possible to unset a key once it is

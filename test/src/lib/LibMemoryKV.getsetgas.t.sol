@@ -10,12 +10,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "
 /// carries the cost of the gets or sets it performs and nothing else. A set row
 /// is named by the sets it performs: an insert sets a key not yet in the store
 /// and an update sets a key already in it. A row's figure is a whole-test total
-/// and no test asserts one. `LibMemoryKV.gasClaims.t.sol` measures on their own
-/// the operations the README gives figures for: the first insert into an empty
-/// store, which is the insert in `testSetGas1Insert`; a get of a key alone in
-/// its list, which is the get in `testGetHitGas`; a later insert into an empty
-/// list; and each key a get or a set walks past. It measures neither the miss
-/// nor the update.
+/// and no test asserts one.
 contract LibMemoryKVGetSetGasTest is Test {
     /// A get against an empty store. There is no list to walk, so this is a
     /// miss, and its figure is not the cost of a get that finds its key.
