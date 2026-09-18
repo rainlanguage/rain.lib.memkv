@@ -15,50 +15,50 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 /// reads the exported pairs.
 contract LibMemoryKVGasClaimsTest is Test {
     /// `kv` carries one pointer per internal linked list.
-    uint256 constant SLOTS = 0x0f;
+    uint256 internal constant SLOTS = 0x0f;
 
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
-    uint256 constant SHALLOW_SLOT = 0x0e;
+    uint256 internal constant SHALLOW_SLOT = 0x0e;
 
     /// How far two equal-depth export paths may differ in gas. The optimizer
     /// picks which arm of each conditional falls through, and a taken jump lands
     /// on a `JUMPDEST` that costs 1 gas, so a path pays up to one gas per
     /// conditional it passes: the four bisect levels and the leaf guard.
-    uint256 constant BRANCH_LAYOUT_GAS = 5;
+    uint256 internal constant BRANCH_LAYOUT_GAS = 5;
 
     /// `toBytes32Array` NatSpec: "the bisect approach can save ~1-1.5k gas vs. a
     /// naive linear loop over all 15 slots for every export".
-    uint256 constant BISECT_SAVING = 1000;
+    uint256 internal constant BISECT_SAVING = 1000;
 
     /// The largest store the saving is claimed for. Beyond it the per-pair
     /// copying, which both implementations do identically, dominates.
-    uint256 constant BISECT_SAVING_MAX_PAIRS = 5;
+    uint256 internal constant BISECT_SAVING_MAX_PAIRS = 5;
 
     /// README: "A key alone in its list costs ~240 gas to get and ~390 gas to
     /// insert."
-    uint256 constant README_SOLO_GET_GAS = 240;
-    uint256 constant README_SOLO_SET_GAS = 390;
+    uint256 internal constant README_SOLO_GET_GAS = 240;
+    uint256 internal constant README_SOLO_SET_GAS = 390;
 
     /// README: "every key already in a list adds ~65 gas to a get from it and
     /// ~75 gas to a set into it: the fourth key to land in one list inserts for
     /// ~610 gas."
-    uint256 constant README_WALKED_GET_GAS = 65;
-    uint256 constant README_WALKED_SET_GAS = 75;
-    uint256 constant README_FOURTH_IN_LIST_SET_GAS = 610;
+    uint256 internal constant README_WALKED_GET_GAS = 65;
+    uint256 internal constant README_WALKED_SET_GAS = 75;
+    uint256 internal constant README_FOURTH_IN_LIST_SET_GAS = 610;
 
     /// How many keys the colliding measurements put into one list. The README
     /// names the fourth.
-    uint256 constant COLLIDERS = 4;
+    uint256 internal constant COLLIDERS = 4;
 
     /// The list the colliding measurements build. Any of the 15 would do: an
     /// insert into an empty list and a get of a key alone in one cost the same
     /// in every slot.
-    uint256 constant COLLIDING_SLOT = 3;
+    uint256 internal constant COLLIDING_SLOT = 3;
 
     /// What the README's `~` is read as here.
-    uint256 constant ROUNDING_PERCENT = 10;
+    uint256 internal constant ROUNDING_PERCENT = 10;
 
     /// The README's figures are prefixed `~`, read here as `ROUNDING_PERCENT` in
     /// BOTH directions. A one sided bound is how the figure this replaced
