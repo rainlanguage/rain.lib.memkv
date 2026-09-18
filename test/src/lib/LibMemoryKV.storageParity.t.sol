@@ -34,7 +34,7 @@ contract LibMemoryKVStorageParityTest is Test {
     /// How many pairs each store in `testTwoLiveStoresEachMatchTheirOwnStorage`
     /// takes from its fuzzed array. Both decoded arrays sit in memory below the
     /// first node, a pointer word and two struct words per pair, so uncapped
-    /// arrays can push the nodes past `POINTER_MAX` and `set` reverts
+    /// arrays can push the nodes past `POINTER_MASK` and `set` reverts
     /// `MemoryKVOverflow` instead of the test checking parity. Ten per store
     /// keeps every node far below it.
     uint256 internal constant PAIRS_PER_STORE = 10;

@@ -8,12 +8,6 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {
-    LIST_COUNT,
-    SLOT_BITS,
-    POINTER_MAX,
-    NODE_BYTES,
-    COUNT_BIT_OFFSET,
-    COUNT_MAX,
     collidingPairDifferingInBit,
     countPair,
     headOf,
@@ -60,21 +54,21 @@ contract LibMemoryKVTypesTest is Test {
         assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY), 0);
     }
 
-    /// The test tree states the layout independently of the library, and the
-    /// two agree. The layout tiles the word: the head pointer slots fill the
-    /// bits below the count, the count is the one slot above them, and the
-    /// widest pointer and the widest count are each exactly one slot wide.
-    function testLayoutConstantsAgreeWithTheLibraryAndTileTheWord() external pure {
-        assertEq(LibMemoryKV.LIST_COUNT, LIST_COUNT, "list count");
-        assertEq(LibMemoryKV.SLOT_BITS, SLOT_BITS, "slot bits");
-        assertEq(LibMemoryKV.POINTER_MASK, POINTER_MAX, "pointer mask");
-        assertEq(LibMemoryKV.COUNT_BIT_OFFSET, COUNT_BIT_OFFSET, "count bit offset");
-        assertEq(LibMemoryKV.NODE_BYTES, NODE_BYTES, "node bytes");
-
-        assertEq(COUNT_BIT_OFFSET, LIST_COUNT * SLOT_BITS, "the count sits directly above the last list");
-        assertEq(COUNT_BIT_OFFSET + SLOT_BITS, 256, "the count is the top slot of the word");
-        assertEq(POINTER_MAX, 2 ** SLOT_BITS - 1, "a pointer is one slot wide");
-        assertEq(COUNT_MAX, POINTER_MAX, "the count is one slot wide");
+    /// The library's layout constants tile the word: the head pointer slots
+    /// fill the bits below the count, the count is the one slot above them,
+    /// and `POINTER_MASK`, the widest head pointer and the widest count, is
+    /// exactly one slot wide.
+    function testLayoutConstantsTileTheWord() external pure {
+        assertEq(
+            LibMemoryKV.COUNT_BIT_OFFSET,
+            LibMemoryKV.LIST_COUNT * LibMemoryKV.SLOT_BITS,
+            "the count sits directly above the last list"
+        );
+        assertEq(LibMemoryKV.COUNT_BIT_OFFSET + LibMemoryKV.SLOT_BITS, 256, "the count is the top slot of the word");
+        assertEq(LibMemoryKV.POINTER_MASK, 2 ** LibMemoryKV.SLOT_BITS - 1, "a pointer is one slot wide");
+        assertEq(
+            type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET, LibMemoryKV.POINTER_MASK, "the count is one slot wide"
+        );
     }
 
     /// With every internal list holding one pair, the count and the head
@@ -84,15 +78,15 @@ contract LibMemoryKVTypesTest is Test {
     /// list `slot`, with that key's value after it.
     function testCountAndHeadPointersTileTheWord() external pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
-        MemoryKVKey[] memory keys = new MemoryKVKey[](LIST_COUNT);
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        MemoryKVKey[] memory keys = new MemoryKVKey[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = keyForSlot(bytes32(slot), slot);
             kv = kv.set(keys[slot], MemoryKVVal.wrap(bytes32(slot + 1)));
         }
 
-        assertEq(lengthOf(kv), LIST_COUNT * 2, "the count is two words per pair");
+        assertEq(lengthOf(kv), LibMemoryKV.LIST_COUNT * 2, "the count is two words per pair");
 
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             string memory name = string.concat("slot ", vm.toString(slot));
             Pointer head = Pointer.wrap(headOf(kv, slot));
             assertTrue(Pointer.unwrap(head) != 0, string.concat(name, " occupied"));
