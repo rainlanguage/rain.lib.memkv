@@ -22,10 +22,19 @@ contract LibMemoryKVStorageParityTest is Test {
         uint256 distinct;
     }
 
+    /// How many pairs each store in `testTwoLiveStoresEachMatchTheirOwnStorage`
+    /// takes from its fuzzed array. Both decoded arrays sit in memory below the
+    /// first node, a pointer word and two struct words per pair, so uncapped
+    /// arrays can push the nodes past `POINTER_MASK` and `set` reverts
+    /// `MemoryKVOverflow` instead of the test checking parity. Ten per store
+    /// keeps every node below it.
+    uint256 internal constant PAIRS_PER_STORE = 10;
+
     //forge-lint: disable-next-line(mixed-case-variable)
     mapping(bytes32 => bytes32) public sStorageKV;
 
     StorageStore internal sStoreOne;
+    StorageStore internal sStoreTwo;
 
     /// Set `pair` in both `kv` and `store`, returning the new `kv`.
     function setBoth(MemoryKV kv, StorageStore storage store, KV memory pair) internal returns (MemoryKV) {
@@ -88,28 +97,24 @@ contract LibMemoryKVStorageParityTest is Test {
         assertMatchesStorage(kv, sStoreOne, kvs, kvs.length);
     }
 
-    /// Many KVs should all behave the same as storage in aggregate.
-    function testMultiGetSetDouble(KV[] memory kvsOne, KV[] memory kvsTwo) external {
-        uint256 endOne = kvsOne.length >= 10 ? 10 : kvsOne.length;
-        MemoryKV kv = MEMORY_KV_EMPTY;
+    /// Two stores built in one frame behave as two storage mappings: each holds
+    /// what its own storage holds, the first checked only once the second is
+    /// built, so building one disturbs nothing the other answers or exports.
+    function testTwoLiveStoresEachMatchTheirOwnStorage(KV[] memory kvsOne, KV[] memory kvsTwo) external {
+        uint256 endOne = kvsOne.length > PAIRS_PER_STORE ? PAIRS_PER_STORE : kvsOne.length;
+        uint256 endTwo = kvsTwo.length > PAIRS_PER_STORE ? PAIRS_PER_STORE : kvsTwo.length;
+
+        MemoryKV kvOne = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < endOne; i++) {
-            sStorageKV[kvsOne[i].key] = kvsOne[i].value;
-            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvsOne[i].key), MemoryKVVal.wrap(kvsOne[i].value));
-        }
-        bytes32[] memory finalKVs = LibMemoryKV.toBytes32Array(kv);
-        for (uint256 i = 0; i < finalKVs.length; i += 2) {
-            assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
+            kvOne = setBoth(kvOne, sStoreOne, kvsOne[i]);
         }
 
-        uint256 endTwo = kvsTwo.length >= 10 ? 10 : kvsTwo.length;
         MemoryKV kvTwo = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < endTwo; i++) {
-            sStorageKV[kvsTwo[i].key] = kvsTwo[i].value;
-            kvTwo = LibMemoryKV.set(kvTwo, MemoryKVKey.wrap(kvsTwo[i].key), MemoryKVVal.wrap(kvsTwo[i].value));
+            kvTwo = setBoth(kvTwo, sStoreTwo, kvsTwo[i]);
         }
-        bytes32[] memory finalKVsTwo = LibMemoryKV.toBytes32Array(kvTwo);
-        for (uint256 i = 0; i < finalKVsTwo.length; i += 2) {
-            assertEq(sStorageKV[finalKVsTwo[i]], finalKVsTwo[i + 1], "storage");
-        }
+
+        assertMatchesStorage(kvOne, sStoreOne, kvsOne, endOne);
+        assertMatchesStorage(kvTwo, sStoreTwo, kvsTwo, endTwo);
     }
 }
