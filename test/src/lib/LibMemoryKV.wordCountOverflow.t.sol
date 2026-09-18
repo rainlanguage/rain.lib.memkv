@@ -3,10 +3,11 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
-import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf, withCount, COUNT_MAX} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
+import {COUNT_MAX, lengthOf, headOf, withCount} from "test/lib/LibMemoryKVHandle.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
 /// The word count is SIXTEEN bits and an insert adds two to it, so there is a
@@ -40,10 +41,7 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
         MemoryKVVal second,
         uint256 freePointer
     ) external pure returns (MemoryKV, uint256, bytes32) {
-        assembly ("memory-safe") {
-            mstore(0x40, freePointer)
-        }
-        MemoryKV kv = LibMemoryKV.set(MEMORY_KV_EMPTY, key, first);
+        MemoryKV kv = setAtFreePointerInFrame(MEMORY_KV_EMPTY, key, first, freePointer);
         kv = LibMemoryKV.set(withCount(kv, forced), key, second);
         // The node lives in this frame, so the lookup has to happen here too.
         (uint256 exists, MemoryKVVal value) = LibMemoryKV.get(kv, key);
@@ -64,12 +62,13 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     }
 
     /// The error carries the OFFENDING count, not the bound it crossed. From
-    /// `0xFFFF` the sum is `0x10001`, which is neither `0xFFFF` nor the `0x10000`
-    /// that the first overflowing count and one-past-the-bound share.
+    /// `COUNT_MAX` the sum is `COUNT_MAX + 2`, which is neither the bound nor
+    /// the `COUNT_MAX + 1` that the first overflowing count and
+    /// one-past-the-bound share.
     function testSetWordCountOverflowPayloadIsTheOffendingCountNotTheBound() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10001));
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, COUNT_MAX + 2));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFF),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
@@ -86,9 +85,7 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
         );
 
         assertEq(lengthOf(kv), 0xFFFE, "the widest count that fits is written whole");
-
-        uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
-        assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");
+        assertEq(headOf(kv, key), LOW_FREE_POINTER, "the node is still recorded");
     }
 
     /// An update does not add a pair, so there is no sum to overflow and a full
@@ -134,9 +131,7 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
         );
 
         assertEq(lengthOf(kv), 0xFFFF, "a count of exactly the bound is written whole");
-
-        uint256 bitOffset = (uint256(keccak256(abi.encodePacked(MemoryKVKey.unwrap(key)))) % 0x0f) * 0x10;
-        assertEq((MemoryKV.unwrap(kv) >> bitOffset) & 0xFFFF, LOW_FREE_POINTER, "the node is still recorded");
+        assertEq(headOf(kv, key), LOW_FREE_POINTER, "the node is still recorded");
     }
 
     /// `MemoryKVOverflow` is documented for a node address "above `0xFFFF`", so
@@ -174,10 +169,8 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// frame that allocates nothing else so the node addresses are exact. The
     /// fill is expected to stop short; the caller sees only which error.
     function fillFromEmptyExternal(uint256 pairs) external pure {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
-        MemoryKV kv = MemoryKV.wrap(0);
+        setFreePointer(0x80);
+        MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }

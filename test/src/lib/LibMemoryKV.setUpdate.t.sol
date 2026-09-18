@@ -7,38 +7,33 @@ import {Test} from "forge-std-1.16.2/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {
-    keyForSlot,
-    slotOf,
-    collidingPairDifferingInBit,
-    lengthOf,
-    headOf,
-    assertValue,
-    val
-} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot, slotOf, collidingPairDifferingInBit, val} from "test/lib/LibMemoryKVKeys.sol";
+import {lengthOf, headOf, craftNode, handleWith} from "test/lib/LibMemoryKVHandle.sol";
+import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVSetUpdateTest
-/// `set` hashes the key to one of 15 internal lists, walks that list for a
-/// match, and on a match mutates the value in place. Every case here states the
-/// VALUE the store must report afterwards, so a walk that finds the wrong node,
-/// a hash that disagrees with `get`, or an "update" that allocates shows up as a
-/// different number rather than as a revert.
+/// `set` hashes the key to one of `LibMemoryKV.LIST_COUNT` internal lists,
+/// walks that list for a match, and on a match mutates the value in place.
+/// Every case here states the VALUE the store must report afterwards, so a walk
+/// that finds the wrong node, a hash that disagrees with `get`, or an "update"
+/// that allocates shows up as a different number rather than as a revert.
 contract LibMemoryKVSetUpdateTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// `set` must hash into the same list `get` reads from, for EVERY one of the
-    /// 15 lists. The head pointer the store ends up holding names the list, so a
-    /// set that hashed differently (different preimage, different modulus,
-    /// different bit stride) parks the pointer in the wrong slot and the value
-    /// is no longer readable.
+    /// `LibMemoryKV.LIST_COUNT` lists. The head pointer the store ends up
+    /// holding names the list, so a set that hashed differently (different
+    /// preimage, different modulus, different bit stride) parks the pointer in
+    /// the wrong slot and the value is no longer readable.
     function testSetHashesIntoTheSameListGetReads() external pure {
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             MemoryKVKey key = keyForSlot(bytes32(slot + 1), slot);
             MemoryKV kv = MEMORY_KV_EMPTY.set(key, val(0xBEEF00 + slot));
 
             // The pointer went into the slot the key hashes to and nowhere else.
             assertTrue(headOf(kv, slot) > 0, "head");
-            for (uint256 other = 0; other < 15; other++) {
+            for (uint256 other = 0; other < LibMemoryKV.LIST_COUNT; other++) {
                 if (other != slot) {
                     assertEq(headOf(kv, other), 0, "other slot");
                 }
@@ -76,22 +71,22 @@ contract LibMemoryKVSetUpdateTest is Test {
     /// runs, or that compares the wrong word, writes the value onto whichever
     /// node it stopped at instead.
     function testUpdateFindsTheRightNodeAmongColliders() external pure {
-        MemoryKVKey a = keyForSlot(bytes32(uint256(0xA)), 0x07);
-        MemoryKVKey b = keyForSlot(bytes32(uint256(0xB)), 0x07);
-        MemoryKVKey c = keyForSlot(bytes32(uint256(0xC)), 0x07);
+        MemoryKVKey tail = keyForSlot(bytes32(uint256(0xA)), 0x07);
+        MemoryKVKey middle = keyForSlot(bytes32(uint256(0xB)), 0x07);
+        MemoryKVKey head = keyForSlot(bytes32(uint256(0xC)), 0x07);
 
-        MemoryKV kv = MEMORY_KV_EMPTY.set(a, val(1)).set(b, val(2)).set(c, val(3));
+        // Inserts prepend, so the last key set is the head and the first the tail.
+        MemoryKV kv = MEMORY_KV_EMPTY.set(tail, val(1)).set(middle, val(2)).set(head, val(3));
         assertEq(lengthOf(kv), 6, "length before");
 
-        // `c` was inserted last so it is the head. Update the MIDDLE node.
         uint256 before = MemoryKV.unwrap(kv);
-        kv = kv.set(b, val(200));
+        kv = kv.set(middle, val(200));
         assertEq(MemoryKV.unwrap(kv), before, "kv word");
         assertEq(lengthOf(kv), 6, "length after");
 
-        assertValue(kv, a, 1, "a");
-        assertValue(kv, b, 200, "b");
-        assertValue(kv, c, 3, "c");
+        assertValue(kv, tail, 1, "tail");
+        assertValue(kv, middle, 200, "middle");
+        assertValue(kv, head, 3, "head");
     }
 
     /// The walk must reach the far end of a list, which means following the next
@@ -137,8 +132,8 @@ contract LibMemoryKVSetUpdateTest is Test {
         }
         Pointer alloc1 = LibPointer.allocatedMemoryPointer();
 
-        // One insert of 3 words, then 63 updates of nothing.
-        assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + 0x60, "allocated");
+        // One insert of one node, then 63 updates of nothing.
+        assertEq(Pointer.unwrap(alloc1), Pointer.unwrap(alloc0) + LibMemoryKV.NODE_BYTES, "allocated");
         assertEq(MemoryKV.unwrap(kv), word, "kv word");
         assertEq(lengthOf(kv), 2, "length");
         assertValue(kv, key, 64, "latest");
@@ -187,28 +182,28 @@ contract LibMemoryKVSetUpdateTest is Test {
         assertEq(lengthOf(kv), 2, "length");
     }
 
-    /// Updating a key in one internal list leaves the other 14 lists alone: same
+    /// Updating a key in one internal list leaves every other list alone: same
     /// head pointers, same values.
     function testUpdateIsIsolatedBetweenLists() external pure {
-        MemoryKVKey[] memory keys = new MemoryKVKey[](15);
+        MemoryKVKey[] memory keys = new MemoryKVKey[](LibMemoryKV.LIST_COUNT);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = keyForSlot(bytes32(0x1000 + slot), slot);
             kv = kv.set(keys[slot], val(slot + 1));
         }
-        assertEq(lengthOf(kv), 30, "length before");
+        assertEq(lengthOf(kv), LibMemoryKV.LIST_COUNT * 2, "length before");
         uint256 before = MemoryKV.unwrap(kv);
 
-        // Update each list in turn, including list 14 whose pointer sits
-        // directly under the word count in the top 16 bits.
-        for (uint256 target = 0; target < 15; target++) {
+        // Update each list in turn, including the last, whose pointer sits
+        // directly under the word count.
+        for (uint256 target = 0; target < LibMemoryKV.LIST_COUNT; target++) {
             kv = kv.set(keys[target], val(0xABC00 + target));
             assertEq(MemoryKV.unwrap(kv), before, "kv word");
-            assertEq(lengthOf(kv), 30, "length after");
-            for (uint256 slot = 0; slot < 15; slot++) {
+            assertEq(lengthOf(kv), LibMemoryKV.LIST_COUNT * 2, "length after");
+            for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
                 assertValue(kv, keys[slot], slot <= target ? 0xABC00 + slot : slot + 1, "value");
             }
-            assertEq(kv.toBytes32Array().length, 30, "array length");
+            assertEq(kv.toBytes32Array().length, LibMemoryKV.LIST_COUNT * 2, "array length");
         }
     }
 
@@ -257,6 +252,38 @@ contract LibMemoryKVSetUpdateTest is Test {
             assertValue(kv, first, 11, "first");
             assertValue(kv, second, 22, "second");
             assertEq(kv.toBytes32Array().length, 4, "array length");
+        }
+    }
+
+    /// The match compares every bit of the key. A crafted node on the key's
+    /// list holding the key itself is updated in place. Holding the key with
+    /// any one of its 256 bits flipped, it holds a different key: setting the
+    /// key inserts a node that heads the list, grows the count, and leaves the
+    /// crafted node's value as it was.
+    function testSetRequiresEveryBitOfTheKey() external pure {
+        MemoryKVKey key = MemoryKVKey.wrap(bytes32(type(uint256).max / 3));
+        uint256 node = craftNode(key, val(0xDEC0DE), 0);
+        MemoryKV kv = handleWith(slotOf(MemoryKVKey.unwrap(key)), node, 2);
+        Pointer nodeKey = Pointer.wrap(node);
+        Pointer nodeValue = LibPointer.unsafeAddWord(nodeKey);
+
+        MemoryKV same = kv.set(key, val(1));
+        assertEq(MemoryKV.unwrap(same), MemoryKV.unwrap(kv), "the key itself updates in place");
+        assertEq(uint256(LibPointer.unsafeReadWord(nodeValue)), 1, "the update wrote the crafted node");
+
+        // Every insert below starts its node here, so each is read against the
+        // same head.
+        uint256 free = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
+        // Every bit in turn, ending when the walking bit falls off the top.
+        for (uint256 bit = 1; bit != 0; bit <<= 1) {
+            LibPointer.unsafeWriteWord(nodeKey, bytes32(uint256(MemoryKVKey.unwrap(key)) ^ bit));
+            setFreePointer(free);
+            MemoryKV inserted = kv.set(key, val(2));
+            assertEq(lengthOf(inserted), 4, "one bit apart is a different key, so this is an insert");
+            assertEq(headOf(inserted, key), free, "the insert heads the list at the new node");
+            assertEq(
+                uint256(LibPointer.unsafeReadWord(nodeValue)), 1, "one bit apart leaves the crafted node's value alone"
+            );
         }
     }
 }

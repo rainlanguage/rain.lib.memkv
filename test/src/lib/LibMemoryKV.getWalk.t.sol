@@ -4,8 +4,11 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {slotOf, keyForSlot, occupiedSlots} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {occupiedSlots, craftNode, handleWith, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
@@ -28,25 +31,10 @@ contract LibMemoryKVGetWalkTest is Test {
         pure
         returns (MemoryKV kv, uint256 head, uint256 tail)
     {
-        uint256 bitOffset = slotOf(MemoryKVKey.unwrap(key)) * 0x10;
-        assembly ("memory-safe") {
-            tail := mload(0x40)
-            mstore(0x40, add(tail, 0x60))
-            mstore(tail, key)
-            mstore(add(tail, 0x20), second)
-            mstore(add(tail, 0x40), 0)
-
-            head := mload(0x40)
-            mstore(0x40, add(head, 0x60))
-            mstore(head, key)
-            mstore(add(head, 0x20), first)
-            mstore(add(head, 0x40), tail)
-
-            // Two pairs, and the head of the list in the slot for this key.
-            kv := or(shl(0xf0, 0x04), shl(bitOffset, head))
-        }
-        require(head <= 0xFFFF, "crafted head pointer must fit 16 bits");
-        require(tail <= 0xFFFF, "crafted tail pointer must fit 16 bits");
+        tail = craftNode(key, second, 0);
+        head = craftNode(key, first, tail);
+        // Two pairs, and the head of the list in the slot for this key.
+        kv = handleWith(slotOf(MemoryKVKey.unwrap(key)), head, 4);
     }
 
     /// The walk stops at the first match, so the head node's value is what
@@ -84,15 +72,17 @@ contract LibMemoryKVGetWalkTest is Test {
 
         kv = kv.set(key, MemoryKVVal.wrap(bytes32(uint256(33))));
 
-        // `set` wrote the head node and left the tail node alone.
-        uint256 headValue;
-        uint256 tailValue;
-        assembly ("memory-safe") {
-            headValue := mload(add(head, 0x20))
-            tailValue := mload(add(tail, 0x20))
-        }
-        assertEq(headValue, 33, "set wrote the head node");
-        assertEq(tailValue, 22, "set left the tail node alone");
+        // `set` wrote the head node's value word and left the tail node's alone.
+        assertEq(
+            LibPointer.unsafeReadWord(LibPointer.unsafeAddWord(Pointer.wrap(head))),
+            bytes32(uint256(33)),
+            "set wrote the head node"
+        );
+        assertEq(
+            LibPointer.unsafeReadWord(LibPointer.unsafeAddWord(Pointer.wrap(tail))),
+            bytes32(uint256(22)),
+            "set left the tail node alone"
+        );
 
         (uint256 exists, MemoryKVVal value) = kv.get(key);
         assertEq(exists, 1, "exists");
@@ -112,8 +102,8 @@ contract LibMemoryKVGetWalkTest is Test {
         kv = kv.set(tailKey, MemoryKVVal.wrap(bytes32(uint256(222))));
         kv = kv.set(headKey, MemoryKVVal.wrap(bytes32(uint256(111))));
 
-        // One list holds both, so exactly one of the 15 slots is occupied and
-        // the tail is only reachable by walking past the head.
+        // One list holds both, so exactly one slot is occupied and the tail is
+        // only reachable by walking past the head.
         assertEq(occupiedSlots(kv), 1, "both keys share one internal list");
 
         (uint256 tailExists, MemoryKVVal tailValue) = kv.get(tailKey);
@@ -142,7 +132,7 @@ contract LibMemoryKVGetWalkTest is Test {
 
         // Six words is three inserts, so the three keys are distinct and the
         // list is three nodes deep rather than one node updated twice.
-        require(MemoryKV.unwrap(kv) >> 0xf0 == 6, "three distinct keys on one list");
+        require(lengthOf(kv) == 6, "three distinct keys on one list");
 
         return (kv, deepest, absent);
     }
@@ -152,9 +142,8 @@ contract LibMemoryKVGetWalkTest is Test {
     /// call alone.
     function allocatedMemory() internal pure returns (bytes32, uint256) {
         bytes32 digest;
-        uint256 freeMemoryPointer;
+        uint256 freeMemoryPointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         assembly ("memory-safe") {
-            freeMemoryPointer := mload(0x40)
             digest := keccak256(0x60, sub(freeMemoryPointer, 0x60))
         }
         return (digest, freeMemoryPointer);

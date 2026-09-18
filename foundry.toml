@@ -1,6 +1,6 @@
 [profile.default]
 
-# See more config options https://github.com/foundry-rs/foundry/tree/master/config
+# See more config options https://www.getfoundry.sh/config/reference/overview
 
 solc = "0.8.25"
 
@@ -17,7 +17,6 @@ runs = 1024
 [dependencies]
 forge-std = "1.16.2"
 "rain-solmem" = "0.1.28"
-"rain-lib-hash" = "0.1.27"
 
 [soldeer]
 recursive_deps = false

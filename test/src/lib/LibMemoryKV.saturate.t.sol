@@ -4,112 +4,55 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
-import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
-
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {keyForSlot, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {lengthOf, occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
+/// @title LibMemoryKVSaturateTest
+/// All `LibMemoryKV.LIST_COUNT` internal lists are non-empty at the same time,
+/// and the word count, every `get` and the export all still match what was
+/// set.
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    uint256 internal constant LIST_COUNT = 15;
-    uint256 internal constant LIST_POINTER_BITS = 0x10;
-    uint256 internal constant LENGTH_BIT_OFFSET = LIST_COUNT * LIST_POINTER_BITS;
+    /// Two pairs per internal list, so every list has a node behind its head.
+    uint256 internal constant PAIR_COUNT = 2 * LibMemoryKV.LIST_COUNT;
 
+    /// `PAIR_COUNT` pairs are set, spread evenly over the lists. After that,
+    /// every list holds a head pointer, the word count is two per pair, every
+    /// key reads back its value, and the export holds two words per pair with
+    /// each pair exactly once.
     function testSaturate(bytes32 seed) public pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
 
-        bytes32[60] memory kvs = [
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(0))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(1))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(2))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(3))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(4))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(5))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(6))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(7))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(8))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(9))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(10))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(11))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(12))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(13))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(14))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(15))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(16))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(17))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(18))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(19))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(20))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(21))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(22))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(23))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(24))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(25))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(26))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(27))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(28))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(29))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(30))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(31))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(32))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(33))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(34))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(35))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(36))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(37))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(38))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(39))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(40))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(41))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(42))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(43))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(44))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(45))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(46))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(47))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(48))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(49))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(50))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(51))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(52))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(53))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(54))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(55))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(56))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(57))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(58))),
-            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(59)))
-        ];
+        // Interleaved key/value words; each key is rehashed in place below.
+        bytes32[] memory kvs = new bytes32[](PAIR_COUNT * 2);
+        for (uint256 i = 0; i < kvs.length; i++) {
+            kvs[i] = keccak256(abi.encode(seed, i));
+        }
 
-        // Rehash each key until we get an even spread across all internal list
-        // slots.
+        // Rehash each key until it lands in its list, so the pairs spread
+        // evenly across every list.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LIST_COUNT);
+            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LibMemoryKV.LIST_COUNT);
             kvs[i] = MemoryKVKey.unwrap(key);
 
             kv = kv.set(key, MemoryKVVal.wrap(kvs[i + 1]));
         }
 
-        // Every kv slot should be nonzero at this point.
-        for (uint256 i = 0; i < LENGTH_BIT_OFFSET; i += LIST_POINTER_BITS) {
-            assertTrue(((MemoryKV.unwrap(kv) >> i) & 0xFFFF) > 0);
-        }
+        assertEq(occupiedSlots(kv), LibMemoryKV.LIST_COUNT, "every list holds a head pointer");
+        assertEq(lengthOf(kv), kvs.length, "word count");
 
-        // Top slot must be the length.
-        assertEq(60, MemoryKV.unwrap(kv) >> LENGTH_BIT_OFFSET);
-
-        // Every value must be gettable.
         for (uint256 i = 0; i < kvs.length; i += 2) {
             (uint256 exists, MemoryKVVal value) = kv.get(MemoryKVKey.wrap(kvs[i]));
-            assertEq(1, exists);
-            assertEq(MemoryKVVal.unwrap(value), kvs[i + 1]);
+            assertEq(exists, 1, "exists");
+            assertEq(MemoryKVVal.unwrap(value), kvs[i + 1], "value");
         }
 
-        // Exported array must include every key/value pair.
-        bytes32[] memory export = LibMemoryKV.toBytes32Array(kv);
+        bytes32[] memory export = kv.toBytes32Array();
 
-        assertEq(kvs.length, export.length);
+        assertEq(export.length, kvs.length, "export length");
         // Counted over every pair at once, a pair exported twice pays for a
         // pair not exported at all, so each pair is counted on its own.
         for (uint256 i = 0; i < kvs.length; i += 2) {
