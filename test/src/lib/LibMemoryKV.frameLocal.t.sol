@@ -4,8 +4,11 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
+import {LibBytes} from "rain-solmem-0.1.28/src/lib/LibBytes.sol";
+import {Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {headOf} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {headOf, lengthOf, setFreePointer, NODE_BYTES} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVFrameLocalTest
 /// A `MemoryKV` is a `uint256`, so the ABI carries it across an external call
@@ -25,9 +28,7 @@ contract LibMemoryKVFrameLocalTest is Test {
         pure
         returns (MemoryKV, uint256, bytes32)
     {
-        assembly ("memory-safe") {
-            mstore(0x40, 0xA0)
-        }
+        setFreePointer(0xA0);
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, value);
         (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (kv, exists, MemoryKVVal.unwrap(got));
@@ -43,14 +44,11 @@ contract LibMemoryKVFrameLocalTest is Test {
         pure
         returns (uint256, bytes32)
     {
-        uint256 lengthWord;
-        assembly ("memory-safe") {
-            lengthWord := filler
-        }
-        require(lengthWord == 0x80, "filler must decode at 0x80");
-        require(filler.length == 0x60, "filler must be three words");
+        uint256 fillerPointer = Pointer.unwrap(LibBytes.startPointer(filler));
+        require(fillerPointer == 0x80, "filler must decode at 0x80");
+        require(filler.length == NODE_BYTES, "filler must be one node");
 
-        (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, key);
+        (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (exists, MemoryKVVal.unwrap(got));
     }
 
@@ -66,7 +64,7 @@ contract LibMemoryKVFrameLocalTest is Test {
 
         assertEq(exists, 1, "the building frame reads its own store");
         assertEq(got, MemoryKVVal.unwrap(value), "the building frame reads the value it set");
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 2, "the word count crosses the boundary");
+        assertEq(lengthOf(kv), 2, "the word count crosses the boundary");
         assertEq(headOf(kv, key), 0xA0, "the head pointer crosses the boundary");
     }
 
