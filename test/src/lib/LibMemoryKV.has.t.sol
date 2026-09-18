@@ -10,8 +10,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 
 /// @title LibMemoryKVHasTest
 /// `has` answers the existence half of `get`, so every case here states what
-/// `get` reports and what `has` must therefore say, rather than repeating how
-/// the walk finds it.
+/// `get` reports and what `has` must therefore say.
 contract LibMemoryKVHasTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -28,9 +27,8 @@ contract LibMemoryKVHasTest is Test {
         assertFalse(kv.has(other));
     }
 
-    /// A key SET TO ZERO exists. This is the case a caller gets wrong by
-    /// reading the value instead of the existence flag, and the reason the two
-    /// are reported separately.
+    /// A key SET TO ZERO exists: `has` is true, and `get` reports the key as
+    /// existing with a zero value.
     function testHasAKeyWhoseValueIsZero(MemoryKVKey key) external pure {
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, MemoryKVVal.wrap(0));
         assertTrue(kv.has(key));

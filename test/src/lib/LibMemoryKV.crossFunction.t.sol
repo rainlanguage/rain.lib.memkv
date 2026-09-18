@@ -66,11 +66,9 @@ contract LibMemoryKVCrossFunctionTest is Test {
     }
 
     /// A handle with every head pointer slot and the word count in use arrives
-    /// on the other side of an external call bit for bit. The word it must equal is
-    /// computed here from the addresses the building frame was forced to
-    /// allocate at, so a handle that lost the word count, or a slot, or the top
-    /// bit of one pointer, is a different number rather than a store that
-    /// merely reads oddly.
+    /// on the other side of an external call bit for bit. It equals the word
+    /// computed here from the word count and the addresses the building frame
+    /// allocates its nodes at.
     function testSaturatedHandleCrossesTheCallBoundaryBitForBit(bytes32 seed) external view {
         bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         uint256 expected = (LibMemoryKV.LIST_COUNT * 2) << LibMemoryKV.COUNT_BIT_OFFSET;

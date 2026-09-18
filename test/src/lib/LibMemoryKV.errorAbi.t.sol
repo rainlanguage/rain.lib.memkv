@@ -9,13 +9,9 @@ import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
 import {COUNT_MAX, withCount} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVErrorAbiTest
-/// Every other test that expects one of these errors builds the expectation
-/// from `LibMemoryKV.<error>.selector`, which is derived from the very
-/// declaration under test, so adding, widening or narrowing an argument moves
-/// the expectation along with it and nothing fails. A caller decoding the
-/// revert off chain holds the signature as a string instead. These build the
-/// expected returndata from that string, pinning each error to exactly one
-/// `uint256` argument and to a selector the other error does not share.
+/// Each error's revert data, expected as built from the error's signature
+/// written out as a string: the first four bytes of the hash of that
+/// signature, then exactly one `uint256` argument word.
 contract LibMemoryKVErrorAbiTest is Test, SetAtFreePointer {
     /// A node address low enough that it cannot be what overflows, and clear of
     /// the scratch space and the free memory pointer.

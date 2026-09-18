@@ -13,10 +13,8 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 /// assembly is declared `memory-safe`, which forbids two writes just above
 /// scratch: the free memory pointer at `0x40` may only move to a valid
 /// allocation, and the zero slot at `0x60`, the data every empty dynamic array
-/// points at, may never change. A lookup that built the same hash in either
-/// word instead still answers with the right value, so only the words
-/// themselves say it. That `get` leaves every allocated byte above them
-/// unchanged is pinned by `LibMemoryKVGetWalkTest`.
+/// points at, may never change. That `get` leaves every allocated byte above
+/// them unchanged is pinned by `LibMemoryKVGetWalkTest`.
 contract LibMemoryKVGetScratchTest is Test {
     using LibMemoryKV for MemoryKV;
 

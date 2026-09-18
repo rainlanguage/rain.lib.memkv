@@ -36,8 +36,8 @@ contract LibMemoryKVHandleTest is Test {
     /// A node crafted where an insert into an empty store would put its node,
     /// under a handle naming it with one pair's count, is exactly what that
     /// insert builds: the same handle, the same three words and the same
-    /// allocation. The memory under each is dirtied first, so a word either
-    /// one leaves unwritten reads as the sentinel.
+    /// allocation. The memory under each is dirtied with the same sentinel
+    /// first.
     function testCraftNodeAndHandleWithBuildWhatAnInsertBuilds(MemoryKVKey key, MemoryKVVal value) external pure {
         bytes32 sentinel = keccak256(abi.encode(key, value));
         Pointer at = LibPointer.allocatedMemoryPointer();
@@ -79,8 +79,7 @@ contract LibMemoryKVHandleTest is Test {
     }
 
     /// A node at `LibMemoryKV.POINTER_MASK` still fits a head slot; one byte
-    /// higher does not and reverts rather than handing back an address a handle
-    /// would truncate.
+    /// higher does not, and crafting a node there reverts.
     function testCraftNodeRevertsAboveTheWidestHeadPointer() external {
         assertEq(
             this.craftNodeAtExternal(LibMemoryKV.POINTER_MASK), LibMemoryKV.POINTER_MASK, "the widest head pointer"

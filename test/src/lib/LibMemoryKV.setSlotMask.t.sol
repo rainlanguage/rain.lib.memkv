@@ -16,19 +16,15 @@ import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 /// nor its high bit, and the slot above keeps every bit of its own head, its
 /// low bit included.
 ///
-/// A Solidity allocator places every node at a multiple of 32, and every newer
-/// node above every older one. The low bits of an old and a new head are then
-/// both zero, and an old head with the high bit set means a new head with it
-/// set too, so neither edge of the slot is exercised. These tests place nodes
-/// at addresses the library allows but an allocator would not choose: an odd
-/// one, and an older one with the high bit set under a newer one without it,
-/// in the same list and in neighbouring lists. A node address is a caller's
-/// free memory pointer, and `set` bounds it by magnitude alone.
+/// These tests place nodes at addresses `set` accepts but a Solidity allocator
+/// does not choose: an odd one, and an older one with the high bit set under a
+/// newer one without it, in the same list and in neighbouring lists. A node
+/// address is a caller's free memory pointer, and `set` bounds it by magnitude
+/// alone.
 contract LibMemoryKVSetSlotMaskTest is Test, SetAtFreePointer {
     using LibMemoryKV for MemoryKV;
 
-    /// An odd node address, low enough that a walk off the end of it expands
-    /// memory by kilobytes rather than megabytes.
+    /// An odd node address.
     uint256 internal constant ODD_POINTER = 0x101;
 
     /// An even node address clear of the three words at `ODD_POINTER`, with
@@ -115,8 +111,7 @@ contract LibMemoryKVSetSlotMaskTest is Test, SetAtFreePointer {
     /// `(LibMemoryKV.LIST_COUNT - 1) * LibMemoryKV.SLOT_BITS` of the store)
     /// included, so the highest list is still headed at `ODD_POINTER`.
     ///
-    /// The highest list's head sits directly under the word count and is the
-    /// slot a rewrite is likeliest to reach past.
+    /// The highest list's head sits directly under the word count.
     function testInsertLeavesTheNeighbouringSlotsLowBit() external view {
         MemoryKVKey high = keyForSlot(bytes32(uint256(1)), LibMemoryKV.LIST_COUNT - 1);
         MemoryKVKey low = keyForSlot(bytes32(uint256(1)), LibMemoryKV.LIST_COUNT - 2);

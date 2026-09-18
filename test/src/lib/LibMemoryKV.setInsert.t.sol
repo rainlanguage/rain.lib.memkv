@@ -13,8 +13,8 @@ import {keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetInsertTest
-/// The insert half of `set`, asserted against the documented SHAPE of the store
-/// rather than against a round trip through `get`.
+/// The insert half of `set`, asserted against the documented SHAPE of the
+/// store.
 ///
 /// The layout is the one the `MemoryKV` NatSpec documents and the `LibMemoryKV`
 /// constants name. So an insert must place a `LibMemoryKV.NODE_BYTES`
@@ -34,11 +34,6 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     /// An insert into an empty store writes exactly three words AT the free
     /// memory pointer -- key, then value, then the old head of the list -- and
     /// records that same address as the list head, with a count of two.
-    ///
-    /// Stated as exact addresses and words rather than as "the value comes back
-    /// out", so a node written next to the free memory pointer, a slot holding
-    /// an address the node is not at, or a next word that is not the old head
-    /// is a different NUMBER here, not just a failed lookup.
     function testSetInsertWritesThreeWordsAtTheFreeMemoryPointer(MemoryKVKey key, MemoryKVVal value) external pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
 
@@ -56,10 +51,9 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         assertEq(next, 0, "next at node+0x40 is the old (empty) head");
     }
 
-    /// An insert WRITES all three words of its node. A zero key, a zero value
-    /// and the terminator of an empty list are what the node HOLDS, not what
-    /// the memory under it happened to hold: the node lands on a sentinel here,
-    /// so a word the insert leaves alone reads back as that sentinel instead.
+    /// An insert WRITES all three words of its node: the node lands on memory
+    /// dirtied with a sentinel, and its words read back as the zero key, the
+    /// zero value and the terminator of an empty list.
     function testSetInsertWritesEveryWordOfTheNode(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed));
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(0));
@@ -82,8 +76,7 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
 
     /// Three keys that share one list: each insert PREPENDS, so the head is the
     /// newest node and every older node is still reachable behind it. Asserts
-    /// the chain of addresses, which is the fact that "nothing inserted is
-    /// lost" rests on.
+    /// the chain of addresses.
     function testSetInsertPrependsWithinOneList() external pure {
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), 0, 3);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -98,8 +91,8 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         assertEq(node1, node0 + LibMemoryKV.NODE_BYTES, "second node follows the first");
         assertEq(node2, node1 + LibMemoryKV.NODE_BYTES, "third node follows the second");
 
-        // The head is the newest node, and ONLY the newest -- the old head is
-        // masked out of the slot rather than ored together with the new one.
+        // The head is the newest node, and ONLY the newest: the old head is
+        // masked out of the slot.
         assertEq(headOf(kv, keys[0]), node2, "head is the newest node");
         assertEq(lengthOf(kv), 6, "three pairs is six words");
 
@@ -131,9 +124,8 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
 
     /// The word count's slot is `LibMemoryKV.SLOT_BITS` wide, so it keeps
     /// counting past 0xFF. 200 pairs is 400 words, which does not fit in a
-    /// byte; a count that wrapped at 256 would both report the wrong number
-    /// here and make `toBytes32Array` (which preallocates from it) return a
-    /// short array.
+    /// byte: the count reads 400, and `toBytes32Array`, which preallocates from
+    /// it, exports 400 words.
     function testSetInsertWordCountPastAByte() external pure {
         uint256 pairs = 200;
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -154,9 +146,7 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     }
 
     /// The overflow error carries the OFFENDING pointer, not the bound it
-    /// crossed. `LibMemoryKV.POINTER_MASK + 1` is both the first invalid
-    /// pointer and the value one past the bound, so it cannot tell the two
-    /// apart; `0x12345` can.
+    /// crossed. `0x12345` is neither the bound nor one past it.
     function testSetOverflowPayloadIsTheOffendingPointerNotTheBound() external {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
@@ -174,9 +164,8 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         assertEq(lengthOf(kv), 2, "one pair is two words");
     }
 
-    /// The head pointer an insert produces exists ONLY in the returned store,
-    /// which is why `set` documents that the return MUST be assigned back. The
-    /// node is allocated and written either way, so a caller that drops the
+    /// The head pointer an insert produces exists ONLY in the returned store.
+    /// The node is allocated and written either way, so a caller that drops the
     /// return is left holding the word it already had and the pair is reachable
     /// from nothing -- no revert, no short array, just a missing key.
     function testSetInsertIsUnreachableWhenTheReturnIsDropped(
