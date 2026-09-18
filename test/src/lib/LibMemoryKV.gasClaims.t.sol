@@ -26,6 +26,12 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// isolated and the tree tests it directly instead of descending to it.
     uint256 internal constant SHALLOW_SLOT = LibMemoryKV.LIST_COUNT - 1;
 
+    /// How far two equal-depth export paths may differ in gas. The optimizer
+    /// picks which arm of each conditional falls through, and a taken jump lands
+    /// on a `JUMPDEST` that costs 1 gas, so a path pays up to one gas per
+    /// conditional it passes: the four bisect levels and the leaf guard.
+    uint256 internal constant BRANCH_LAYOUT_GAS = 5;
+
     /// The export's saving over the linear walk for an empty store.
     uint256 internal constant BISECT_SAVING_EMPTY = 1900;
 
@@ -109,11 +115,13 @@ contract LibMemoryKVGasClaimsTest is Test {
         return start - end;
     }
 
-    /// Exporting one pair costs the same whichever slot it landed in: the bisect
-    /// is the same depth to every slot but the shallow one, and every branch it
-    /// does not take costs exactly the one test that skips it. Delete any of
-    /// those tests and the stores that skip that branch start paying for it,
-    /// which shows up here as a slot that no longer matches its peers.
+    /// Exporting one pair costs the same whichever slot it landed in, to within
+    /// `BRANCH_LAYOUT_GAS`: the bisect is the same depth to every slot but the
+    /// shallow one, and every branch it does not take costs the one test that
+    /// skips it. Delete any of those tests and the stores that skip that branch
+    /// pay a whole `copyFromPtr` call on an empty list, far more than
+    /// `BRANCH_LAYOUT_GAS`, which shows up here as a slot that no longer matches
+    /// its peers.
     function testExportGasIsUniformAcrossSlots() public view {
         MemoryKV[] memory kvs = new MemoryKV[](LibMemoryKV.LIST_COUNT);
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
@@ -131,7 +139,7 @@ contract LibMemoryKVGasClaimsTest is Test {
             if (slot == SHALLOW_SLOT) {
                 assertLt(gas[slot], gas[0], "shallow slot must cost less");
             } else {
-                assertEq(gas[slot], gas[0], "slot must cost the same as its peers");
+                assertApproxEqAbs(gas[slot], gas[0], BRANCH_LAYOUT_GAS, "slot must cost the same as its peers");
             }
         }
     }
