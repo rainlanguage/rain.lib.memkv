@@ -4,15 +4,15 @@ pragma solidity ^0.8.25;
 
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
-import {MemoryKV} from "src/lib/LibMemoryKV.sol";
-import {COUNT_BIT_OFFSET, POINTER_MAX, SLOT_BITS} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {LibMemoryKV, MemoryKV} from "src/lib/LibMemoryKV.sol";
+import {headAddressOf, lengthOf} from "test/lib/LibMemoryKVLayout.sol";
 
 /// @title LibMemoryKVSlow
 /// Independent reference implementations that `LibMemoryKV` is tested against.
 /// `exists`, `get` and `set` keep the store as a flat `bytes32[]` of pairs, each
 /// key at an even index and its value in the word after it, linear in the
 /// number of pairs and in no canonical order. `toBytes32ArrayLinear` exports a
-/// `MemoryKV` without the bisect.
+/// `MemoryKV` without the occupancy mask.
 library LibMemoryKVSlow {
     /// Finds `key` in `pairs`.
     /// @param pairs Pairwise key/value array.
@@ -64,20 +64,23 @@ library LibMemoryKVSlow {
         }
     }
 
-    /// `LibMemoryKV.toBytes32Array` with the bisect replaced by a walk over
-    /// every head pointer slot in order. This is the linear loop the
-    /// `toBytes32Array` NatSpec measures its bisect saving against, so it MUST
-    /// stay a plain walk over every slot. Like the fast path, it sizes the
-    /// array from the word count in `kv`, fills it by walking every list, and
-    /// leaves the free memory pointer past every word written. It exports the
-    /// same pairs as `toBytes32Array`; the pair order is not guaranteed to
-    /// match.
+    /// `LibMemoryKV.toBytes32Array` with the occupancy mask walk replaced by a
+    /// walk over every head in the header, list 0 first. This is the linear
+    /// loop the mask walk is measured against, so it MUST stay a plain walk
+    /// over every head. Like the fast path, it sizes the array from the word
+    /// count in the meta word, fills it by walking every list, and leaves the
+    /// free memory pointer past every word written. It exports the same pairs
+    /// as `toBytes32Array`; the pair order is not guaranteed to match.
     /// @param kv The entrypoint into the key/value store.
     /// @return array Every key and value in `kv`, copied pairwise.
     function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory array) {
+        uint256 length = lengthOf(kv);
+        // The heads are consecutive words from the first head to the address
+        // one past the last. The empty store has no header, so no heads.
+        uint256 head = headAddressOf(kv, 0);
+        uint256 headsEnd = MemoryKV.unwrap(kv) == 0 ? head : headAddressOf(kv, LibMemoryKV.LIST_COUNT);
         assembly ("memory-safe") {
             array := mload(0x40)
-            let length := shr(COUNT_BIT_OFFSET, kv)
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
@@ -93,13 +96,7 @@ library LibMemoryKVSlow {
             }
 
             let cursor := add(array, 0x20)
-            for {
-                let bitOffset := 0
-                let pointer := and(kv, POINTER_MAX)
-            } lt(bitOffset, COUNT_BIT_OFFSET) {
-                bitOffset := add(bitOffset, SLOT_BITS)
-                pointer := and(shr(bitOffset, kv), POINTER_MAX)
-            } { cursor := copyFromPtr(cursor, pointer) }
+            for {} lt(head, headsEnd) { head := add(head, 0x20) } { cursor := copyFromPtr(cursor, mload(head)) }
         }
     }
 }
