@@ -9,13 +9,10 @@ import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {headOf, lengthOf, maskOf} from "test/lib/LibMemoryKVHandle.sol";
 
 contract LibMemoryKVSaturateTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    uint256 internal constant LIST_COUNT = 15;
-    uint256 internal constant LIST_POINTER_BITS = 0x10;
-    uint256 internal constant LENGTH_BIT_OFFSET = LIST_COUNT * LIST_POINTER_BITS;
 
     function testSaturate(bytes32 seed) public pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -86,19 +83,20 @@ contract LibMemoryKVSaturateTest is Test {
         // Rehash each key until we get an even spread across all internal list
         // slots.
         for (uint256 i = 0; i < kvs.length; i += 2) {
-            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LIST_COUNT);
+            MemoryKVKey key = keyForSlot(kvs[i], (i / 2) % LibMemoryKV.LIST_COUNT);
             kvs[i] = MemoryKVKey.unwrap(key);
 
             kv = kv.set(key, MemoryKVVal.wrap(kvs[i + 1]));
         }
 
-        // Every kv slot should be nonzero at this point.
-        for (uint256 i = 0; i < LENGTH_BIT_OFFSET; i += LIST_POINTER_BITS) {
-            assertTrue(((MemoryKV.unwrap(kv) >> i) & 0xFFFF) > 0);
+        // Every list is headed and marked occupied at this point.
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+            assertTrue(headOf(kv, slot) != 0, string.concat("head of list ", vm.toString(slot)));
         }
+        assertEq(maskOf(kv), LibMemoryKV.OCCUPANCY_MASK, "every list occupied");
 
-        // Top slot must be the length.
-        assertEq(60, MemoryKV.unwrap(kv) >> LENGTH_BIT_OFFSET);
+        // Two words counted per pair.
+        assertEq(lengthOf(kv), 60, "word count");
 
         // Every value must be gettable.
         for (uint256 i = 0; i < kvs.length; i += 2) {

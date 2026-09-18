@@ -8,7 +8,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
-import {occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
+import {lengthOf, occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportAllocTest
@@ -17,9 +17,9 @@ import {countPair} from "test/lib/LibMemoryKVExport.sol";
 ///
 /// The expectations here are derived from the documented contract rather than
 /// from the header the implementation writes: the README says the store
-/// exports "pairwise keys/values", and `MemoryKV` is documented as carrying
-/// "the total word count of all inserts", so an export of N DISTINCT keys is
-/// 2N words long and occupies exactly 0x20 + 2N * 0x20 bytes of fresh memory.
+/// exports "pairwise keys/values", and `MemoryKV` documents a word count of
+/// two per inserted pair, so an export of N DISTINCT keys is 2N words long and
+/// occupies exactly 0x20 + 2N * 0x20 bytes of fresh memory.
 /// Counting N independently of the store is the point - reading it back out of
 /// `array.length` would only restate whatever the implementation wrote.
 contract LibMemoryKVExportAllocTest is Test {
@@ -43,12 +43,12 @@ contract LibMemoryKVExportAllocTest is Test {
         return count;
     }
 
-    /// An empty store exports an empty array and allocates the length header
-    /// and nothing else: exactly 0x20 bytes. The zero length is WRITTEN, not
-    /// inherited from memory that happened to be zero, so the header word is
-    /// dirtied first: an export that wrote no header would hand back the
+    /// An empty store exports an empty array and allocates the length word and
+    /// nothing else: exactly 0x20 bytes. The zero length is WRITTEN, not
+    /// inherited from memory that happened to be zero, so the length word is
+    /// dirtied first: an export that wrote no length would hand back the
     /// sentinel as the length.
-    function testExportEmptyAllocatesOnlyTheHeader() external pure {
+    function testExportEmptyAllocatesOnlyTheLengthWord() external pure {
         dirtyFreeMemory(bytes32(type(uint256).max), 1);
 
         Pointer before = LibPointer.allocatedMemoryPointer();
@@ -74,15 +74,15 @@ contract LibMemoryKVExportAllocTest is Test {
 
         // The word count the store carries, and the array it exports, are both
         // exactly that.
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, expectedWords, "kv word count");
+        assertEq(lengthOf(kv), expectedWords, "kv word count");
         assertEq(LibMemoryKV.toBytes32Array(kv).length, expectedWords, "array length");
     }
 
     /// The array is allocated AT the free memory pointer and the allocation is
-    /// exactly the header plus two words per distinct key. Both edges matter:
-    /// one word short leaves the last value in unallocated memory, one word
-    /// long wastes a word forever.
-    function testExportAllocatesExactlyHeaderPlusTwoWordsPerPair(bytes32[] memory kvs) external pure {
+    /// exactly the length word plus two words per distinct key. Both edges
+    /// matter: one word short leaves the last value in unallocated memory, one
+    /// word long wastes a word forever.
+    function testExportAllocatesExactlyLengthWordPlusTwoWordsPerPair(bytes32[] memory kvs) external pure {
         vm.assume(kvs.length < 40);
         vm.assume(kvs.length % 2 == 0);
 
@@ -255,9 +255,9 @@ contract LibMemoryKVExportAllocTest is Test {
 
     /// A single internal list holding several nodes is walked to its end and
     /// every pair on it lands in the array, adjacent and in one piece. This is
-    /// the multi-step walk: the chain, not the bisect.
+    /// the multi-step walk: the chain, not the occupancy mask.
     function testExportWalksOneListToTheEnd(bytes32 seed, uint256 slot) external pure {
-        slot = bound(slot, 0, 14);
+        slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
 
         bytes32[] memory keys = new bytes32[](5);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -266,7 +266,7 @@ contract LibMemoryKVExportAllocTest is Test {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
-        // Exactly one slot of the kv is populated: everything is on one list.
+        // Exactly one list of the store is headed: everything is on one list.
         assertEq(occupiedSlots(kv), 1, "one list");
 
         bytes32[] memory array = kv.toBytes32Array();
@@ -292,7 +292,8 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](4);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
-            keys[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : 14));
+            keys[i] =
+                MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : LibMemoryKV.LIST_COUNT - 1));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
@@ -306,22 +307,22 @@ contract LibMemoryKVExportAllocTest is Test {
         assertEq(matched, keys.length, "every pair from both lists, exactly once");
     }
 
-    /// Every one of the 15 internal lists is reachable by the export. One key
-    /// per slot, each with a value that identifies its slot, so a mask or a
-    /// branch that reads the wrong slot produces a WRONG VALUE rather than
-    /// merely a short array.
+    /// Every one of the `LibMemoryKV.LIST_COUNT` internal lists is reachable by
+    /// the export. One key per slot, each with a value that identifies its
+    /// slot, so a mask or a branch that reads the wrong slot produces a WRONG
+    /// VALUE rather than merely a short array.
     function testExportReachesEverySlot(bytes32 seed) external pure {
-        bytes32[] memory keys = new bytes32[](15);
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(bytes32(slot + 1)));
         }
 
         bytes32[] memory array = kv.toBytes32Array();
-        assertEq(array.length, 30, "two words per slot");
+        assertEq(array.length, 2 * LibMemoryKV.LIST_COUNT, "two words per slot");
 
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             bool found = false;
             for (uint256 j = 0; j < array.length; j += 2) {
                 if (array[j] == keys[slot]) {
