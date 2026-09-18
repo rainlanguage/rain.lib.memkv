@@ -4,6 +4,8 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {craftNode, handleWith, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
@@ -33,9 +35,7 @@ contract LibMemoryKVGetMatchTest is Test {
     /// Overwrite the key word of a crafted node, leaving its value and next
     /// pointer alone.
     function writeNodeKey(uint256 node, MemoryKVKey key) internal pure {
-        assembly ("memory-safe") {
-            mstore(node, key)
-        }
+        LibPointer.unsafeWriteWord(Pointer.wrap(node), MemoryKVKey.unwrap(key));
     }
 
     /// The match is equality across the whole 256 bit word: a node key one bit
@@ -69,7 +69,7 @@ contract LibMemoryKVGetMatchTest is Test {
     /// `(0, 0)`. Both returns keep their zero initialisation, so the value of a
     /// node the walk passed over cannot come back beside a zero `exists`. The
     /// three keys are driven onto one list rather than left to collide by
-    /// chance, which two arbitrary keys do one time in fifteen.
+    /// chance, which two arbitrary keys do one time in `LibMemoryKV.LIST_COUNT`.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
         MemoryKVKey head = keyForSlot(bytes32(uint256(1)), 5);
         MemoryKVKey tail = keyForSlot(bytes32(uint256(2)), 5);
@@ -81,7 +81,7 @@ contract LibMemoryKVGetMatchTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         kv = kv.set(tail, MemoryKVVal.wrap(bytes32(uint256(0x222))));
         kv = kv.set(head, MemoryKVVal.wrap(bytes32(uint256(0x111))));
-        assertTrue(headOf(kv, 5) != 0, "the absent key's list is occupied");
+        assertTrue(headOf(kv, absent) != 0, "the absent key's list is occupied");
         assertEq(lengthOf(kv), 4, "both pairs are in the store");
 
         (uint256 exists, MemoryKVVal value) = kv.get(absent);

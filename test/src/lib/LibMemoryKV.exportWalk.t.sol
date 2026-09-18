@@ -21,28 +21,26 @@ contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The first address that does not fit in sixteen bits.
-    uint256 constant ABOVE_SIXTEEN_BITS = 0x10000;
+    uint256 internal constant ABOVE_SIXTEEN_BITS = 0x10000;
 
     /// Where a header puts its list's head node's next word at exactly
     /// `ABOVE_SIXTEEN_BITS`: the header, then the tail node, then the head
     /// node, whose next word is `0x40` into it.
-    uint256 constant NEXT_WORD_AT_SIXTEEN_BITS =
+    uint256 internal constant NEXT_WORD_AT_SIXTEEN_BITS =
         ABOVE_SIXTEEN_BITS - LibMemoryKV.HEADER_BYTES - LibMemoryKV.NODE_BYTES - 0x40;
 
     /// Where a header ends at exactly `ABOVE_SIXTEEN_BITS`, so both nodes, and
     /// therefore the head and the next pointer the walk follows, are above it.
-    uint256 constant NODES_ABOVE_SIXTEEN_BITS = ABOVE_SIXTEEN_BITS - LibMemoryKV.HEADER_BYTES;
+    uint256 internal constant NODES_ABOVE_SIXTEEN_BITS = ABOVE_SIXTEEN_BITS - LibMemoryKV.HEADER_BYTES;
 
-    /// Two keys that hash into one internal list, small enough that a walk
-    /// which mistook memory below the store for a pointer would read low
-    /// memory rather than run out of gas.
-    bytes32 constant KEY_TAIL = bytes32(uint256(4));
-    bytes32 constant KEY_HEAD = bytes32(uint256(5));
+    /// Two keys that hash into one internal list.
+    bytes32 internal constant KEY_TAIL = bytes32(uint256(4));
+    bytes32 internal constant KEY_HEAD = bytes32(uint256(5));
 
     /// Values that share no bits with either key, so a pair assembled from the
     /// wrong words is a different value rather than a coincidence.
-    bytes32 constant VALUE_TAIL = bytes32(uint256(0xDEC0DE));
-    bytes32 constant VALUE_HEAD = bytes32(uint256(0xC0FFEE));
+    bytes32 internal constant VALUE_TAIL = bytes32(uint256(0xDEC0DE));
+    bytes32 internal constant VALUE_HEAD = bytes32(uint256(0xC0FFEE));
 
     /// Build the two key list with its header at `headerAt` and export it.
     /// `KEY_TAIL` is inserted first, so `KEY_HEAD` is the list's head and

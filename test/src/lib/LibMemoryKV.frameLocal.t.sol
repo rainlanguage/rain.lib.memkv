@@ -4,6 +4,9 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
+import {LibBytes} from "rain-solmem-0.1.28/src/lib/LibBytes.sol";
+import {Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {headAddressOf, headOf} from "test/lib/LibMemoryKVHandle.sol";
@@ -45,16 +48,13 @@ contract LibMemoryKVFrameLocalTest is Test {
     /// which is where the builder put its header. Both facts are required
     /// rather than assumed so a decode that moved fails loudly.
     function getWithFillerExternal(MemoryKV kv, bytes memory filler) external pure returns (uint256, bytes32) {
-        uint256 lengthWord;
-        assembly ("memory-safe") {
-            lengthWord := filler
-        }
-        require(lengthWord == 0x80, "filler must decode at 0x80");
+        uint256 fillerPointer = Pointer.unwrap(LibBytes.startPointer(filler));
+        require(fillerPointer == 0x80, "filler must decode at 0x80");
         require(
             filler.length == LibMemoryKV.HEADER_BYTES + LibMemoryKV.NODE_BYTES, "filler must be a header and a node"
         );
 
-        (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, MemoryKVKey.wrap(KEY));
+        (uint256 exists, MemoryKVVal got) = kv.get(MemoryKVKey.wrap(KEY));
         return (exists, MemoryKVVal.unwrap(got));
     }
 
