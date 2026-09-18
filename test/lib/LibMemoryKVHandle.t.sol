@@ -90,8 +90,10 @@ contract LibMemoryKVHandleTest is Test {
 
     /// The handle heads the named list with the named pointer, every other list
     /// is empty, and the count is the one given.
-    function testHandleWithHeadsOnlyTheNamedList(uint256 slot, uint16 head, uint16 words) external pure {
+    function testHandleWithHeadsOnlyTheNamedList(uint256 slot, uint256 head, uint256 words) external pure {
         slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
+        head = bound(head, 0, LibMemoryKV.POINTER_MASK);
+        words = bound(words, 0, COUNT_MAX);
         MemoryKV kv = handleWith(slot, head, words);
 
         for (uint256 other = 0; other < LibMemoryKV.LIST_COUNT; other++) {

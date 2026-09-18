@@ -15,9 +15,9 @@ import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 /// `get` after `set` on the same handle reports what was set. An insert
 /// allocates exactly one node and makes its key readable, and an update of a
 /// present key allocates nothing and changes that key's value alone. A node's
-/// head pointer must fit its sixteen bit slot: `set` reverts with
-/// `MemoryKVOverflow` for one that does not, and `get` reads the node words
-/// that lie above the bound.
+/// head pointer must fit its `LibMemoryKV.SLOT_BITS` wide slot: `set` reverts
+/// with `MemoryKVOverflow` for one that does not, and `get` reads the node
+/// words that lie above the bound.
 contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
     /// Insert at an exact free memory pointer and read the key back inside the
     /// SAME call frame, as the node only exists in that frame's memory.
@@ -44,41 +44,44 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
         return LibMemoryKV.get(kv, first);
     }
 
-    /// `0xFFFF` is the widest head pointer a slot holds, so an insert whose node
-    /// starts exactly there succeeds and the slot encodes `0xFFFF`.
+    /// `LibMemoryKV.POINTER_MASK` is the widest head pointer a slot holds, so an
+    /// insert whose node starts exactly there succeeds and the slot encodes
+    /// `LibMemoryKV.POINTER_MASK`.
     function testSetPointerBoundaryMaxAccepted(MemoryKVKey key, MemoryKVVal value) external view {
-        MemoryKV kv = this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, 0xFFFF);
+        MemoryKV kv = this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, LibMemoryKV.POINTER_MASK);
 
-        assertEq(headOf(kv, key), 0xFFFF, "max pointer 0xFFFF must be encoded into this key's slot");
+        assertEq(headOf(kv, key), LibMemoryKV.POINTER_MASK, "the max pointer must be encoded into this key's slot");
         assertEq(lengthOf(kv), 2, "length");
     }
 
-    /// The first pointer past the bound, `0x10000`, reverts `MemoryKVOverflow`
-    /// carrying that pointer, not the bound it crossed.
+    /// The first pointer past the bound, `LibMemoryKV.POINTER_MASK + 1`, reverts
+    /// `MemoryKVOverflow` carrying that pointer, not the bound it crossed.
     function testSetPointerBoundaryOverflowReverts(MemoryKVKey key, MemoryKVVal value) external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
-        this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, 0x10000);
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, LibMemoryKV.POINTER_MASK + 1));
+        this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, LibMemoryKV.POINTER_MASK + 1);
     }
 
     /// The bound is on the node's HEAD pointer alone. A node inserted at the
-    /// maximum head pointer `0xFFFF` holds its value word at `0x1001F`, above
-    /// the bound, and `get` reads it: node fields are reached by full width
-    /// arithmetic from the head, not through 16 bit pointers.
+    /// maximum head pointer `LibMemoryKV.POINTER_MASK` holds its value word at
+    /// `LibMemoryKV.POINTER_MASK + 0x20`, above the bound, and `get` reads it:
+    /// node fields are reached by full width arithmetic from the head, not
+    /// through `LibMemoryKV.SLOT_BITS` wide pointers.
     function testGetReadsAValueWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
-        (uint256 exists, MemoryKVVal got) = this.setAtPointerThenGetExternal(key, value, 0xFFFF);
+        (uint256 exists, MemoryKVVal got) = this.setAtPointerThenGetExternal(key, value, LibMemoryKV.POINTER_MASK);
 
         assertEq(exists, 1, "a node at the maximum head pointer exists");
-        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the value word above 0xFFFF reads back");
+        assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the value word above the bound reads back");
     }
 
-    /// The same for the next pointer word. The second node's head is `0xFFC0`,
-    /// which fits the bound, so its next word lands at exactly `0x10000` and
-    /// the walk from that node down to the first one has to read across the
-    /// bound to find it.
+    /// The same for the next pointer word. The second node's head is
+    /// `LibMemoryKV.POINTER_MASK + 1 - 0x40`, which fits the bound, so its next
+    /// word lands at exactly `LibMemoryKV.POINTER_MASK + 1` and the walk from
+    /// that node down to the first one has to read across the bound to find it.
     function testGetWalksThroughANextWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
-        (uint256 exists, MemoryKVVal got) = this.insertPairThenGetFirstExternal(key, collidingKey(key), value, 0xFFC0);
+        (uint256 exists, MemoryKVVal got) =
+            this.insertPairThenGetFirstExternal(key, collidingKey(key), value, LibMemoryKV.POINTER_MASK + 1 - 0x40);
 
-        assertEq(exists, 1, "the walk reaches the first key through a next word at 0x10000");
+        assertEq(exists, 1, "the walk reaches the first key through a next word above the bound");
         assertEq(MemoryKVVal.unwrap(got), MemoryKVVal.unwrap(value), "the first key's value survives the walk");
     }
 

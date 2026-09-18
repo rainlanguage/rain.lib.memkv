@@ -11,18 +11,18 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {EMPTY_FRAME_PAIRS} from "test/lib/LibMemoryKVCapacity.sol";
 
 /// @title LibMemoryKVWordCountOverflowTest
-/// The word count is SIXTEEN bits and an insert adds two to it, so there is a
-/// count from which one more insert does not fit, and `set` reverts
-/// `MemoryKVLengthOverflow` for that insert.
+/// The word count is ONE SLOT, `LibMemoryKV.SLOT_BITS` wide, and an insert adds
+/// two to it, so there is a count from which one more insert does not fit, and
+/// `set` reverts `MemoryKVLengthOverflow` for that insert.
 ///
 /// A store built only through `set` cannot get there, because a node address
-/// must fit sixteen bits too and that runs out first. That is a bound on
-/// addresses, not on the count, and it is the pointer width that sets it. These
-/// assert the count is bounded by a bound on the count.
+/// must fit a slot too and that runs out first. That is a bound on addresses,
+/// not on the count, and it is the pointer width that sets it. These assert the
+/// count is bounded by a bound on the count.
 ///
 /// Both bounds are read by one comparison over `pointer | length`, so where the
-/// two values meet at `0xFFFF` is here too: what that comparison still accepts,
-/// and which of the two an overflow is reported as.
+/// two values meet at `LibMemoryKV.POINTER_MASK` is here too: what that
+/// comparison still accepts, and which of the two an overflow is reported as.
 contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// Somewhere low enough that the inserted node's address cannot be what
     /// overflows, and clear of the scratch space and the free memory pointer.
@@ -46,12 +46,12 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
         return (kv, exists, MemoryKVVal.unwrap(value));
     }
 
-    /// `0xFFFE + 2` is `0x10000`, which is one bit wider than the field, and the
-    /// insert reverts carrying `0x10000`.
+    /// `COUNT_MAX - 1 + 2` is `COUNT_MAX + 1`, which is one bit wider than the
+    /// field, and the insert reverts carrying `COUNT_MAX + 1`.
     function testSetRevertsRatherThanWrappingTheWordCountToZero() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10000));
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, COUNT_MAX + 1));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 1),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
@@ -72,15 +72,16 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
         );
     }
 
-    /// The last insert that fits still happens. `0xFFFC + 2` is `0xFFFE`, the
-    /// widest even count the field holds, and it is written whole.
+    /// The last insert that fits still happens. `COUNT_MAX - 3 + 2` is
+    /// `COUNT_MAX - 1`, the widest even count the field holds, and it is written
+    /// whole.
     function testSetAcceptsTheWidestWordCountThatFits() external view {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKV kv = this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFC), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 3), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
-        assertEq(lengthOf(kv), 0xFFFE, "the widest count that fits is written whole");
+        assertEq(lengthOf(kv), COUNT_MAX - 1, "the widest count that fits is written whole");
         assertEq(headOf(kv, key), LOW_FREE_POINTER, "the node is still recorded");
     }
 
@@ -107,7 +108,7 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     function testSetReportsThePointerWhenBothOverflow() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x12345));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 1),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             0x12345
@@ -115,43 +116,45 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     }
 
     /// `MemoryKVLengthOverflow` is documented for a word count pushed "past
-    /// `POINTER_MASK`", so a count of exactly `0xFFFF` still fits and is written
-    /// whole. It is also the widest value the shared comparison accepts,
-    /// reached here with both of its inputs nonzero.
+    /// `POINTER_MASK`", so a count of exactly `COUNT_MAX`, which is that bound,
+    /// still fits and is written whole. It is also the widest value the shared
+    /// comparison accepts, reached here with both of its inputs nonzero.
     function testSetAcceptsAWordCountOfExactlyTheBound() external view {
         MemoryKVKey key = MemoryKVKey.wrap(bytes32(uint256(1)));
         MemoryKV kv = this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFD), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 2), key, MemoryKVVal.wrap(bytes32(uint256(2))), LOW_FREE_POINTER
         );
 
-        assertEq(lengthOf(kv), 0xFFFF, "a count of exactly the bound is written whole");
+        assertEq(lengthOf(kv), COUNT_MAX, "a count of exactly the bound is written whole");
         assertEq(headOf(kv, key), LOW_FREE_POINTER, "the node is still recorded");
     }
 
-    /// `MemoryKVOverflow` is documented for a node "above `POINTER_MASK`", so a
-    /// node landing exactly on `0xFFFF` has not overflowed and an overflowing
-    /// count alongside it is still reported as the count's error.
+    /// `MemoryKVOverflow` is documented for a node "at a pointer above
+    /// `POINTER_MASK`", so a node landing exactly on `LibMemoryKV.POINTER_MASK`
+    /// has not overflowed and an overflowing count alongside it is still
+    /// reported as the count's error.
     function testSetReportsTheCountWhenTheAddressIsTheWidestValidOne() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, 0x10000));
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVLengthOverflow.selector, COUNT_MAX + 1));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 1),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
-            0xFFFF
+            LibMemoryKV.POINTER_MASK
         );
     }
 
-    /// The bound is `0xFFFF`, not the `0x10000` that first crosses it. With the
-    /// node address and the count both at `0x10000` their combined
-    /// `pointer | length` is `0x10000` as well, and the insert reverts
+    /// The bound is `LibMemoryKV.POINTER_MASK`, not the one past it that first
+    /// crosses it. With the node address at `LibMemoryKV.POINTER_MASK + 1` and
+    /// the count at `COUNT_MAX + 1`, the same value, their combined
+    /// `pointer | length` is that value as well, and the insert reverts
     /// `MemoryKVOverflow` carrying the node address.
     function testSetOverflowsWhenBothValuesAreTheFirstInvalidOne() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
+        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, LibMemoryKV.POINTER_MASK + 1));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, 0xFFFE),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX - 1),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
-            0x10000
+            LibMemoryKV.POINTER_MASK + 1
         );
     }
 
@@ -168,10 +171,10 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
 
     /// Every other test here forces the count with `withCount`, which is a
     /// `kv` no `set` produced. This one fills an empty store through `set`
-    /// alone: carrying the count to `0x10000` needs 32768 inserts, and the node
-    /// address runs out first, one pair past `EMPTY_FRAME_PAIRS`, at
-    /// `0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES`, so the fill reverts
-    /// `MemoryKVOverflow`, not `MemoryKVLengthOverflow`.
+    /// alone: carrying the count past `COUNT_MAX` needs `(COUNT_MAX + 1) / 2`
+    /// inserts, and the node address runs out first, one pair past
+    /// `EMPTY_FRAME_PAIRS`, at `0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES`, so the
+    /// fill reverts `MemoryKVOverflow`, not `MemoryKVLengthOverflow`.
     function testWordCountBoundIsUnreachableFromAnEmptyStore() external {
         vm.expectRevert(
             abi.encodeWithSelector(

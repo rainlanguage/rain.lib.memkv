@@ -17,13 +17,10 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 /// a get of the key furthest from its head, against the same with one key fewer
 /// ahead of it.
 contract LibMemoryKVGasClaimsTest is Test {
-    /// `kv` carries one pointer per internal linked list.
-    uint256 internal constant SLOTS = 0x0f;
-
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
-    uint256 internal constant SHALLOW_SLOT = 0x0e;
+    uint256 internal constant SHALLOW_SLOT = LibMemoryKV.LIST_COUNT - 1;
 
     /// How far two equal-depth export paths may differ in gas. The optimizer
     /// picks which arm of each conditional falls through, and a taken jump lands
@@ -34,9 +31,9 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// How many keys the colliding measurements put into one list.
     uint256 internal constant COLLIDERS = 4;
 
-    /// The list the colliding measurements build. Any of the 15 would do: an
-    /// insert into an empty list and a get of a key alone in one cost the same
-    /// in every slot.
+    /// The list the colliding measurements build. Any list would do: an insert
+    /// into an empty list and a get of a key alone in one cost the same in
+    /// every slot.
     uint256 internal constant COLLIDING_SLOT = 3;
 
     /// Expands memory past anything the measurements below allocate, then
@@ -71,19 +68,19 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// the bisect is the same depth to every slot but the shallow one, and
     /// every branch it does not take costs the one test that skips it.
     function testExportGasIsUniformAcrossSlots() public view {
-        MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
+        MemoryKV[] memory kvs = new MemoryKV[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             bytes32 key = MemoryKVKey.unwrap(keyForSlot(bytes32(slot + 1), slot));
             kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
-        uint256[] memory gas = new uint256[](SLOTS);
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
+        uint256[] memory gas = new uint256[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             gas[slot] = bisectGas(kvs[slot]);
         }
 
-        for (uint256 slot = 1; slot < SLOTS; slot++) {
+        for (uint256 slot = 1; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (slot == SHALLOW_SLOT) {
                 assertLt(gas[slot], gas[0], "shallow slot must cost less");
             } else {

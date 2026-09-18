@@ -22,14 +22,11 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    uint256 internal constant LIST_COUNT = 15;
-    uint256 internal constant SLOT_BITS = 0x10;
-    uint256 internal constant NODE_SIZE = 0x60;
-
     /// Where `buildSaturatedExternal` builds its store. It must sit at or above
     /// the free memory pointer after `keys` is decoded, which that function
     /// checks on entry, so no node lands on `keys`. It is low enough that
-    /// fifteen nodes all sit at or under `POINTER_MASK`.
+    /// `LibMemoryKV.LIST_COUNT` nodes all sit at or under
+    /// `LibMemoryKV.POINTER_MASK`.
     uint256 internal constant SATURATED_BASE = 0x300;
 
     /// The free memory pointer on entry to a function in this contract, before
@@ -68,16 +65,16 @@ contract LibMemoryKVCrossFunctionTest is Test {
         this.buildSaturatedExternal(tooMany);
     }
 
-    /// A handle with every one of its sixteen fields in use arrives on the
-    /// other side of an external call bit for bit. It equals the word computed
-    /// here from the word count and the addresses the building frame allocates
-    /// its nodes at.
+    /// A handle with every head pointer slot and the word count in use arrives
+    /// on the other side of an external call bit for bit. It equals the word
+    /// computed here from the word count and the addresses the building frame
+    /// allocates its nodes at.
     function testSaturatedHandleCrossesTheCallBoundaryBitForBit(bytes32 seed) external view {
-        bytes32[] memory keys = new bytes32[](LIST_COUNT);
-        uint256 expected = (LIST_COUNT * 2) << 0xf0;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
+        uint256 expected = (LibMemoryKV.LIST_COUNT * 2) << LibMemoryKV.COUNT_BIT_OFFSET;
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
-            expected |= (SATURATED_BASE + slot * NODE_SIZE) << (slot * SLOT_BITS);
+            expected |= (SATURATED_BASE + slot * LibMemoryKV.NODE_BYTES) << (slot * LibMemoryKV.SLOT_BITS);
         }
 
         MemoryKV kv = this.buildSaturatedExternal(keys);

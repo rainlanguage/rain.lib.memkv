@@ -11,9 +11,10 @@ import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetSlotMaskTest
 /// An insert clears its list's head slot and writes the new head into it, and
-/// the region it clears is EXACTLY the sixteen bits of that slot: the new head
-/// keeps no bit of the old one, neither the slot's low bit nor its high bit,
-/// and the slot above keeps every bit of its own head, its low bit included.
+/// the region it clears is EXACTLY the `LibMemoryKV.SLOT_BITS` bits of that
+/// slot: the new head keeps no bit of the old one, neither the slot's low bit
+/// nor its high bit, and the slot above keeps every bit of its own head, its
+/// low bit included.
 ///
 /// These tests place nodes at addresses `set` accepts but a Solidity allocator
 /// does not choose: an odd one, and an older one with the high bit set under a
@@ -27,12 +28,13 @@ contract LibMemoryKVSetSlotMaskTest is Test, SetAtFreePointer {
     uint256 internal constant ODD_POINTER = 0x101;
 
     /// An even node address clear of the three words at `ODD_POINTER`, with
-    /// the high bit of a slot (`0x8000`) clear.
+    /// the high bit of a slot, `2 ** (LibMemoryKV.SLOT_BITS - 1)`, clear.
     uint256 internal constant EVEN_POINTER = 0x180;
 
-    /// An even node address with the high bit of a slot (`0x8000`) set, clear
-    /// of the three words at `EVEN_POINTER`.
-    uint256 internal constant HIGH_BIT_POINTER = 0x8100;
+    /// An even node address with the high bit of a slot,
+    /// `2 ** (LibMemoryKV.SLOT_BITS - 1)`, set, clear of the three words at
+    /// `EVEN_POINTER`.
+    uint256 internal constant HIGH_BIT_POINTER = 2 ** (LibMemoryKV.SLOT_BITS - 1) + 0x100;
 
     /// Insert `first` at `firstPointer`, then `second` at `secondPointer`, and
     /// read `first` back in the frame that owns both nodes. The nodes die with
@@ -103,15 +105,16 @@ contract LibMemoryKVSetSlotMaskTest is Test, SetAtFreePointer {
         assertEq(uint256(value), 0xA100, "and still carries its value");
     }
 
-    /// One key in list 14 at an odd address, then a key in list 13. Writing
-    /// list 13's head leaves list 14's head whole, its low bit (bit 224 of the
-    /// store) included, so list 14 is still headed at `ODD_POINTER`.
+    /// One key in the highest list, `LibMemoryKV.LIST_COUNT - 1`, at an odd
+    /// address, then a key in the list below it. Writing the lower list's head
+    /// leaves the highest list's head whole, its low bit (bit
+    /// `(LibMemoryKV.LIST_COUNT - 1) * LibMemoryKV.SLOT_BITS` of the store)
+    /// included, so the highest list is still headed at `ODD_POINTER`.
     ///
-    /// List 14 is the highest there is, so its head sits directly under the
-    /// word count.
+    /// The highest list's head sits directly under the word count.
     function testInsertLeavesTheNeighbouringSlotsLowBit() external view {
-        MemoryKVKey high = keyForSlot(bytes32(uint256(1)), 14);
-        MemoryKVKey low = keyForSlot(bytes32(uint256(1)), 13);
+        MemoryKVKey high = keyForSlot(bytes32(uint256(1)), LibMemoryKV.LIST_COUNT - 1);
+        MemoryKVKey low = keyForSlot(bytes32(uint256(1)), LibMemoryKV.LIST_COUNT - 2);
 
         (MemoryKV kv, uint256 exists, bytes32 value) = this.insertAtTwoPointersExternal(
             high,
@@ -122,10 +125,12 @@ contract LibMemoryKVSetSlotMaskTest is Test, SetAtFreePointer {
             EVEN_POINTER
         );
 
-        assertEq(headOf(kv, 14), ODD_POINTER, "list 14 keeps the whole address it was given");
-        assertEq(headOf(kv, 13), EVEN_POINTER, "list 13 heads its own node");
+        assertEq(
+            headOf(kv, LibMemoryKV.LIST_COUNT - 1), ODD_POINTER, "the highest list keeps the whole address it was given"
+        );
+        assertEq(headOf(kv, LibMemoryKV.LIST_COUNT - 2), EVEN_POINTER, "the list below it heads its own node");
         assertEq(lengthOf(kv), 4, "two pairs is four words");
-        assertEq(exists, 1, "the key in list 14 is still reachable");
+        assertEq(exists, 1, "the key in the highest list is still reachable");
         assertEq(uint256(value), 0xA100, "and still carries its value");
     }
 }

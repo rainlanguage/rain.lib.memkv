@@ -18,14 +18,14 @@ import {setFreePointer, raiseFreePointerTo} from "test/lib/LibFreeMemory.sol";
 ///
 /// The two halves are not mirror images, and the root split is the reason. The
 /// low half is eight leaves under four interior nodes, routing slots 0..7 out
-/// of `and(mask128, kv)`. The high half is seven, because the 16 bit length
-/// field occupies the lane an eighth leaf would need: `shr(0x90, shl(0x10, kv))`
-/// shifts the length out first, so `p0` lane j is slot 8+j for j in 0..6 and
-/// lane 7 is structurally zero. The tree then collapses the node that would
-/// have covered that zero lane — slot 14 is reached by `shr(0x20, p00)` with no
-/// `and(mask16, ...)` scrub, where the mirroring leaf of the low half has one.
-/// That leaf reads slot 14 alone because the root split has already zeroed the
-/// length.
+/// of `and(mask128, kv)`. The high half is seven, because the length field,
+/// `LibMemoryKV.SLOT_BITS` wide, occupies the lane an eighth leaf would need:
+/// `shr(0x90, shl(0x10, kv))` shifts the length out first, so `p0` lane j is
+/// slot 8+j for j in 0..6 and lane 7 is structurally zero. The tree then
+/// collapses the node that would have covered that zero lane — slot 14 is
+/// reached by `shr(0x20, p00)` with no `and(mask16, ...)` scrub, where the
+/// mirroring leaf of the low half has one. That leaf reads slot 14 alone
+/// because the root split has already zeroed the length.
 ///
 /// The named tests each occupy one known slot, or one known pair, or one known
 /// boundary, and the test name says which.
@@ -33,8 +33,8 @@ import {setFreePointer, raiseFreePointerTo} from "test/lib/LibFreeMemory.sol";
 /// The enumerations run every combination of which slots are occupied. That is
 /// the tree's whole input: each of its twenty eight guards tests a window of
 /// `kv` against zero, and nothing it does branches on what a key or a value is.
-/// Fifteen slots is 32768 combinations, so the enumerations cover the named
-/// cases too, and nothing is sampled.
+/// `LibMemoryKV.LIST_COUNT` slots is `OCCUPANCY_COMBINATIONS` combinations, so
+/// the enumerations cover the named cases too, and nothing is sampled.
 ///
 /// `slotKeys` is one constant key per slot, so every test here chooses its
 /// occupancy and none takes a fuzz input.
@@ -54,14 +54,15 @@ contract LibMemoryKVBisectTest is Test {
     uint256 internal constant OCCUPANCY_LOW_HALF = 0x00FF;
 
     /// Slots 8..14, the half the root split shifts the length out of.
-    uint256 internal constant OCCUPANCY_HIGH_HALF = 0x7F00;
+    uint256 internal constant OCCUPANCY_HIGH_HALF = OCCUPANCY_FULL ^ OCCUPANCY_LOW_HALF;
 
     /// The top bit of a head pointer slot. A pointer is valid all the way to
     /// `LibMemoryKV.POINTER_MASK`, so every mask and shift on the way down the
     /// tree must carry this bit.
     uint256 internal constant POINTER_HIGH_BIT = 2 ** (LibMemoryKV.SLOT_BITS - 1);
 
-    /// Stands for "no mask", which a 15 bit mask cannot collide with.
+    /// Stands for "no mask", which a `LibMemoryKV.LIST_COUNT` bit mask cannot
+    /// collide with.
     uint256 internal constant NO_MASK = type(uint256).max;
 
     /// Values sit above every key, so no value word equals a key word. A value
@@ -184,9 +185,9 @@ contract LibMemoryKVBisectTest is Test {
     }
 
     /// The store `mask` names, with every pointer in it at or above
-    /// `POINTER_HIGH_BIT`. A 16 bit pointer is valid all the way to
+    /// `POINTER_HIGH_BIT`. A pointer is valid all the way to
     /// `LibMemoryKV.POINTER_MASK`, so every mask and shift on the way down must
-    /// carry bit 15.
+    /// carry that bit.
     function checkNamedOccupancyFromHighPointers(uint256 mask) internal pure {
         raiseFreePointerTo(POINTER_HIGH_BIT);
 
@@ -195,7 +196,7 @@ contract LibMemoryKVBisectTest is Test {
         assertEq(occupancyOf(kv), mask, "exactly the named slots are populated");
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (occupies(mask, slot)) {
-                assertGe(headOf(kv, slot), POINTER_HIGH_BIT, "pointer must have bit 15 set");
+                assertGe(headOf(kv, slot), POINTER_HIGH_BIT, "pointer must have POINTER_HIGH_BIT set");
             }
         }
         checkExportedPairs(kv, mask, keys);
@@ -271,8 +272,8 @@ contract LibMemoryKVBisectTest is Test {
     }
 
     /// Slot 14 is the leaf the collapsed path reaches. Alone in the store its
-    /// 16 bits are the only nonzero bits of `p00`, and the export reaches its
-    /// node through them.
+    /// `LibMemoryKV.SLOT_BITS` bits are the only nonzero bits of `p00`, and the
+    /// export reaches its node through them.
     function testHighSlot14SoleExport() public pure {
         checkSoleSlot(14);
     }
@@ -340,7 +341,8 @@ contract LibMemoryKVBisectTest is Test {
         checkNamedOccupancy(OCCUPANCY_HIGH_HALF);
     }
 
-    /// Every slot of one half again, holding pointers with bit 15 set.
+    /// Every slot of one half again, holding pointers with
+    /// `POINTER_HIGH_BIT` set.
     function testAllLowSlotsHighPointerExport() public pure {
         checkNamedOccupancyFromHighPointers(OCCUPANCY_LOW_HALF);
     }
@@ -349,8 +351,8 @@ contract LibMemoryKVBisectTest is Test {
         checkNamedOccupancyFromHighPointers(OCCUPANCY_HIGH_HALF);
     }
 
-    /// All fifteen slots at once. The two halves must be disjoint and must
-    /// between them reach every slot, so every pair appears exactly once.
+    /// Every slot at once. The two halves must be disjoint and must between
+    /// them reach every slot, so every pair appears exactly once.
     function testEverySlotExportedExactlyOnce() public pure {
         checkNamedOccupancy(OCCUPANCY_FULL);
     }
@@ -389,11 +391,11 @@ contract LibMemoryKVBisectTest is Test {
         return found == mask;
     }
 
-    /// Exports all 32768 occupancy combinations and checks each against the
-    /// pairs that combination must produce. The check is plain arithmetic and
-    /// the first mask that fails it is carried out of the loop, so the assertion
-    /// machinery runs once and the mask that failed is what the assertion
-    /// reports.
+    /// Exports all `OCCUPANCY_COMBINATIONS` occupancy combinations and checks
+    /// each against the pairs that combination must produce. The check is plain
+    /// arithmetic and the first mask that fails it is carried out of the loop,
+    /// so the assertion machinery runs once and the mask that failed is what the
+    /// assertion reports.
     ///
     /// Every case is built from one free memory pointer, `free`, taken after
     /// `slotKeys` has allocated, so every node of every case lies in
@@ -428,15 +430,15 @@ contract LibMemoryKVBisectTest is Test {
     /// chain key into slot 0. Every test in this file reads its result through
     /// the slot each key claims.
     ///
-    /// Occupying all fifteen at once populates fifteen distinct slots. `set`
-    /// routes on the key alone, so that plus one key per slot is every
-    /// occupancy.
+    /// Occupying all of them at once populates `LibMemoryKV.LIST_COUNT`
+    /// distinct slots. `set` routes on the key alone, so that plus one key per
+    /// slot is every occupancy.
     function testKeyConstantsLandWhereClaimed() public pure {
         bytes32[] memory keys = slotKeys();
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             assertEq(slotOf(keys[slot]), slot, "slot key hashes into its slot");
         }
-        assertEq(occupancyOf(storeForOccupancy(OCCUPANCY_FULL, keys)), OCCUPANCY_FULL, "fifteen keys, fifteen slots");
+        assertEq(occupancyOf(storeForOccupancy(OCCUPANCY_FULL, keys)), OCCUPANCY_FULL, "every key in a slot of its own");
 
         bytes32[12] memory chainKeys = slot0ChainKeys();
         for (uint256 i = 0; i < chainKeys.length; i++) {
