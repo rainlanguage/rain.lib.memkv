@@ -44,7 +44,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     uint256 internal constant BISECT_SAVING_PARTIAL = 1100;
 
     /// The export's saving over the linear walk with every list occupied.
-    uint256 internal constant BISECT_SAVING_FULL = 60;
+    uint256 internal constant BISECT_SAVING_FULL = 80;
 
     /// A get of a key alone in its list.
     uint256 internal constant README_SOLO_GET_GAS = 240;
