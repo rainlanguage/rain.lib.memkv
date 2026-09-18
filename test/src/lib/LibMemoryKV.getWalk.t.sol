@@ -8,7 +8,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
-import {occupiedSlots, craftNode, handleWith, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {craftNode, handleWith, lengthOf, occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVGetWalkTest
 /// `get` walks one internal list and stops at the FIRST node whose key matches.
@@ -23,8 +23,8 @@ contract LibMemoryKVGetWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// Builds one internal list holding `key` twice: a head node carrying
-    /// `first` and a tail node carrying `second`. The list is hung off the slot
-    /// `key` hashes to, so `get` and `set` both walk it for that key.
+    /// `first` and a tail node carrying `second`. It is the list `key`
+    /// hashes to, so `get` and `set` both walk it for that key.
     function craftDuplicateKeyList(MemoryKVKey key, MemoryKVVal first, MemoryKVVal second)
         internal
         pure
@@ -32,7 +32,7 @@ contract LibMemoryKVGetWalkTest is Test {
     {
         tail = craftNode(key, second, 0);
         head = craftNode(key, first, tail);
-        // Two pairs, and the head of the list in the slot for this key.
+        // Two pairs, and the head of the list for this key.
         kv = handleWith(slotOf(MemoryKVKey.unwrap(key)), head, 4);
     }
 

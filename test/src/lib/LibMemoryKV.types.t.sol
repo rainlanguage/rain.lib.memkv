@@ -9,12 +9,13 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {collidingPairDifferingInBit, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
-import {COUNT_MAX, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVTypesTest
-/// The store's declarations: the one word an empty store is, the layout that
-/// packs the head pointers and the word count into a word, and the full width
-/// of the key and value a store carries.
+/// The store's declarations: the one word an empty store is, the layout of
+/// the header a non-empty store points at, its heads followed by the meta word
+/// that carries the occupancy mask and the word count, and the full width of
+/// the key and value a store carries.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -48,35 +49,27 @@ contract LibMemoryKVTypesTest is Test {
         assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY), 0);
     }
 
-    /// The library's layout constants tile the word: the head pointer slots
-    /// fill the bits below the count, the count is the one slot above them, and
-    /// `LibMemoryKV.POINTER_MASK`, the widest head pointer, and `COUNT_MAX`, the
-    /// widest count, are each exactly one slot wide.
-    function testLayoutConstantsTileTheWord() external pure {
-        assertEq(
-            LibMemoryKV.COUNT_BIT_OFFSET,
-            LibMemoryKV.LIST_COUNT * LibMemoryKV.SLOT_BITS,
-            "the count sits directly above the last list"
-        );
-        assertEq(LibMemoryKV.COUNT_BIT_OFFSET + LibMemoryKV.SLOT_BITS, 256, "the count is the top slot of the word");
-        assertEq(LibMemoryKV.POINTER_MASK, 2 ** LibMemoryKV.SLOT_BITS - 1, "a pointer is one slot wide");
-        assertEq(COUNT_MAX, LibMemoryKV.POINTER_MASK, "the count is one slot wide");
+    /// The library's layout constants tile the header: one head word per list,
+    /// then the meta word directly after the last head, which ends the header.
+    /// In the meta word the occupancy mask is the low `LIST_COUNT` bits, one per
+    /// list, and the count starts one bit above the mask.
+    function testLayoutConstantsTileTheHeader() external pure {
+        assertEq(LibMemoryKV.META_OFFSET, LibMemoryKV.LIST_COUNT * 0x20, "the meta word follows the last head");
+        assertEq(LibMemoryKV.HEADER_BYTES, LibMemoryKV.META_OFFSET + 0x20, "the meta word ends the header");
+        assertEq(LibMemoryKV.OCCUPANCY_MASK, 2 ** LibMemoryKV.LIST_COUNT - 1, "the mask is the low LIST_COUNT bits");
+        assertEq(LibMemoryKV.COUNT_BIT_OFFSET, LibMemoryKV.LIST_COUNT + 1, "the count starts one bit above the mask");
     }
 
-    /// With every internal list holding one pair, the count and the head
-    /// pointers tile the word as the layout states: the slot at
-    /// `COUNT_BIT_OFFSET` counts two words per pair, and the slot at
-    /// `slot * SLOT_BITS` points at the node holding the key that belongs to
-    /// list `slot`, with that key's value after it.
-    function testCountAndHeadPointersTileTheWord() external pure {
+    /// With every internal list holding one pair, head `slot` of the header
+    /// points at the node holding the key that belongs to list `slot`, with
+    /// that key's value after it.
+    function testEachHeadPointsAtItsListsNode() external pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
         MemoryKVKey[] memory keys = new MemoryKVKey[](LibMemoryKV.LIST_COUNT);
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = keyForSlot(bytes32(slot), slot);
             kv = kv.set(keys[slot], MemoryKVVal.wrap(bytes32(slot + 1)));
         }
-
-        assertEq(lengthOf(kv), LibMemoryKV.LIST_COUNT * 2, "the count is two words per pair");
 
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             string memory name = string.concat("slot ", vm.toString(slot));

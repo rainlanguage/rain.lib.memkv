@@ -22,12 +22,6 @@ contract LibMemoryKVStorageParityTest is Test {
         uint256 distinct;
     }
 
-    /// How many pairs each store in `testTwoLiveStoresEachMatchTheirOwnStorage`
-    /// takes from its fuzzed array. Both decoded arrays sit in memory below the
-    /// first node, a pointer word and two struct words per pair, and with ten
-    /// pairs per store every node sits below `POINTER_MASK`.
-    uint256 internal constant PAIRS_PER_STORE = 10;
-
     //forge-lint: disable-next-line(mixed-case-variable)
     mapping(bytes32 => bytes32) public sStorageKV;
 
@@ -44,17 +38,14 @@ contract LibMemoryKVStorageParityTest is Test {
         return kv.set(MemoryKVKey.wrap(pair.key), MemoryKVVal.wrap(pair.value));
     }
 
-    /// `kv` holds what `store` holds, `pairs[0:end]` having been set in both:
-    /// every key set reads back through `get` with the value storage holds for
-    /// it, is exported exactly once with that value, and the export holds two
-    /// words per distinct key, so nothing else.
-    function assertMatchesStorage(MemoryKV kv, StorageStore storage store, KV[] memory pairs, uint256 end)
-        internal
-        view
-    {
+    /// `kv` holds what `store` holds, every pair of `pairs` having been set in
+    /// both: every key set reads back through `get` with the value storage
+    /// holds for it, is exported exactly once with that value, and the export
+    /// holds two words per distinct key, so nothing else.
+    function assertMatchesStorage(MemoryKV kv, StorageStore storage store, KV[] memory pairs) internal view {
         bytes32[] memory exported = kv.toBytes32Array();
         assertEq(exported.length, store.distinct * 2, "export holds every distinct key once");
-        for (uint256 i = 0; i < end; i++) {
+        for (uint256 i = 0; i < pairs.length; i++) {
             bytes32 key = pairs[i].key;
             bytes32 value = store.values[key];
             (uint256 exists, MemoryKVVal got) = kv.get(MemoryKVKey.wrap(key));
@@ -92,27 +83,24 @@ contract LibMemoryKVStorageParityTest is Test {
         for (uint256 i = 0; i < kvs.length; i++) {
             kv = setBoth(kv, sStoreOne, kvs[i]);
         }
-        assertMatchesStorage(kv, sStoreOne, kvs, kvs.length);
+        assertMatchesStorage(kv, sStoreOne, kvs);
     }
 
     /// Two stores built in one frame behave as two storage mappings: each holds
     /// what its own storage holds, the first checked only once the second is
     /// built, so building one disturbs nothing the other answers or exports.
     function testTwoLiveStoresEachMatchTheirOwnStorage(KV[] memory kvsOne, KV[] memory kvsTwo) external {
-        uint256 endOne = kvsOne.length > PAIRS_PER_STORE ? PAIRS_PER_STORE : kvsOne.length;
-        uint256 endTwo = kvsTwo.length > PAIRS_PER_STORE ? PAIRS_PER_STORE : kvsTwo.length;
-
         MemoryKV kvOne = MEMORY_KV_EMPTY;
-        for (uint256 i = 0; i < endOne; i++) {
+        for (uint256 i = 0; i < kvsOne.length; i++) {
             kvOne = setBoth(kvOne, sStoreOne, kvsOne[i]);
         }
 
         MemoryKV kvTwo = MEMORY_KV_EMPTY;
-        for (uint256 i = 0; i < endTwo; i++) {
+        for (uint256 i = 0; i < kvsTwo.length; i++) {
             kvTwo = setBoth(kvTwo, sStoreTwo, kvsTwo[i]);
         }
 
-        assertMatchesStorage(kvOne, sStoreOne, kvsOne, endOne);
-        assertMatchesStorage(kvTwo, sStoreTwo, kvsTwo, endTwo);
+        assertMatchesStorage(kvOne, sStoreOne, kvsOne);
+        assertMatchesStorage(kvTwo, sStoreTwo, kvsTwo);
     }
 }

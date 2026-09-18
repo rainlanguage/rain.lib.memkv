@@ -8,7 +8,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {occupiedSlots, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
@@ -41,10 +41,10 @@ contract LibMemoryKVExportAllocTest is Test {
         return count;
     }
 
-    /// An empty store exports an empty array and allocates the length header
-    /// and nothing else: exactly 0x20 bytes. The zero length is WRITTEN: the
-    /// header word is dirtied first and the length reads back as zero.
-    function testExportEmptyAllocatesOnlyTheHeader() external pure {
+    /// An empty store exports an empty array and allocates the length word and
+    /// nothing else: exactly 0x20 bytes. The zero length is WRITTEN: the length
+    /// word is dirtied first and the length reads back as zero.
+    function testExportEmptyAllocatesOnlyTheLengthWord() external pure {
         dirtyFreeMemory(bytes32(type(uint256).max), 1);
 
         Pointer before = LibPointer.allocatedMemoryPointer();
@@ -75,8 +75,8 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// The array is allocated AT the free memory pointer and the allocation is
-    /// exactly the header plus two words per distinct key.
-    function testExportAllocatesExactlyHeaderPlusTwoWordsPerPair(bytes32[] memory kvs) external pure {
+    /// exactly the length word plus two words per distinct key.
+    function testExportAllocatesExactlyLengthWordPlusTwoWordsPerPair(bytes32[] memory kvs) external pure {
         vm.assume(kvs.length < 40);
         vm.assume(kvs.length % 2 == 0);
 
@@ -116,6 +116,61 @@ contract LibMemoryKVExportAllocTest is Test {
         for (uint256 i = 0; i < live.length; i++) {
             assertEq(live[i], fill, "live memory survived the export");
         }
+    }
+
+    /// The array is allocated AT the free memory pointer wherever it points,
+    /// including 1 to 31 bytes past a word boundary, and the live bytes below
+    /// it keep what they held. The live allocation is one word and `tail`
+    /// bytes, all copied from `live`, so the free memory pointer ends inside
+    /// the word after it.
+    function testExportAllocatesAtAnUnalignedFreePointer(bytes32 key, bytes32 value, bytes32 live, uint256 tail)
+        external
+        pure
+    {
+        tail = bound(tail, 1, 31);
+        MemoryKV kv = MEMORY_KV_EMPTY.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
+
+        Pointer start = LibPointer.allocatedMemoryPointer();
+        Pointer tailWord = LibPointer.unsafeAddWord(start);
+        LibPointer.unsafeWriteWord(start, live);
+        LibPointer.unsafeWriteWord(tailWord, live);
+        Pointer free = LibPointer.unsafeAddBytes(tailWord, tail);
+        setFreePointer(Pointer.unwrap(free));
+
+        bytes32[] memory array = kv.toBytes32Array();
+
+        // The first `tail` bytes of the tail word are live; the rest of it is
+        // the array's.
+        bytes32 liveTailMask = ~(bytes32(type(uint256).max) >> (tail * 8));
+        assertEq(
+            Pointer.unwrap(LibBytes32Array.startPointer(array)),
+            Pointer.unwrap(free),
+            "the export is at the unaligned free memory pointer"
+        );
+        assertEq(LibPointer.unsafeReadWord(start), live, "the live word is untouched");
+        assertEq(
+            LibPointer.unsafeReadWord(tailWord) & liveTailMask, live & liveTailMask, "the live tail bytes are untouched"
+        );
+        assertEq(array.length, 2, "one pair");
+        assertEq(array[0], key, "key");
+        assertEq(array[1], value, "value");
+    }
+
+    /// `abi.encodePacked` need not leave the free memory pointer at a word
+    /// boundary. An export allocated after a packed `bytes` leaves every one
+    /// of its bytes and its length alone.
+    function testExportAfterEncodePackedLeavesTheBytesAlone(bytes32 key, bytes32 value) external pure {
+        MemoryKV kv = MEMORY_KV_EMPTY.set(MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
+        bytes memory packed = abi.encodePacked(uint8(0xAA), uint8(0xBB), uint8(0xCC));
+        bytes32 before = keccak256(packed);
+
+        bytes32[] memory array = kv.toBytes32Array();
+
+        assertEq(keccak256(packed), before, "the packed bytes survive the export");
+        assertEq(packed.length, 3, "the packed length survives the export");
+        assertEq(array.length, 2, "one pair");
+        assertEq(array[0], key, "key");
+        assertEq(array[1], value, "value");
     }
 
     /// Every word `toBytes32Array` allocates is written: with the free memory
@@ -226,7 +281,7 @@ contract LibMemoryKVExportAllocTest is Test {
 
     /// A single internal list holding several nodes is walked to its end and
     /// every pair on it lands in the array, adjacent and in one piece. This is
-    /// the multi-step walk: the chain, not the bisect.
+    /// the multi-step walk: the chain, not the occupancy mask.
     function testExportWalksOneListToTheEnd(bytes32 seed, uint256 slot) external pure {
         slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
 
@@ -237,7 +292,7 @@ contract LibMemoryKVExportAllocTest is Test {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
-        // Exactly one slot of the kv is populated: everything is on one list.
+        // Exactly one list of the store is headed: everything is on one list.
         assertEq(occupiedSlots(kv), 1, "one list");
 
         bytes32[] memory array = kv.toBytes32Array();

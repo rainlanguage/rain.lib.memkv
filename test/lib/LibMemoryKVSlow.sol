@@ -5,13 +5,14 @@ pragma solidity ^0.8.25;
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV} from "src/lib/LibMemoryKV.sol";
+import {headAddressOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSlow
 /// Independent reference implementations that `LibMemoryKV` is tested against.
 /// `exists`, `get` and `set` keep the store as a flat `bytes32[]` of pairs, each
 /// key at an even index and its value in the word after it, linear in the
 /// number of pairs and in no canonical order. `toBytes32ArrayLinear` exports a
-/// `MemoryKV` without the bisect.
+/// `MemoryKV` without the occupancy mask.
 library LibMemoryKVSlow {
     /// Finds `key` in `pairs`.
     /// @param pairs Pairwise key/value array.
@@ -63,47 +64,35 @@ library LibMemoryKVSlow {
         }
     }
 
-    /// `LibMemoryKV.toBytes32Array` with the bisect replaced by a walk over
-    /// every head pointer slot in order. This is the linear loop the
-    /// `toBytes32Array` NatSpec measures its bisect saving against, so it MUST
-    /// stay a plain walk over every slot. Like the fast path, it sizes the
-    /// array from the word count in `kv`, fills it by walking every list, and
-    /// leaves the free memory pointer past every word written. It exports the
-    /// same pairs as `toBytes32Array`; the pair order is not guaranteed to
-    /// match.
+    /// `LibMemoryKV.toBytes32Array` with the occupancy mask walk replaced by a
+    /// walk over every head in the header, list 0 first. This is the linear
+    /// loop the mask walk is measured against, so it MUST stay a plain walk
+    /// over every head, copying each list with the same inner loop as the
+    /// mask walk. Like the fast path, it sizes the array from the word
+    /// count in the meta word, fills it by walking every list, and leaves the
+    /// free memory pointer past every word written. It exports the same pairs
+    /// as `toBytes32Array`; the pair order is not guaranteed to match.
     /// @param kv The entrypoint into the key/value store.
     /// @return array Every key and value in `kv`, copied pairwise.
     function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory array) {
-        // Inline assembly cannot name `LibMemoryKV`'s constants, so the layout
-        // comes in as locals.
-        uint256 countBitOffset = LibMemoryKV.COUNT_BIT_OFFSET;
-        uint256 slotBits = LibMemoryKV.SLOT_BITS;
-        uint256 pointerMask = LibMemoryKV.POINTER_MASK;
+        uint256 length = lengthOf(kv);
+        // The heads are consecutive words from the first head to the address
+        // one past the last. The empty store has no header, so no heads.
+        uint256 head = headAddressOf(kv, 0);
+        uint256 headsEnd = MemoryKV.unwrap(kv) == 0 ? head : headAddressOf(kv, LibMemoryKV.LIST_COUNT);
         assembly ("memory-safe") {
             array := mload(0x40)
-            let length := shr(countBitOffset, kv)
             mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
             mstore(array, length)
 
-            function copyFromPtr(cursor, pointer) -> end {
-                for {} iszero(iszero(pointer)) {
-                    pointer := mload(add(pointer, 0x40))
-                    cursor := add(cursor, 0x40)
-                } {
+            let cursor := add(array, 0x20)
+            for {} lt(head, headsEnd) { head := add(head, 0x20) } {
+                for { let pointer := mload(head) } pointer { pointer := mload(add(pointer, 0x40)) } {
                     mstore(cursor, mload(pointer))
                     mstore(add(cursor, 0x20), mload(add(pointer, 0x20)))
+                    cursor := add(cursor, 0x40)
                 }
-                end := cursor
             }
-
-            let cursor := add(array, 0x20)
-            for {
-                let bitOffset := 0
-                let pointer := and(kv, pointerMask)
-            } lt(bitOffset, countBitOffset) {
-                bitOffset := add(bitOffset, slotBits)
-                pointer := and(shr(bitOffset, kv), pointerMask)
-            } { cursor := copyFromPtr(cursor, pointer) }
         }
     }
 }

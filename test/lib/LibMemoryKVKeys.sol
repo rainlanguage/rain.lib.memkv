@@ -21,8 +21,8 @@ function keyFor(uint256 word) pure returns (MemoryKVKey) {
 }
 
 /// `keccak256` of the one word `word`, hashed from scratch space so the free
-/// memory pointer does not move; callers rely on that when they need node
-/// addresses to stay at or under `LibMemoryKV.POINTER_MASK`.
+/// memory pointer does not move; callers rely on that when they need the next
+/// allocation at the address they put the pointer at.
 function hashWord(bytes32 word) pure returns (bytes32 hashed) {
     assembly ("memory-safe") {
         mstore(0, word)

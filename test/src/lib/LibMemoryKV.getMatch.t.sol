@@ -25,10 +25,10 @@ contract LibMemoryKVGetMatchTest is Test {
     function craftNodeInSlotOf(MemoryKVKey queryKey, MemoryKVKey nodeKey, MemoryKVVal value)
         internal
         pure
-        returns (MemoryKV, uint256)
+        returns (MemoryKV kv, uint256 node)
     {
-        uint256 node = craftNode(nodeKey, value, 0);
-        return (handleWith(slotOf(MemoryKVKey.unwrap(queryKey)), node, 2), node);
+        node = craftNode(nodeKey, value, 0);
+        kv = handleWith(slotOf(MemoryKVKey.unwrap(queryKey)), node, 2);
     }
 
     /// Overwrite the key word of a crafted node, leaving its value and next

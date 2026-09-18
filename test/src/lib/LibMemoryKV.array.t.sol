@@ -153,7 +153,7 @@ contract LibMemoryKVArrayTest is Test {
         assertEq(array.length, arrayLinear.length);
 
         // The linear walk visits each list exactly once, and every pair it
-        // exports is counted on its own in the bisect's export: exactly once.
+        // exports is counted on its own in `array`: exactly once.
         for (uint256 i = 0; i < arrayLinear.length; i += 2) {
             assertEq(countPair(array, arrayLinear[i], arrayLinear[i + 1]), 1, "each pair exported exactly once");
         }
