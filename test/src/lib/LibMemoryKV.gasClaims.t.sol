@@ -14,13 +14,10 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 /// the skip guards that produce the saving are invisible to a test that only
 /// reads the exported pairs.
 contract LibMemoryKVGasClaimsTest is Test {
-    /// `kv` carries one pointer per internal linked list.
-    uint256 constant SLOTS = 0x0f;
-
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
-    uint256 constant SHALLOW_SLOT = 0x0e;
+    uint256 constant SHALLOW_SLOT = LibMemoryKV.LIST_COUNT - 1;
 
     /// How far two equal-depth export paths may differ in gas. The optimizer
     /// picks which arm of each conditional falls through, and a taken jump lands
@@ -52,9 +49,9 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// names the fourth.
     uint256 constant COLLIDERS = 4;
 
-    /// The list the colliding measurements build. Any of the 15 would do: an
-    /// insert into an empty list and a get of a key alone in one cost the same
-    /// in every slot.
+    /// The list the colliding measurements build. Any list would do: an insert
+    /// into an empty list and a get of a key alone in one cost the same in
+    /// every slot.
     uint256 constant COLLIDING_SLOT = 3;
 
     /// What the README's `~` is read as here.
@@ -111,19 +108,19 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// `BRANCH_LAYOUT_GAS`, which shows up here as a slot that no longer matches
     /// its peers.
     function testExportGasIsUniformAcrossSlots() public view {
-        MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
+        MemoryKV[] memory kvs = new MemoryKV[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             bytes32 key = MemoryKVKey.unwrap(keyForSlot(bytes32(slot + 1), slot));
             kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
-        uint256[] memory gas = new uint256[](SLOTS);
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
+        uint256[] memory gas = new uint256[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             gas[slot] = bisectGas(kvs[slot]);
         }
 
-        for (uint256 slot = 1; slot < SLOTS; slot++) {
+        for (uint256 slot = 1; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (slot == SHALLOW_SLOT) {
                 assertLt(gas[slot], gas[0], "shallow slot must cost less");
             } else {
@@ -133,7 +130,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     }
 
     /// The naive linear loop the NatSpec measures the saving against is
-    /// `toBytes32ArrayLinear`, which visits all 15 slots and produces the same
+    /// `toBytes32ArrayLinear`, which visits every list and produces the same
     /// pairs. Measuring the linear walk first leaves the bisect allocating higher
     /// in memory, so the saving asserted here is the pessimistic one.
     function testExportGasBeatsLinearWalk() public view {

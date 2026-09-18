@@ -7,17 +7,16 @@ import {Test} from "forge-std-1.16.2/src/Test.sol";
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {collidingPairDifferingInBit} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {COUNT_MAX, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an
-/// empty store is, and the full width of the key and value it carries. Every
-/// other test reads these three calls downstream, where a wrong empty store
-/// arrives as a wrong export or a wrong walk. Here they are the word itself.
+/// empty store is, the layout that packs the head pointers and the word count
+/// into a word, and the full width of the key and value a store carries. Every
+/// other test reads these downstream, where a wrong one arrives as a wrong
+/// export or a wrong walk. Here they are checked on the word itself.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    /// One head pointer per internal linked list.
-    uint256 internal constant SLOTS = 15;
 
     /// The bit a key keeps that no random fuzz pair differs in alone.
     uint256 internal constant TOP_BIT = 0xff;
@@ -28,7 +27,7 @@ contract LibMemoryKVTypesTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY.set(low, MemoryKVVal.wrap(bytes32(uint256(0xA))));
         kv = kv.set(high, MemoryKVVal.wrap(bytes32(uint256(0xB))));
 
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "two pairs counted");
+        assertEq(lengthOf(kv), 4, "two pairs counted");
 
         (uint256 lowExists, MemoryKVVal lowValue) = kv.get(low);
         assertEq(lowExists, 1, "low key exists");
@@ -49,23 +48,35 @@ contract LibMemoryKVTypesTest is Test {
         assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY), 0);
     }
 
-    /// The word count is the top 16 bits of the store, and an empty store has
-    /// counted nothing.
-    function testEmptyStoreHasNoWordCount() external pure {
-        assertEq(MemoryKV.unwrap(MEMORY_KV_EMPTY) >> 0xf0, 0);
+    /// The library's layout constants tile the word: the head pointer slots
+    /// fill the bits below the count, the count is the one slot above them, and
+    /// `LibMemoryKV.POINTER_MASK`, the widest head pointer, and `COUNT_MAX`, the
+    /// widest count, are each exactly one slot wide.
+    function testLayoutConstantsTileTheWord() external pure {
+        assertEq(
+            LibMemoryKV.COUNT_BIT_OFFSET,
+            LibMemoryKV.LIST_COUNT * LibMemoryKV.SLOT_BITS,
+            "the count sits directly above the last list"
+        );
+        assertEq(LibMemoryKV.COUNT_BIT_OFFSET + LibMemoryKV.SLOT_BITS, 256, "the count is the top slot of the word");
+        assertEq(LibMemoryKV.POINTER_MASK, 2 ** LibMemoryKV.SLOT_BITS - 1, "a pointer is one slot wide");
+        assertEq(COUNT_MAX, LibMemoryKV.POINTER_MASK, "the count is one slot wide");
     }
 
-    /// The 15 head pointers are the 240 bits below the count, 16 bits each, and
-    /// every one of them is empty. Slot 14 is the one that abuts the count, so
-    /// a count wider than 16 bits would read here as a pointer that is not
-    /// there.
+    /// The word count is the slot at `LibMemoryKV.COUNT_BIT_OFFSET`, the top of
+    /// the store, and an empty store has counted nothing.
+    function testEmptyStoreHasNoWordCount() external pure {
+        assertEq(lengthOf(MEMORY_KV_EMPTY), 0);
+    }
+
+    /// The `LibMemoryKV.LIST_COUNT` head pointers are the slots below the
+    /// count, `LibMemoryKV.SLOT_BITS` bits each, and every one of them is
+    /// empty. Slot `LibMemoryKV.LIST_COUNT - 1` is the one that abuts the
+    /// count, so a count wider than `LibMemoryKV.SLOT_BITS` would read here as a
+    /// pointer that is not there.
     function testEmptyStoreHasNoHeadPointerInAnySlot() external pure {
-        for (uint256 slot = 0; slot < SLOTS; slot++) {
-            assertEq(
-                (MemoryKV.unwrap(MEMORY_KV_EMPTY) >> (slot * 0x10)) & 0xFFFF,
-                0,
-                string.concat("slot ", vm.toString(slot))
-            );
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+            assertEq(headOf(MEMORY_KV_EMPTY, slot), 0, string.concat("slot ", vm.toString(slot)));
         }
     }
 

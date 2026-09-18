@@ -13,24 +13,24 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
 /// terminator. `MemoryKVOverflow` bounds the HEAD pointer of a list at
-/// `0xFFFF` and nothing else, because "the node's three words MAY extend above
-/// `0xFFFF`, as every field is reached by full width arithmetic from the head".
-/// A head near the bound therefore keeps its next word above it, and the
-/// export reads that word there at full width, exactly as `get` does, to reach
-/// the pairs behind that node.
+/// `LibMemoryKV.POINTER_MASK` and nothing else, because "the rest of the node
+/// MAY extend above `POINTER_MASK`, as every field is reached by full width
+/// arithmetic from the head". A head near the bound therefore keeps its next
+/// word above it, and the export reads that word there at full width, exactly
+/// as `get` does, to reach the pairs behind that node.
 contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
     /// The free memory pointer the chain below is built from. The first node
     /// lands here and the second, which is the one the list's slot points at,
     /// `LibMemoryKV.NODE_BYTES` above it.
-    uint256 internal constant CHAIN_POINTER = 0xFF60;
+    uint256 internal constant CHAIN_POINTER = HEAD_POINTER - LibMemoryKV.NODE_BYTES;
 
     /// Where the head node lands: the lowest head whose next word, at
-    /// `HEAD_POINTER + 0x40`, sits wholly above the bound. Every head above it
-    /// that `set` accepts, up to `LibMemoryKV.POINTER_MASK`, keeps its next
-    /// word higher still.
-    uint256 internal constant HEAD_POINTER = CHAIN_POINTER + LibMemoryKV.NODE_BYTES;
+    /// `HEAD_POINTER + 0x40`, sits wholly above the bound, as it starts at
+    /// `LibMemoryKV.POINTER_MASK + 1`. Every head above it that `set` accepts,
+    /// up to `LibMemoryKV.POINTER_MASK`, keeps its next word higher still.
+    uint256 internal constant HEAD_POINTER = LibMemoryKV.POINTER_MASK + 1 - 0x40;
 
     /// Two keys that hash into one internal list.
     bytes32 internal constant KEY_TAIL = bytes32(uint256(4));
@@ -59,11 +59,6 @@ contract LibMemoryKVExportWalkTest is Test {
     /// `toBytes32Array` leaves it unspecified.
     function testExportWalksThroughANextWordAboveTheBound() external view {
         assertEq(slotOf(KEY_HEAD), slotOf(KEY_TAIL), "the two keys share one list");
-        assertEq(
-            HEAD_POINTER + 0x40,
-            LibMemoryKV.POINTER_MASK + 1,
-            "the head node's next word is the first word above the bound"
-        );
 
         (MemoryKV kv, bytes32[] memory array) = this.exportChainAtExternal(CHAIN_POINTER);
 

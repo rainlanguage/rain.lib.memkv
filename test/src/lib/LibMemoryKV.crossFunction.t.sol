@@ -17,18 +17,15 @@ import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    uint256 internal constant LIST_COUNT = 15;
-    uint256 internal constant SLOT_BITS = 0x10;
-    uint256 internal constant NODE_SIZE = 0x60;
-
     /// Where the saturated store below is built. Above the decoded `keys`
-    /// argument so the nodes cannot land on it, and low enough that fifteen
-    /// nodes all fit under the `0xFFFF` head pointer bound.
+    /// argument so the nodes cannot land on it, and low enough that
+    /// `LibMemoryKV.LIST_COUNT` nodes all fit under the
+    /// `LibMemoryKV.POINTER_MASK` head pointer bound.
     uint256 internal constant SATURATED_BASE = 0x300;
 
-    /// Build a store holding one key in each of the fifteen internal lists,
-    /// from a free memory pointer this frame fixes, and hand back only the
-    /// handle. The nodes are gone when this returns.
+    /// Build a store holding one key in each of the `LibMemoryKV.LIST_COUNT`
+    /// internal lists, from a free memory pointer this frame fixes, and hand
+    /// back only the handle. The nodes are gone when this returns.
     function buildSaturatedExternal(bytes32[] memory keys) external pure returns (MemoryKV) {
         assembly ("memory-safe") {
             mstore(0x40, SATURATED_BASE)
@@ -40,18 +37,18 @@ contract LibMemoryKVCrossFunctionTest is Test {
         return kv;
     }
 
-    /// A handle with every one of its sixteen fields in use arrives on the
-    /// other side of an external call bit for bit. The word it must equal is
+    /// A handle with every head pointer slot and the word count in use arrives
+    /// on the other side of an external call bit for bit. The word it must equal is
     /// computed here from the addresses the building frame was forced to
     /// allocate at, so a handle that lost the word count, or a slot, or the top
     /// bit of one pointer, is a different number rather than a store that
     /// merely reads oddly.
     function testSaturatedHandleCrossesTheCallBoundaryBitForBit(bytes32 seed) external view {
-        bytes32[] memory keys = new bytes32[](LIST_COUNT);
-        uint256 expected = (LIST_COUNT * 2) << 0xf0;
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
+        uint256 expected = (LibMemoryKV.LIST_COUNT * 2) << LibMemoryKV.COUNT_BIT_OFFSET;
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
-            expected |= (SATURATED_BASE + slot * NODE_SIZE) << (slot * SLOT_BITS);
+            expected |= (SATURATED_BASE + slot * LibMemoryKV.NODE_BYTES) << (slot * LibMemoryKV.SLOT_BITS);
         }
 
         MemoryKV kv = this.buildSaturatedExternal(keys);
