@@ -94,7 +94,7 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// The naive linear loop the NatSpec measures the saving against is
+    /// The naive linear loop the saving is measured against is
     /// `toBytes32ArrayLinear`, which visits every list and produces the same
     /// pairs. The saving comes from the empty lists the bisect skips a subtree
     /// at a time, so it falls as lists fill. Lists are filled from list `0` up,
