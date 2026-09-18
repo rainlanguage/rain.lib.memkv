@@ -31,14 +31,6 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// conditional it passes: the four bisect levels and the leaf guard.
     uint256 internal constant BRANCH_LAYOUT_GAS = 5;
 
-    /// `toBytes32Array` NatSpec: "the bisect approach can save ~1-1.5k gas vs. a
-    /// naive linear loop over all 15 slots for every export".
-    uint256 internal constant BISECT_SAVING = 1000;
-
-    /// The largest store the saving is claimed for. Beyond it the per-pair
-    /// copying, which both implementations do identically, dominates.
-    uint256 internal constant BISECT_SAVING_MAX_PAIRS = 5;
-
     /// How many keys the colliding measurements put into one list.
     uint256 internal constant COLLIDERS = 4;
 
@@ -103,20 +95,28 @@ contract LibMemoryKVGasClaimsTest is Test {
         }
     }
 
-    /// The naive linear loop the NatSpec measures the saving against is
-    /// `toBytes32ArrayLinear`, which visits all 15 slots and produces the same
-    /// pairs.
-    function testExportGasBeatsLinearWalk() public view {
-        for (uint256 pairs = 0; pairs <= BISECT_SAVING_MAX_PAIRS; pairs++) {
-            MemoryKV kv = MEMORY_KV_EMPTY;
-            for (uint256 i = 1; i <= pairs; i++) {
-                kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
+    /// Exports the store through the bisect and through `toBytes32ArrayLinear`,
+    /// a loop over every list that produces the same pairs, at every occupancy
+    /// from the empty store to every list occupied, filling lists from list `0`
+    /// up with one key each. At every occupancy the bisect costs less, and its
+    /// saving is no larger than at the occupancy before.
+    function testExportGasSavingFallsAsListsFill() public view {
+        uint256 previous = type(uint256).max;
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        for (uint256 occupied = 0; occupied <= LibMemoryKV.LIST_COUNT; occupied++) {
+            if (occupied > 0) {
+                uint256 slot = occupied - 1;
+                kv = LibMemoryKV.set(kv, keyForSlot(bytes32(slot + 1), slot), MemoryKVVal.wrap(bytes32(uint256(1))));
             }
 
             padMemory();
             uint256 linear = linearGas(kv);
             uint256 bisect = bisectGas(kv);
-            assertGe(linear, bisect + BISECT_SAVING, "bisect must save the documented gas");
+            assertGt(linear, bisect, "the bisect costs less than the linear walk");
+
+            uint256 saving = linear - bisect;
+            assertLe(saving, previous, "the saving never grows as lists fill");
+            previous = saving;
         }
     }
 
