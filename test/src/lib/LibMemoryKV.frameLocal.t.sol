@@ -38,8 +38,8 @@ contract LibMemoryKVFrameLocalTest is Test {
     /// Read `key` out of `kv` in a frame whose memory at the node's addresses
     /// is exactly `filler`. A `bytes memory` argument decodes at `0x80`, its
     /// length word, so the three words of `filler` land at `0xA0`, `0xC0` and
-    /// `0xE0`, which is where the builder above put its node. Both facts are
-    /// required rather than assumed so a decode that moved fails loudly.
+    /// `0xE0`, which is where the builder above put its node. Reverts when
+    /// either fact does not hold.
     function getWithFillerExternal(MemoryKV kv, MemoryKVKey key, bytes memory filler)
         external
         pure

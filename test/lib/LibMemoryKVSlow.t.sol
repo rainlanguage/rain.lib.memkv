@@ -11,9 +11,7 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 contract LibMemoryKVSlowTest is Test {
     /// The linear export takes the array from the free pointer and leaves the
-    /// free pointer past every word it writes into it. An allocation short of
-    /// what the copy writes leaves exported pairs sitting in memory that the
-    /// next allocation hands out, which nothing reading only the array can see.
+    /// free pointer past every word it writes into it.
     function testSlowLinearExportAllocatesWhatItWrites(bytes32[] memory kvs) external pure {
         vm.assume(kvs.length % 2 == 0);
 

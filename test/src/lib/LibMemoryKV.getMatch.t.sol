@@ -14,8 +14,7 @@ import {craftNode, handleWith, headOf, lengthOf} from "test/lib/LibMemoryKVHandl
 /// What `get` does with a node the walk has already reached: which bits of the
 /// key decide the match, and what a walk that matches nothing reports. Both
 /// cases put the node `get` must reject on the list the query key hashes to,
-/// because a key whose list `get` never walks is rejected by the hash and says
-/// nothing about the comparison.
+/// so the walk reaches it.
 contract LibMemoryKVGetMatchTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -40,8 +39,7 @@ contract LibMemoryKVGetMatchTest is Test {
 
     /// The match is equality across the whole 256 bit word: a node key one bit
     /// away from the query key is a different key, whichever of the 256 bits it
-    /// is. A comparison narrower than the word would answer for a neighbouring
-    /// key over the bits it dropped, and hand back that key's value.
+    /// is.
     function testGetRequiresEveryBitOfTheKey() external pure {
         MemoryKVKey queryKey = MemoryKVKey.wrap(bytes32(type(uint256).max / 3));
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(0xDEC0DE)));
@@ -68,8 +66,7 @@ contract LibMemoryKVGetMatchTest is Test {
     /// A key that hashes onto an OCCUPIED list but is not on it reports
     /// `(0, 0)`. Both returns keep their zero initialisation, so the value of a
     /// node the walk passed over cannot come back beside a zero `exists`. The
-    /// three keys are driven onto one list rather than left to collide by
-    /// chance, which two arbitrary keys do one time in `LibMemoryKV.LIST_COUNT`.
+    /// three keys are driven onto one list.
     function testGetMissOverAnOccupiedListReportsNoValue() external pure {
         MemoryKVKey head = keyForSlot(bytes32(uint256(1)), 5);
         MemoryKVKey tail = keyForSlot(bytes32(uint256(2)), 5);

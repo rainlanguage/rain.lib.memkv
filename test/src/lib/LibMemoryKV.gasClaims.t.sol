@@ -104,12 +104,9 @@ contract LibMemoryKVGasClaimsTest is Test {
     }
 
     /// Exporting one pair costs the same whichever slot it landed in, to within
-    /// `BRANCH_LAYOUT_GAS`: the bisect is the same depth to every slot but the
-    /// shallow one, and every branch it does not take costs the one test that
-    /// skips it. Delete any of those tests and the stores that skip that branch
-    /// pay a whole `copyFromPtr` call on an empty list, far more than
-    /// `BRANCH_LAYOUT_GAS`, which shows up here as a slot that no longer matches
-    /// its peers.
+    /// `BRANCH_LAYOUT_GAS`, except in the shallow slot, where it costs less:
+    /// the bisect is the same depth to every slot but the shallow one, and
+    /// every branch it does not take costs the one test that skips it.
     function testExportGasIsUniformAcrossSlots() public view {
         MemoryKV[] memory kvs = new MemoryKV[](SLOTS);
         for (uint256 slot = 0; slot < SLOTS; slot++) {
@@ -179,8 +176,8 @@ contract LibMemoryKVGasClaimsTest is Test {
         MemoryKVVal value = MemoryKVVal.wrap(bytes32(uint256(2)));
         MemoryKVKey[] memory keys = keysInSlot(bytes32(uint256(1)), COLLIDING_SLOT, COLLIDERS);
         // The first key set is the one furthest from the head, so reading it
-        // back walks the whole list. Hoisted out of every measurement below
-        // because an array read inside the window is measured with the call.
+        // back walks the whole list. It is held in a local outside every
+        // measurement window below, so each window holds the call alone.
         MemoryKVKey first = keys[0];
 
         MemoryKV kv = MEMORY_KV_EMPTY;

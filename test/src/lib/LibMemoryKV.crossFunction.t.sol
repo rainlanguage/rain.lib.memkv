@@ -10,10 +10,12 @@ import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
-/// Two claims about a `MemoryKV` handle that no mutation of the library can
-/// falsify, because they are about the handle as a `uint256` rather than about
-/// anything the library computes: every bit of it survives an external call,
-/// and the update/insert asymmetry holds however many handles are live at once.
+/// Two properties of `MemoryKV` handles that take more than one call frame or
+/// more than one live handle to observe. The packed word `set` builds, its
+/// count at `COUNT_BIT_OFFSET` and list `i`'s head at `i * SLOT_BITS` over
+/// nodes `NODE_BYTES` apart, survives an external call bit for bit. An update
+/// reaches every live handle holding the key, while an insert changes only the
+/// handle `set` returns.
 contract LibMemoryKVCrossFunctionTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -41,11 +43,9 @@ contract LibMemoryKVCrossFunctionTest is Test {
     }
 
     /// A handle with every one of its sixteen fields in use arrives on the
-    /// other side of an external call bit for bit. The word it must equal is
-    /// computed here from the addresses the building frame was forced to
-    /// allocate at, so a handle that lost the word count, or a slot, or the top
-    /// bit of one pointer, is a different number rather than a store that
-    /// merely reads oddly.
+    /// other side of an external call bit for bit. It equals the word computed
+    /// here from the word count and the addresses the building frame allocates
+    /// its nodes at.
     function testSaturatedHandleCrossesTheCallBoundaryBitForBit(bytes32 seed) external view {
         bytes32[] memory keys = new bytes32[](LIST_COUNT);
         uint256 expected = (LIST_COUNT * 2) << 0xf0;

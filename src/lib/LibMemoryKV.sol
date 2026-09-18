@@ -62,9 +62,7 @@ library LibMemoryKV {
     uint256 internal constant NODE_BYTES = 0x60;
 
     /// Thrown when an insert would allocate its node at a pointer above
-    /// `POINTER_MASK`, the widest head pointer a list slot can hold, so the
-    /// slot would truncate it and the bits above the slot would overwrite the
-    /// neighbouring slots and the word count.
+    /// `POINTER_MASK`, the widest head pointer a list slot can hold.
     ///
     /// Only the head is bounded: the rest of the node MAY extend above
     /// `POINTER_MASK`, as every field is reached by full width arithmetic from
@@ -72,11 +70,8 @@ library LibMemoryKV {
     /// @param pointer The offending pointer, not the bound it crossed.
     error MemoryKVOverflow(uint256 pointer);
 
-    /// Thrown when an insert would push the word count past `POINTER_MASK`.
-    /// The count is written by shifting into the top bits of `MemoryKV`, so
-    /// without this the sum silently loses its high bit, and `toBytes32Array`,
-    /// which sizes its allocation from the count, then copies every pair it
-    /// walks past the end of that array.
+    /// Thrown when an insert would push the word count past `POINTER_MASK`,
+    /// the widest word count its slot can hold.
     /// @param length The word count the insert would have produced, not the
     /// stored count before it and not the `POINTER_MASK` bound it crossed.
     error MemoryKVLengthOverflow(uint256 length);
@@ -236,8 +231,8 @@ library LibMemoryKV {
     /// @return array All the keys and values copied pairwise into a `bytes32[]`.
     /// The pair order is unspecified and MUST NOT be relied upon; a caller that
     /// needs a canonical form MUST sort.
-    // Slither is not wrong about the cyclomatic complexity but I don't know
-    // another way to implement the bisect and keep the gas savings.
+    // The cyclomatic complexity slither counts is the bisect's branches, one
+    // per node of the tree over the head pointers.
     //slither-disable-next-line cyclomatic-complexity
     function toBytes32Array(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         uint256 mask16 = type(uint16).max;
@@ -268,9 +263,8 @@ library LibMemoryKV {
 
             // Bisect. The gas this tree saves over a linear loop is documented
             // in the NatSpec above.
-            // The internal scoping blocks are to provide some safety against
-            // typos causing the incorrect symbol to be referenced by enforcing
-            // each symbol is as tightly scoped as it can be.
+            // Each symbol is declared in the smallest block that holds every
+            // use of it, so a use outside that block does not compile.
             let cursor := add(array, 0x20)
             {
                 // Remove the length from kv before iffing to save ~100 gas.

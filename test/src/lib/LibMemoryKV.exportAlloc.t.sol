@@ -16,13 +16,9 @@ import {countPair} from "test/lib/LibMemoryKVExport.sol";
 /// The export's ARRAY: where it is allocated, how big it is, and that every
 /// word of it is a key or a value that was actually inserted.
 ///
-/// The expectations here are derived from the documented contract rather than
-/// from the header the implementation writes: the README says the store
-/// exports "pairwise keys/values", and `MemoryKV` is documented as carrying
-/// "the total word count of all inserts", so an export of N DISTINCT keys is
-/// 2N words long and occupies exactly 0x20 + 2N * 0x20 bytes of fresh memory.
-/// Counting N independently of the store is the point - reading it back out of
-/// `array.length` would only restate whatever the implementation wrote.
+/// An export of N DISTINCT keys is 2N words long and occupies exactly
+/// 0x20 + 2N * 0x20 bytes of fresh memory, with N counted by the test from the
+/// keys it inserts rather than read back out of the store.
 contract LibMemoryKVExportAllocTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -45,10 +41,8 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// An empty store exports an empty array and allocates the length header
-    /// and nothing else: exactly 0x20 bytes. The zero length is WRITTEN, not
-    /// inherited from memory that happened to be zero, so the header word is
-    /// dirtied first: an export that wrote no header would hand back the
-    /// sentinel as the length.
+    /// and nothing else: exactly 0x20 bytes. The zero length is WRITTEN: the
+    /// header word is dirtied first and the length reads back as zero.
     function testExportEmptyAllocatesOnlyTheHeader() external pure {
         dirtyFreeMemory(bytes32(type(uint256).max), 1);
 
@@ -80,9 +74,7 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// The array is allocated AT the free memory pointer and the allocation is
-    /// exactly the header plus two words per distinct key. Both edges matter:
-    /// one word short leaves the last value in unallocated memory, one word
-    /// long wastes a word forever.
+    /// exactly the header plus two words per distinct key.
     function testExportAllocatesExactlyHeaderPlusTwoWordsPerPair(bytes32[] memory kvs) external pure {
         vm.assume(kvs.length < 40);
         vm.assume(kvs.length % 2 == 0);
@@ -128,10 +120,8 @@ contract LibMemoryKVExportAllocTest is Test {
         }
     }
 
-    /// `toBytes32Array` justifies skipping a zero-fill with "we're about to
-    /// write to it". Every word it allocates must therefore be written: dirty
-    /// the free memory first and assert the sentinel never reappears inside
-    /// the exported array.
+    /// Every word `toBytes32Array` allocates is written: with the free memory
+    /// dirtied first, the sentinel appears nowhere in the exported array.
     function testExportWritesEveryAllocatedWord(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
 
@@ -190,7 +180,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// equality like any other. The export must copy it into the pair's first
     /// word and keep walking past it. The zero key is inserted LAST onto a list
     /// four other keys already occupy, so `set`'s prepend puts it at the head
-    /// and a walk that stopped at it would lose the four behind it as well.
+    /// and the walk reaches the four behind it through its next pointer.
     function testExportCopiesZeroKey(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
         bytes32 zeroKeyValue = keccak256(abi.encode(seed, "zero key value"));
@@ -264,10 +254,9 @@ contract LibMemoryKVExportAllocTest is Test {
         }
     }
 
-    /// Two populated lists both land in the array: the second walk appends
-    /// after the first rather than writing over it. The two lists are the same
-    /// length so a cursor that failed to carry over would drop or duplicate a
-    /// pair rather than merely reorder them.
+    /// Two populated lists of the same length both land in the array: the
+    /// second walk appends after the first rather than writing over it, and
+    /// every pair is exported exactly once.
     function testExportAppendsAcrossLists(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](4);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -304,11 +293,8 @@ contract LibMemoryKVExportAllocTest is Test {
         }
     }
 
-    /// The export is a READ of the store. The NatSpec calls it a "one time
-    /// export" whose array will not reflect later mutations, which only means
-    /// anything if the store itself is still there afterwards: every key is
-    /// still gettable with its value, and a second export is identical to the
-    /// first.
+    /// The export is a READ of the store: afterwards every key is still
+    /// gettable with its value, and a second export is identical to the first.
     function testExportLeavesTheStoreIntact(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](7);
         MemoryKV kv = MEMORY_KV_EMPTY;

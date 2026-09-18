@@ -13,11 +13,9 @@ import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 /// @title LibMemoryKVExportWalkTest
 /// The export's WALK: following one internal list from its head to the
 /// terminator. `MemoryKVOverflow` bounds the HEAD pointer of a list at
-/// `0xFFFF` and nothing else, because "the node's three words MAY extend above
-/// `0xFFFF`, as every field is reached by full width arithmetic from the head".
-/// A head near the bound therefore keeps its next word above it, and the
-/// export reads that word there at full width, exactly as `get` does, to reach
-/// the pairs behind that node.
+/// `LibMemoryKV.POINTER_MASK` and nothing else, so a head near the bound keeps
+/// its next word above it, and the export reads that word there at full width,
+/// exactly as `get` does, to reach the pairs behind that node.
 contract LibMemoryKVExportWalkTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -36,8 +34,7 @@ contract LibMemoryKVExportWalkTest is Test {
     bytes32 internal constant KEY_TAIL = bytes32(uint256(4));
     bytes32 internal constant KEY_HEAD = bytes32(uint256(5));
 
-    /// Values that share no bits with either key, so a pair assembled from the
-    /// wrong words is a different value rather than a coincidence.
+    /// Values distinct from both keys and from each other.
     bytes32 internal constant VALUE_TAIL = bytes32(uint256(0xDEC0DE));
     bytes32 internal constant VALUE_HEAD = bytes32(uint256(0xC0FFEE));
 
