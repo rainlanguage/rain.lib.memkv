@@ -17,11 +17,11 @@ contract LibMemoryKVStorageParityTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY;
         sStorageKV[key] = value;
         kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(key), MemoryKVVal.wrap(value));
-        (uint256 exists, MemoryKVVal get) = LibMemoryKV.get(kv, MemoryKVKey.wrap(key));
+        (uint256 exists, MemoryKVVal got) = LibMemoryKV.get(kv, MemoryKVKey.wrap(key));
 
         assertEq(1, exists, "exists");
-        assertEq(MemoryKVVal.unwrap(get), MemoryKVVal.unwrap(MemoryKVVal.wrap(value)), "value");
-        assertEq(sStorageKV[key], MemoryKVVal.unwrap(get), "storage");
+        assertEq(MemoryKVVal.unwrap(got), value, "value");
+        assertEq(sStorageKV[key], MemoryKVVal.unwrap(got), "storage");
     }
 
     /// A single get/set pair that we can fuzz.
