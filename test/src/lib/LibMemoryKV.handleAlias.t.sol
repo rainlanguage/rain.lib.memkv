@@ -5,7 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {lengthOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, assertValue, val, keyFor} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVHandleAliasTest
 /// A `MemoryKV` is a value type, so every assignment of one copies it and
@@ -18,10 +18,6 @@ import {lengthOf, assertValue, val} from "test/lib/LibMemoryKVTestHelpers.sol";
 /// number rather than a revert.
 contract LibMemoryKVHandleAliasTest is Test {
     using LibMemoryKV for MemoryKV;
-
-    function keyFor(uint256 k) internal pure returns (MemoryKVKey) {
-        return MemoryKVKey.wrap(bytes32(k));
-    }
 
     /// An update through a handle is visible through a handle copied BEFORE the
     /// update, whose own bits never changed. The older handle reads 999 even

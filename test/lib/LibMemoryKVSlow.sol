@@ -1,14 +1,29 @@
 // SPDX-License-Identifier: LicenseRef-DCL-1.0
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
-pragma solidity =0.8.25;
+pragma solidity ^0.8.25;
 
 import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
-import {MemoryKV} from "src/lib/LibMemoryKV.sol";
 
+import {MemoryKV} from "src/lib/LibMemoryKV.sol";
+import {COUNT_BIT_OFFSET, POINTER_MAX, SLOT_BITS} from "test/lib/LibMemoryKVTestHelpers.sol";
+
+/// @title LibMemoryKVSlow
+/// Independent reference implementations that `LibMemoryKV` is tested against.
+/// `exists`, `get` and `set` keep the store as a flat `bytes32[]` of pairs, each
+/// key at an even index and its value in the word after it, linear in the
+/// number of pairs and in no canonical order. `toBytes32ArrayLinear` exports a
+/// `MemoryKV` without the bisect.
 library LibMemoryKVSlow {
-    function exists(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, uint256) {
-        for (uint256 i = 0; i < kvs.length; i += 2) {
-            if (kvs[i] == k) {
+    /// Finds `key` in `pairs`.
+    /// @param pairs Pairwise key/value array.
+    /// @param key The key to look for.
+    /// @return found Whether `key` is present.
+    /// @return index Index of the KEY word when found; the value is at
+    /// `index + 1`. `0` when not found, which is also the index of a key found
+    /// at the start of `pairs`, so read `found` first.
+    function exists(bytes32[] memory pairs, bytes32 key) internal pure returns (bool found, uint256 index) {
+        for (uint256 i = 0; i < pairs.length; i += 2) {
+            if (pairs[i] == key) {
                 //forge-lint: disable-next-line(boolean-cst)
                 return (true, i);
             }
@@ -17,52 +32,74 @@ library LibMemoryKVSlow {
         return (false, 0);
     }
 
-    function get(bytes32[] memory kvs, bytes32 k) internal pure returns (bool, bytes32) {
-        (bool existsVal, uint256 index) = exists(kvs, k);
-        // `exists` reports the index of the KEY, and the value it is paired
-        // with is the word after it.
-        return (existsVal, existsVal ? kvs[index + 1] : bytes32(uint256(0)));
+    /// Reads the value paired with `key`.
+    /// @param pairs Pairwise key/value array.
+    /// @param key The key to look up.
+    /// @return found Whether `key` is present.
+    /// @return value The value paired with `key`, or `0` when not found.
+    function get(bytes32[] memory pairs, bytes32 key) internal pure returns (bool found, bytes32 value) {
+        uint256 index;
+        (found, index) = exists(pairs, key);
+        value = found ? pairs[index + 1] : bytes32(0);
     }
 
-    function set(bytes32[] memory kvs, bytes32 k, bytes32 v) internal pure returns (bytes32[] memory) {
-        (bool existsVal, uint256 index) = exists(kvs, k);
-        if (existsVal) {
-            kvs[index + 1] = v;
-            return kvs;
+    /// Upserts `key` to `value`. An update overwrites the value in `pairs` in
+    /// place. An insert appends the pair with `LibBytes32Array.unsafeExtend`,
+    /// which extends `pairs` in place or copies it, so the caller MUST use the
+    /// returned array only and MUST NOT use `pairs` afterwards.
+    /// @param pairs Pairwise key/value array.
+    /// @param key The key to set.
+    /// @param value The value to pair with `key`.
+    /// @return The array holding every pair, including `key` and `value`.
+    function set(bytes32[] memory pairs, bytes32 key, bytes32 value) internal pure returns (bytes32[] memory) {
+        (bool found, uint256 index) = exists(pairs, key);
+        if (found) {
+            pairs[index + 1] = value;
+            return pairs;
         } else {
-            bytes32[] memory kv = new bytes32[](2);
-            kv[0] = k;
-            kv[1] = v;
-            return LibBytes32Array.unsafeExtend(kvs, kv);
+            bytes32[] memory pair = new bytes32[](2);
+            pair[0] = key;
+            pair[1] = value;
+            return LibBytes32Array.unsafeExtend(pairs, pair);
         }
     }
 
-    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory arr) {
+    /// `LibMemoryKV.toBytes32Array` with the bisect replaced by a walk over
+    /// every head pointer slot in order. This is the linear loop the
+    /// `toBytes32Array` NatSpec measures its bisect saving against, so it MUST
+    /// stay a plain walk over every slot. Like the fast path, it sizes the
+    /// array from the word count in `kv`, fills it by walking every list, and
+    /// leaves the free memory pointer past every word written. It exports the
+    /// same pairs as `toBytes32Array`; the pair order is not guaranteed to
+    /// match.
+    /// @param kv The entrypoint into the key/value store.
+    /// @return array Every key and value in `kv`, copied pairwise.
+    function toBytes32ArrayLinear(MemoryKV kv) internal pure returns (bytes32[] memory array) {
         assembly ("memory-safe") {
-            arr := mload(0x40)
-            let len := shr(0xf0, kv)
-            mstore(0x40, add(arr, add(0x20, mul(len, 0x20))))
-            mstore(arr, len)
+            array := mload(0x40)
+            let length := shr(COUNT_BIT_OFFSET, kv)
+            mstore(0x40, add(array, add(0x20, mul(length, 0x20))))
+            mstore(array, length)
 
-            function copyFromPtr(cursor, ptr) -> end {
-                for {} iszero(iszero(ptr)) {
-                    ptr := mload(add(ptr, 0x40))
+            function copyFromPtr(cursor, pointer) -> end {
+                for {} iszero(iszero(pointer)) {
+                    pointer := mload(add(pointer, 0x40))
                     cursor := add(cursor, 0x40)
                 } {
-                    mstore(cursor, mload(ptr))
-                    mstore(add(cursor, 0x20), mload(add(ptr, 0x20)))
+                    mstore(cursor, mload(pointer))
+                    mstore(add(cursor, 0x20), mload(add(pointer, 0x20)))
                 }
                 end := cursor
             }
 
-            let cursor := add(arr, 0x20)
+            let cursor := add(array, 0x20)
             for {
-                let ptrCursor := 0
-                let ptr := and(kv, 0xFFFF)
-            } lt(ptrCursor, 0xf0) {
-                ptrCursor := add(ptrCursor, 0x10)
-                ptr := and(shr(ptrCursor, kv), 0xFFFF)
-            } { cursor := copyFromPtr(cursor, ptr) }
+                let bitOffset := 0
+                let pointer := and(kv, POINTER_MAX)
+            } lt(bitOffset, COUNT_BIT_OFFSET) {
+                bitOffset := add(bitOffset, SLOT_BITS)
+                pointer := and(shr(bitOffset, kv), POINTER_MAX)
+            } { cursor := copyFromPtr(cursor, pointer) }
         }
     }
 }
