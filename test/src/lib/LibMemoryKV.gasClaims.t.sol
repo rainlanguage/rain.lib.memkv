@@ -7,13 +7,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {
-    LIST_COUNT,
-    keyForSlot,
-    keysInSlot,
-    setFreePointer,
-    assertDocumentStates
-} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {keyForSlot, keysInSlot, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
@@ -35,7 +29,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
-    uint256 internal constant SHALLOW_SLOT = 0x0e;
+    uint256 internal constant SHALLOW_SLOT = LibMemoryKV.LIST_COUNT - 1;
 
     /// The export's saving over the linear walk for an empty store.
     uint256 internal constant BISECT_SAVING_EMPTY = 1900;
@@ -126,19 +120,19 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// those tests and the stores that skip that branch start paying for it,
     /// which shows up here as a slot that no longer matches its peers.
     function testExportGasIsUniformAcrossSlots() public view {
-        MemoryKV[] memory kvs = new MemoryKV[](LIST_COUNT);
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        MemoryKV[] memory kvs = new MemoryKV[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             bytes32 key = MemoryKVKey.unwrap(keyForSlot(bytes32(slot + 1), slot));
             kvs[slot] = LibMemoryKV.set(MEMORY_KV_EMPTY, MemoryKVKey.wrap(key), MemoryKVVal.wrap(bytes32(uint256(1))));
         }
 
         padMemory();
-        uint256[] memory gas = new uint256[](LIST_COUNT);
-        for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
+        uint256[] memory gas = new uint256[](LibMemoryKV.LIST_COUNT);
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             gas[slot] = bisectGas(kvs[slot]);
         }
 
-        for (uint256 slot = 1; slot < LIST_COUNT; slot++) {
+        for (uint256 slot = 1; slot < LibMemoryKV.LIST_COUNT; slot++) {
             if (slot == SHALLOW_SLOT) {
                 assertLt(gas[slot], gas[0], "shallow slot must cost less");
             } else {
@@ -157,7 +151,7 @@ contract LibMemoryKVGasClaimsTest is Test {
     function testExportGasSavingFallsAsListsFill() public view {
         uint256 previous = type(uint256).max;
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 occupied = 0; occupied <= LIST_COUNT; occupied++) {
+        for (uint256 occupied = 0; occupied <= LibMemoryKV.LIST_COUNT; occupied++) {
             if (occupied > 0) {
                 uint256 slot = occupied - 1;
                 kv = LibMemoryKV.set(kv, keyForSlot(bytes32(slot + 1), slot), MemoryKVVal.wrap(bytes32(uint256(1))));
@@ -176,7 +170,7 @@ contract LibMemoryKVGasClaimsTest is Test {
                 assertApproxEqRel(saving, BISECT_SAVING_EMPTY, ROUNDING, "saving for an empty store");
             } else if (occupied == BISECT_SAVING_PARTIAL_LISTS) {
                 assertApproxEqRel(saving, BISECT_SAVING_PARTIAL, ROUNDING, "saving with the low lists occupied");
-            } else if (occupied == LIST_COUNT) {
+            } else if (occupied == LibMemoryKV.LIST_COUNT) {
                 assertApproxEqRel(saving, BISECT_SAVING_FULL, ROUNDING, "saving with every list occupied");
             }
         }

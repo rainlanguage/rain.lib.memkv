@@ -7,7 +7,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {NODE_BYTES, lengthOf, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {lengthOf, setFreePointer, assertDocumentStates} from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -95,7 +95,9 @@ contract LibMemoryKVSetCapacityTest is Test {
     /// pair count, which is the form a caller can measure itself against.
     function testSetOverflowsOnePairPastAnOtherwiseEmptyFramesCapacity() external {
         vm.expectRevert(
-            abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES)
+            abi.encodeWithSelector(
+                LibMemoryKV.MemoryKVOverflow.selector, 0x80 + EMPTY_FRAME_PAIRS * LibMemoryKV.NODE_BYTES
+            )
         );
         this.fillEmptyFrameExternal(EMPTY_FRAME_PAIRS + 1);
     }
