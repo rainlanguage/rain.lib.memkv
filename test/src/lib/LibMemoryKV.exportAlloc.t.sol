@@ -3,12 +3,13 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
 import {slotOf, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
-import {occupiedSlots} from "test/lib/LibMemoryKVHandle.sol";
+import {occupiedSlots, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVExportAllocTest
@@ -52,7 +53,7 @@ contract LibMemoryKVExportAllocTest is Test {
         dirtyFreeMemory(bytes32(type(uint256).max), 1);
 
         Pointer before = LibPointer.allocatedMemoryPointer();
-        bytes32[] memory array = LibMemoryKV.toBytes32Array(MEMORY_KV_EMPTY);
+        bytes32[] memory array = MEMORY_KV_EMPTY.toBytes32Array();
         Pointer afterPointer = LibPointer.allocatedMemoryPointer();
 
         assertEq(array.length, 0);
@@ -74,8 +75,8 @@ contract LibMemoryKVExportAllocTest is Test {
 
         // The word count the store carries, and the array it exports, are both
         // exactly that.
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, expectedWords, "kv word count");
-        assertEq(LibMemoryKV.toBytes32Array(kv).length, expectedWords, "array length");
+        assertEq(lengthOf(kv), expectedWords, "kv word count");
+        assertEq(kv.toBytes32Array().length, expectedWords, "array length");
     }
 
     /// The array is allocated AT the free memory pointer and the allocation is
@@ -94,7 +95,7 @@ contract LibMemoryKVExportAllocTest is Test {
         uint256 expectedWords = distinctKeys(kvs) * 2;
 
         Pointer before = LibPointer.allocatedMemoryPointer();
-        bytes32[] memory array = LibMemoryKV.toBytes32Array(kv);
+        bytes32[] memory array = kv.toBytes32Array();
         Pointer afterPointer = LibPointer.allocatedMemoryPointer();
 
         uint256 arrayPointer;
@@ -182,14 +183,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 10);
 
-        bool found = false;
-        for (uint256 i = 0; i < array.length; i += 2) {
-            if (array[i] == zeroValued) {
-                assertEq(array[i + 1], bytes32(0), "zero value copied, not left unwritten");
-                found = true;
-            }
-        }
-        assertTrue(found, "the zero valued key was exported");
+        assertEq(countPair(array, zeroValued, bytes32(0)), 1, "the zero value copied, exactly once");
     }
 
     /// A key of `0` is a key: nothing marks it as absent and `get` finds it by
@@ -215,17 +209,10 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 10);
 
-        bool found = false;
-        for (uint256 i = 0; i < array.length; i += 2) {
-            if (array[i] == bytes32(0)) {
-                assertEq(array[i + 1], zeroKeyValue, "zero key's value beside it");
-                found = true;
-            }
-        }
-        assertTrue(found, "the zero key was exported");
+        assertEq(countPair(array, bytes32(0), zeroKeyValue), 1, "the zero key exported exactly once");
 
         for (uint256 i = 0; i < behind.length; i++) {
-            assertTrue(countPair(array, behind[i], bytes32(i + 1)) != 0, "the walk did not stop at the zero key");
+            assertEq(countPair(array, behind[i], bytes32(i + 1)), 1, "the walk did not stop at the zero key");
         }
     }
 
@@ -257,7 +244,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// every pair on it lands in the array, adjacent and in one piece. This is
     /// the multi-step walk: the chain, not the bisect.
     function testExportWalksOneListToTheEnd(bytes32 seed, uint256 slot) external pure {
-        slot = bound(slot, 0, 14);
+        slot = bound(slot, 0, LibMemoryKV.LIST_COUNT - 1);
 
         bytes32[] memory keys = new bytes32[](5);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -273,14 +260,7 @@ contract LibMemoryKVExportAllocTest is Test {
         assertEq(array.length, 10);
 
         for (uint256 i = 0; i < keys.length; i++) {
-            bool found = false;
-            for (uint256 j = 0; j < array.length; j += 2) {
-                if (array[j] == keys[i]) {
-                    assertEq(array[j + 1], bytes32(i + 1), "value beside its key");
-                    found = true;
-                }
-            }
-            assertTrue(found, "every node on the list was copied");
+            assertEq(countPair(array, keys[i], bytes32(i + 1)), 1, "every node on the list copied exactly once");
         }
     }
 
@@ -292,44 +272,35 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory keys = new bytes32[](4);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
-            keys[i] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : 14));
+            keys[i] =
+                MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, i)), i < 2 ? 0 : LibMemoryKV.LIST_COUNT - 1));
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));
         }
 
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 8);
 
-        uint256 matched = 0;
         for (uint256 i = 0; i < keys.length; i++) {
-            matched += countPair(array, keys[i], bytes32(i + 1));
+            assertEq(countPair(array, keys[i], bytes32(i + 1)), 1, "every pair from both lists, exactly once");
         }
-        assertEq(matched, keys.length, "every pair from both lists, exactly once");
     }
 
-    /// Every one of the 15 internal lists is reachable by the export. One key
-    /// per slot, each with a value that identifies its slot, so a mask or a
-    /// branch that reads the wrong slot produces a WRONG VALUE rather than
-    /// merely a short array.
+    /// Every one of the `LibMemoryKV.LIST_COUNT` internal lists is reachable by
+    /// the export. With one key in each list, the array holds each list's pair
+    /// exactly once, key and value together, and nothing else.
     function testExportReachesEverySlot(bytes32 seed) external pure {
-        bytes32[] memory keys = new bytes32[](15);
+        bytes32[] memory keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 slot = 0; slot < 15; slot++) {
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
             keys[slot] = MemoryKVKey.unwrap(keyForSlot(keccak256(abi.encode(seed, slot)), slot));
             kv = kv.set(MemoryKVKey.wrap(keys[slot]), MemoryKVVal.wrap(bytes32(slot + 1)));
         }
 
         bytes32[] memory array = kv.toBytes32Array();
-        assertEq(array.length, 30, "two words per slot");
+        assertEq(array.length, LibMemoryKV.LIST_COUNT * 2, "two words per slot");
 
-        for (uint256 slot = 0; slot < 15; slot++) {
-            bool found = false;
-            for (uint256 j = 0; j < array.length; j += 2) {
-                if (array[j] == keys[slot]) {
-                    assertEq(array[j + 1], bytes32(slot + 1), "slot's value");
-                    found = true;
-                }
-            }
-            assertTrue(found, "slot was exported");
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+            assertEq(countPair(array, keys[slot], bytes32(slot + 1)), 1, "slot exported exactly once");
         }
     }
 
@@ -337,8 +308,7 @@ contract LibMemoryKVExportAllocTest is Test {
     /// export" whose array will not reflect later mutations, which only means
     /// anything if the store itself is still there afterwards: every key is
     /// still gettable with its value, and a second export is identical to the
-    /// first. Only one pre-existing test notices an export that scribbles on
-    /// the nodes it walks, and only as a side effect of exporting twice.
+    /// first.
     function testExportLeavesTheStoreIntact(bytes32 seed) external pure {
         bytes32[] memory keys = new bytes32[](7);
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -363,8 +333,10 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// The array region is really allocated, not merely written: whatever is
-    /// allocated NEXT sits past the end of the array and the array keeps every
-    /// word it was given.
+    /// allocated NEXT sits past the end of the array, so once that allocation
+    /// is written the array keeps its length and holds every inserted pair
+    /// exactly once. The expected pairs come from the inserts, not from the
+    /// array.
     function testExportedArraySurvivesLaterAllocation(bytes32 fill) external pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= 5; i++) {
@@ -374,19 +346,14 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory array = kv.toBytes32Array();
         assertEq(array.length, 10);
 
-        bytes32[] memory snapshot = new bytes32[](array.length);
-        for (uint256 i = 0; i < array.length; i++) {
-            snapshot[i] = array[i];
-        }
-
         bytes32[] memory later = new bytes32[](32);
         for (uint256 i = 0; i < later.length; i++) {
             later[i] = fill;
         }
 
         assertEq(array.length, 10, "array length survived");
-        for (uint256 i = 0; i < array.length; i++) {
-            assertEq(array[i], snapshot[i], "array contents survived a later allocation");
+        for (uint256 i = 1; i <= 5; i++) {
+            assertEq(countPair(array, bytes32(i), bytes32(i * 7)), 1, "pair survived a later allocation");
         }
     }
 }
