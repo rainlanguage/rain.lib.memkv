@@ -184,7 +184,7 @@ contract LibMemoryKVWordCountOverflowTest is Test, SetAtFreePointer {
     /// Every other test here forces the count with `withCount`, which is a
     /// `kv` no `set` produced. This is the one that asks what a caller who only
     /// ever calls `set` can reach, and the answer is that it is not this error:
-    /// carrying the count to `0x10000` needs 32768 inserts, and the node
+    /// a count past `COUNT_MAX` needs `(COUNT_MAX + 1) / 2` inserts, and the node
     /// address runs out 48 times earlier, at the 683rd, at `0x10040`. So
     /// `MemoryKVLengthOverflow` is not in a correct caller's reach and the
     /// header's claim above is a measurement rather than an assurance.
