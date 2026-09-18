@@ -4,6 +4,8 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
+import {LibHashNoAlloc} from "rain-lib-hash-0.1.27/src/lib/LibHashNoAlloc.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, countPair} from "test/lib/LibMemoryKVTestHelpers.sol";
 
@@ -13,17 +15,72 @@ contract LibMemoryKVSaturateTest is Test {
     uint256 internal constant LIST_COUNT = 15;
     uint256 internal constant LIST_POINTER_BITS = 0x10;
     uint256 internal constant LENGTH_BIT_OFFSET = LIST_COUNT * LIST_POINTER_BITS;
-    /// Two keys per internal list.
-    uint256 internal constant PAIR_COUNT = 2 * LIST_COUNT;
 
     function testSaturate(bytes32 seed) public pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
 
-        // Interleaved key/value words; the key slots are rehashed in place below.
-        bytes32[] memory kvs = new bytes32[](PAIR_COUNT * 2);
-        for (uint256 i = 0; i < kvs.length; i++) {
-            kvs[i] = keccak256(abi.encode(seed, i));
-        }
+        bytes32[60] memory kvs = [
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(0))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(1))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(2))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(3))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(4))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(5))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(6))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(7))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(8))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(9))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(10))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(11))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(12))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(13))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(14))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(15))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(16))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(17))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(18))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(19))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(20))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(21))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(22))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(23))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(24))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(25))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(26))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(27))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(28))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(29))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(30))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(31))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(32))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(33))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(34))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(35))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(36))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(37))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(38))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(39))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(40))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(41))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(42))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(43))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(44))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(45))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(46))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(47))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(48))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(49))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(50))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(51))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(52))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(53))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(54))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(55))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(56))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(57))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(58))),
+            LibHashNoAlloc.combineHashes(seed, bytes32(uint256(59)))
+        ];
 
         // Rehash each key until we get an even spread across all internal list
         // slots.
