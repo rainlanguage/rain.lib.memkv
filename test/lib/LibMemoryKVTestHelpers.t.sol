@@ -52,10 +52,7 @@ contract LibMemoryKVTestHelpersTest is Test {
 
     /// `assertTextStates` in a frame of its own so a test can expect its
     /// failure.
-    function assertTextStatesExternal(string memory text, string memory phrase, string memory source)
-        external
-        pure
-    {
+    function assertTextStatesExternal(string memory text, string memory phrase, string memory source) external pure {
         assertTextStates(text, phrase, source);
     }
 
@@ -85,7 +82,9 @@ contract LibMemoryKVTestHelpersTest is Test {
         for (uint256 slot = 0; slot < LIST_COUNT; slot++) {
             assertEq(headOf(changed, slot), headOf(kv, slot), string.concat("head of slot ", vm.toString(slot)));
         }
-        assertEq(MemoryKV.unwrap(changed) & type(uint240).max, word & type(uint240).max, "every bit under the count kept");
+        assertEq(
+            MemoryKV.unwrap(changed) & type(uint240).max, word & type(uint240).max, "every bit under the count kept"
+        );
     }
 
     /// A node crafted where an insert into an empty store would put its node,
@@ -142,9 +141,7 @@ contract LibMemoryKVTestHelpersTest is Test {
         MemoryKV kv = handleWith(slot, head, words);
 
         for (uint256 other = 0; other < LIST_COUNT; other++) {
-            assertEq(
-                headOf(kv, other), other == slot ? head : 0, string.concat("head of slot ", vm.toString(other))
-            );
+            assertEq(headOf(kv, other), other == slot ? head : 0, string.concat("head of slot ", vm.toString(other)));
         }
         assertEq(lengthOf(kv), words, "count");
     }

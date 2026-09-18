@@ -222,9 +222,8 @@ function handleWith(uint256 slot, uint256 head, uint256 words) pure returns (Mem
 /// @param phrase The exact phrase `text` must contain.
 /// @param source What `text` is, for the failure message.
 function assertTextStates(string memory text, string memory phrase, string memory source) pure {
-    StdConstants.VM.assertTrue(
-        StdConstants.VM.contains(text, phrase), string.concat(source, " does not state \"", phrase, "\"")
-    );
+    StdConstants.VM
+        .assertTrue(StdConstants.VM.contains(text, phrase), string.concat(source, " does not state \"", phrase, "\""));
 }
 
 /// Assert the file at `path` contains `phrase` verbatim. A test renders
