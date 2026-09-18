@@ -15,26 +15,26 @@ import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
 /// ahead of it.
 contract LibMemoryKVGasClaimsTest is Test {
     /// `kv` carries one pointer per internal linked list.
-    uint256 constant SLOTS = 0x0f;
+    uint256 internal constant SLOTS = 0x0f;
 
     /// The one slot the bisect reaches a level early. The length occupies the
     /// high bits of `kv`, so stripping it leaves the last slot's pointer already
     /// isolated and the tree tests it directly instead of descending to it.
-    uint256 constant SHALLOW_SLOT = 0x0e;
+    uint256 internal constant SHALLOW_SLOT = 0x0e;
 
     /// How far two equal-depth export paths may differ in gas. The optimizer
     /// picks which arm of each conditional falls through, and a taken jump lands
     /// on a `JUMPDEST` that costs 1 gas, so a path pays up to one gas per
     /// conditional it passes: the four bisect levels and the leaf guard.
-    uint256 constant BRANCH_LAYOUT_GAS = 5;
+    uint256 internal constant BRANCH_LAYOUT_GAS = 5;
 
     /// How many keys the colliding measurements put into one list.
-    uint256 constant COLLIDERS = 4;
+    uint256 internal constant COLLIDERS = 4;
 
     /// The list the colliding measurements build. Any of the 15 would do: an
     /// insert into an empty list and a get of a key alone in one cost the same
     /// in every slot.
-    uint256 constant COLLIDING_SLOT = 3;
+    uint256 internal constant COLLIDING_SLOT = 3;
 
     /// Expands memory past anything the measurements below allocate, then
     /// rewinds the free pointer over it. Every measurement after it allocates
