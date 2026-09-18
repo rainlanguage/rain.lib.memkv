@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.2/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -30,7 +31,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }
-        return MemoryKV.unwrap(kv) >> 0xf0;
+        return lengthOf(kv);
     }
 
     /// Allocate an unrelated `bytes32[]` of `elements` elements in a frame that
@@ -54,7 +55,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
         }
-        return MemoryKV.unwrap(kv) >> 0xf0;
+        return lengthOf(kv);
     }
 
     /// Insert `key`, then move the free memory pointer far above the bound and
