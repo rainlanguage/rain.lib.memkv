@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity =0.8.25;
 
-import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {Test} from "forge-std-1.16.2/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
@@ -61,8 +61,10 @@ contract LibMemoryKVCrossFunctionTest is Test {
 
     /// The asymmetry holds with a whole chain of handles live at once: the
     /// update reaches all five, while each insert reaches only the handles from
-    /// the one `set` returned onwards. Each handle also keeps its own word
-    /// count, which is the only part of a handle an insert changes.
+    /// the one `set` returned onwards. An insert writes the word count and the
+    /// head pointer of the inserted key's list into the handle it returns. An
+    /// update writes no bit of any handle, so every handle word, the one `set`
+    /// returns included, is the same before and after it.
     function testAsymmetryHoldsAcrossManyLiveHandles(bytes32 seed) external pure {
         MemoryKVKey[] memory keys = new MemoryKVKey[](5);
         MemoryKV[] memory handles = new MemoryKV[](5);
@@ -87,11 +89,16 @@ contract LibMemoryKVCrossFunctionTest is Test {
         }
 
         // One update through the newest handle moves the value every handle
-        // holding that key reports, oldest included.
+        // holding that key reports, oldest included, and leaves every handle
+        // word as it was.
+        uint256[] memory before = new uint256[](handles.length);
+        for (uint256 i = 0; i < handles.length; i++) {
+            before[i] = MemoryKV.unwrap(handles[i]);
+        }
         handles[handles.length - 1] = handles[handles.length - 1].set(keys[0], MemoryKVVal.wrap(bytes32(uint256(999))));
         for (uint256 i = 0; i < handles.length; i++) {
             assertValue(handles[i], keys[0], 999, "after update");
-            assertEq(lengthOf(handles[i]), (i + 1) * 2, "count after update");
+            assertEq(MemoryKV.unwrap(handles[i]), before[i], "handle word after update");
         }
     }
 }
