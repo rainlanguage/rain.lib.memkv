@@ -10,9 +10,19 @@ import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "
 /// carries the cost of the gets or sets it performs and nothing else. The
 /// figures they illustrate are asserted in `LibMemoryKV.gasClaims.t.sol`.
 contract LibMemoryKVGetSetGasTest is Test {
-    function testGetGas() public pure {
+    /// A get against an empty store. There is no list to walk, so this is a
+    /// miss, and its figure is not the cost of a get that finds its key.
+    function testGetMissGas() public pure {
         MemoryKV kv = MEMORY_KV_EMPTY;
         LibMemoryKV.get(kv, MemoryKVKey.wrap(0));
+    }
+
+    /// A get of a key alone in its list. The store is the one `testSetGas0`
+    /// builds, so the get is the difference between this entry and that one.
+    function testGetHitGas() public pure {
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(bytes32(uint256(1))), MemoryKVVal.wrap(bytes32(uint256(2))));
+        LibMemoryKV.get(kv, MemoryKVKey.wrap(bytes32(uint256(1))));
     }
 
     function testSetGas0() public pure {
