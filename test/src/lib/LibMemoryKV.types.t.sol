@@ -27,7 +27,7 @@ contract LibMemoryKVTypesTest is Test {
         MemoryKV kv = MEMORY_KV_EMPTY.set(low, MemoryKVVal.wrap(bytes32(uint256(0xA))));
         kv = kv.set(high, MemoryKVVal.wrap(bytes32(uint256(0xB))));
 
-        assertEq(MemoryKV.unwrap(kv) >> 0xf0, 4, "two pairs counted");
+        assertEq(lengthOf(kv), 4, "two pairs counted");
 
         (uint256 lowExists, MemoryKVVal lowValue) = kv.get(low);
         assertEq(lowExists, 1, "low key exists");
