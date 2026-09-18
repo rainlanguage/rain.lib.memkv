@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2020 Rain Open Source Software Ltd
 pragma solidity ^0.8.25;
 
-import {StdConstants} from "forge-std-1.16.1/src/StdConstants.sol";
+import {StdConstants} from "forge-std-1.16.2/src/StdConstants.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
