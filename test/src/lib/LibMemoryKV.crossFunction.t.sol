@@ -10,6 +10,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two properties of `MemoryKV` handles that take more than one call frame or
@@ -39,9 +40,7 @@ contract LibMemoryKVCrossFunctionTest is Test {
     /// loop has yet to read.
     function buildSaturatedExternal(bytes32[] memory keys) external pure returns (MemoryKV) {
         require(Pointer.unwrap(LibPointer.allocatedMemoryPointer()) <= SATURATED_BASE, "keys overlap SATURATED_BASE");
-        assembly ("memory-safe") {
-            mstore(0x40, SATURATED_BASE)
-        }
+        setFreePointer(SATURATED_BASE);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));

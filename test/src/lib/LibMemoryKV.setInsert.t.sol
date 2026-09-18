@@ -25,11 +25,10 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
 
     /// The three words of a list node as written by an insert.
     function readNode(uint256 pointer) internal pure returns (bytes32 nodeKey, bytes32 nodeValue, uint256 next) {
-        assembly ("memory-safe") {
-            nodeKey := mload(pointer)
-            nodeValue := mload(add(pointer, 0x20))
-            next := mload(add(pointer, 0x40))
-        }
+        Pointer node = Pointer.wrap(pointer);
+        nodeKey = LibPointer.unsafeReadWord(node);
+        nodeValue = LibPointer.unsafeReadWord(LibPointer.unsafeAddWord(node));
+        next = uint256(LibPointer.unsafeReadWord(LibPointer.unsafeAddWords(node, 2)));
     }
 
     /// An insert into an empty store writes exactly three words AT the free
