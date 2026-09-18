@@ -8,12 +8,15 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal} from "src/lib/LibMemory
 import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
+/// @dev The widest word count the handle holds: every bit from
+/// `LibMemoryKV.COUNT_BIT_OFFSET` up.
+uint256 constant COUNT_MAX = type(uint256).max >> LibMemoryKV.COUNT_BIT_OFFSET;
+
 /// `kv` with its word count replaced by `newCount`, every other bit kept;
-/// `newCount` is not checked against `LibMemoryKV.POINTER_MASK`, the widest
-/// count the slot holds.
+/// `newCount` is not checked against `COUNT_MAX`.
 function withCount(MemoryKV kv, uint256 newCount) pure returns (MemoryKV) {
     return MemoryKV.wrap(
-        (MemoryKV.unwrap(kv) & ~(LibMemoryKV.POINTER_MASK << LibMemoryKV.COUNT_BIT_OFFSET))
+        (MemoryKV.unwrap(kv) & ~(COUNT_MAX << LibMemoryKV.COUNT_BIT_OFFSET))
             | (newCount << LibMemoryKV.COUNT_BIT_OFFSET)
     );
 }
@@ -71,11 +74,11 @@ function craftNode(MemoryKVKey key, MemoryKVVal value, uint256 next) pure return
 /// `LibMemoryKV.LIST_COUNT`.
 /// @param head The head pointer of that list. MUST be at most
 /// `LibMemoryKV.POINTER_MASK`.
-/// @param words The word count. MUST be at most `LibMemoryKV.POINTER_MASK`.
+/// @param words The word count. MUST be at most `COUNT_MAX`.
 /// @return The handle.
 function handleWith(uint256 slot, uint256 head, uint256 words) pure returns (MemoryKV) {
     require(
-        slot < LibMemoryKV.LIST_COUNT && head <= LibMemoryKV.POINTER_MASK && words <= LibMemoryKV.POINTER_MASK,
+        slot < LibMemoryKV.LIST_COUNT && head <= LibMemoryKV.POINTER_MASK && words <= COUNT_MAX,
         "handle field out of range"
     );
     return MemoryKV.wrap((words << LibMemoryKV.COUNT_BIT_OFFSET) | (head << (slot * LibMemoryKV.SLOT_BITS)));
