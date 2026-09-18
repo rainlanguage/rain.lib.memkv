@@ -8,7 +8,7 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory, setFreePointer} from "test/lib/LibFreeMemory.sol";
-import {withCount, lengthOf, headOf, craftNode, handleWith} from "test/lib/LibMemoryKVHandle.sol";
+import {COUNT_MAX, withCount, lengthOf, headOf, craftNode, handleWith} from "test/lib/LibMemoryKVHandle.sol";
 import {slotOf} from "test/lib/LibMemoryKVKeys.sol";
 
 /// @title LibMemoryKVHandleTest
@@ -105,24 +105,24 @@ contract LibMemoryKVHandleTest is Test {
     /// the other two stay at their widest valid value.
     function testHandleWithRejectsAFieldThatDoesNotFit() external {
         uint256 lastSlot = LibMemoryKV.LIST_COUNT - 1;
-        uint256 widest = LibMemoryKV.POINTER_MASK;
-        MemoryKV kv = this.handleWithExternal(lastSlot, widest, widest);
-        assertEq(headOf(kv, lastSlot), widest, "the widest head");
-        assertEq(lengthOf(kv), widest, "the widest count");
+        uint256 widestHead = LibMemoryKV.POINTER_MASK;
+        MemoryKV kv = this.handleWithExternal(lastSlot, widestHead, COUNT_MAX);
+        assertEq(headOf(kv, lastSlot), widestHead, "the widest head");
+        assertEq(lengthOf(kv), COUNT_MAX, "the widest count");
 
         vm.expectRevert("handle field out of range");
-        this.handleWithExternal(LibMemoryKV.LIST_COUNT, widest, widest);
+        this.handleWithExternal(LibMemoryKV.LIST_COUNT, widestHead, COUNT_MAX);
         vm.expectRevert("handle field out of range");
-        this.handleWithExternal(lastSlot, widest + 1, widest);
+        this.handleWithExternal(lastSlot, widestHead + 1, COUNT_MAX);
         vm.expectRevert("handle field out of range");
-        this.handleWithExternal(lastSlot, widest, widest + 1);
+        this.handleWithExternal(lastSlot, widestHead, COUNT_MAX + 1);
     }
 
     /// `withCount` rewrites the count and nothing under it: from any word,
     /// every head pointer comes through unchanged, the count reads back as the
     /// one forced, and every bit below the count's slot is the bit it was.
     function testWithCountKeepsEveryBitUnderTheCount(uint256 word, uint256 forced) external pure {
-        forced = bound(forced, 0, LibMemoryKV.POINTER_MASK);
+        forced = bound(forced, 0, COUNT_MAX);
         MemoryKV kv = MemoryKV.wrap(word);
         MemoryKV changed = withCount(kv, forced);
 

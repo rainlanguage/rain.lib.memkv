@@ -6,7 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {withCount} from "test/lib/LibMemoryKVHandle.sol";
+import {COUNT_MAX, withCount} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVErrorAbiTest
 /// Every other test that expects one of these errors builds the expectation
@@ -41,12 +41,12 @@ contract LibMemoryKVErrorAbiTest is Test, SetAtFreePointer {
 
     /// The same for the count bound: the first four bytes of the hash of
     /// `MemoryKVLengthOverflow(uint256)`, then the offending count.
-    /// `LibMemoryKV.POINTER_MASK + 2` is neither the bound nor one past it.
+    /// `COUNT_MAX + 2` is neither the bound nor one past it.
     function testLengthOverflowRevertDataIsTheCanonicalAbiEncoding() external {
         bytes4 selector = bytes4(keccak256(bytes("MemoryKVLengthOverflow(uint256)")));
-        vm.expectRevert(abi.encodePacked(selector, LibMemoryKV.POINTER_MASK + 2));
+        vm.expectRevert(abi.encodePacked(selector, COUNT_MAX + 2));
         this.setAtFreePointer(
-            withCount(MEMORY_KV_EMPTY, LibMemoryKV.POINTER_MASK),
+            withCount(MEMORY_KV_EMPTY, COUNT_MAX),
             MemoryKVKey.wrap(bytes32(uint256(1))),
             MemoryKVVal.wrap(bytes32(uint256(2))),
             LOW_FREE_POINTER
