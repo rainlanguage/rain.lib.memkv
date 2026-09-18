@@ -4,9 +4,12 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// Compares the gas of paths through the library against each other within one
 /// build: the export of a pair from each list against the others, the bisect
@@ -41,15 +44,10 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// inside memory that is already expanded, so none of them pays expansion
     /// and the order two measurements are taken in does not change either one.
     function padMemory() internal pure {
-        uint256 pointer;
-        assembly ("memory-safe") {
-            pointer := mload(0x40)
-        }
+        uint256 pointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         bytes memory pad = new bytes(0x1000);
         (pad);
-        assembly {
-            mstore(0x40, pointer)
-        }
+        setFreePointer(pointer);
     }
 
     function bisectGas(MemoryKV kv) internal view returns (uint256) {
