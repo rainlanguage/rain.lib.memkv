@@ -7,13 +7,9 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {
-    collidingPairDifferingInBit,
-    countPair,
-    headOf,
-    keyForSlot,
-    lengthOf
-} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {collidingPairDifferingInBit, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 
 /// @title LibMemoryKVTypesTest
 /// The declarations the rest of the suite is written on top of: the one word an

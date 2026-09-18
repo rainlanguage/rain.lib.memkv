@@ -8,18 +8,18 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {SetAtFreePointer} from "test/lib/SetAtFreePointer.sol";
-import {dirtyFreeMemory} from "test/lib/LibDirtyMemory.sol";
-import {keysInSlot, headOf, lengthOf, NODE_BYTES} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
+import {keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetInsertTest
 /// The insert half of `set`, asserted against the documented SHAPE of the store
 /// rather than against a round trip through `get`.
 ///
-/// "Internally represented as 15 linked lists and 1x 16bit overall word count
-/// that facilitates O(1) allocation ... of an export `bytes32[]`" (README), and
-/// the count is "The total word count of all inserts ... encoded alongside the
-/// pointer" (`MemoryKV`). So an insert must place a three word key/value/next
-/// node, prepend it to its list, and add two to a SIXTEEN bit count.
+/// The layout is the one the `MemoryKV` NatSpec documents and the `LibMemoryKV`
+/// constants name. So an insert must place a `LibMemoryKV.NODE_BYTES`
+/// key/value/next node, prepend it to its list, and add two to the word count
+/// in the slot at `LibMemoryKV.COUNT_BIT_OFFSET`.
 contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     using LibMemoryKV for MemoryKV;
 
@@ -47,7 +47,7 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         kv = kv.set(key, value);
         uint256 allocatedAfter = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
 
-        assertEq(allocatedAfter, nodePointer + NODE_BYTES, "three words allocated");
+        assertEq(allocatedAfter, nodePointer + LibMemoryKV.NODE_BYTES, "three words allocated");
         assertEq(headOf(kv, key), nodePointer, "list head is the node address");
         assertEq(lengthOf(kv), 2, "one pair is two words");
 
@@ -96,8 +96,8 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         uint256 node2 = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         kv = kv.set(keys[2], MemoryKVVal.wrap(bytes32(uint256(0xA2))));
 
-        assertEq(node1, node0 + NODE_BYTES, "second node follows the first");
-        assertEq(node2, node1 + NODE_BYTES, "third node follows the second");
+        assertEq(node1, node0 + LibMemoryKV.NODE_BYTES, "second node follows the first");
+        assertEq(node2, node1 + LibMemoryKV.NODE_BYTES, "third node follows the second");
 
         // The head is the newest node, and ONLY the newest -- the old head is
         // masked out of the slot rather than ored together with the new one.
@@ -130,10 +130,11 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
         }
     }
 
-    /// The word count is SIXTEEN bits, so it keeps counting past 0xFF. 200
-    /// pairs is 400 words, which does not fit in a byte; a count that wrapped
-    /// at 256 would both report the wrong number here and make `toBytes32Array`
-    /// (which preallocates from it) return a short array.
+    /// The word count's slot is `LibMemoryKV.SLOT_BITS` wide, so it keeps
+    /// counting past 0xFF. 200 pairs is 400 words, which does not fit in a
+    /// byte; a count that wrapped at 256 would both report the wrong number
+    /// here and make `toBytes32Array` (which preallocates from it) return a
+    /// short array.
     function testSetInsertWordCountPastAByte() external pure {
         uint256 pairs = 200;
         MemoryKV kv = MEMORY_KV_EMPTY;
@@ -165,11 +166,11 @@ contract LibMemoryKVSetInsertTest is Test, SetAtFreePointer {
     }
 
     /// A pointer with bits above the low twelve must reach the slot intact: the
-    /// slot is sixteen bits wide and an insert at `0xF000` must record exactly
-    /// `0xF000`, not a truncation of it.
-    function testSetInsertRecordsTheFullSixteenBitPointer(MemoryKVKey key, MemoryKVVal value) external view {
+    /// slot is `LibMemoryKV.SLOT_BITS` wide and an insert at `0xF000` must record
+    /// exactly `0xF000`, not a truncation of it.
+    function testSetInsertRecordsTheWholePointer(MemoryKVKey key, MemoryKVVal value) external view {
         MemoryKV kv = this.setAtFreePointer(MEMORY_KV_EMPTY, key, value, 0xF000);
-        assertEq(headOf(kv, key), 0xF000, "the whole 16 bit pointer reaches the slot");
+        assertEq(headOf(kv, key), 0xF000, "the whole pointer reaches the slot");
         assertEq(lengthOf(kv), 2, "one pair is two words");
     }
 

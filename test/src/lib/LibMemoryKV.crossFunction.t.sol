@@ -7,7 +7,10 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {assertValue, keyForSlot, lengthOf, setFreePointer} from "test/lib/LibMemoryKVTestHelpers.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
+import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
+import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two properties of `MemoryKV` handles that take more than one call frame or
