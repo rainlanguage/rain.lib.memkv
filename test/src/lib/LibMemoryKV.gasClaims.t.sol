@@ -36,11 +36,10 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// in every slot.
     uint256 constant COLLIDING_SLOT = 3;
 
-    /// Expands memory past anything the measurements below allocate, then rewinds
-    /// the free pointer over it. Without this each measurement is taken at a
-    /// higher point in memory than the last and carries a different expansion
-    /// cost, which is a difference between allocations rather than between the
-    /// things being compared.
+    /// Expands memory past anything the measurements below allocate, then
+    /// rewinds the free pointer over it. Every measurement after it allocates
+    /// inside memory that is already expanded, so none of them pays expansion
+    /// and the order two measurements are taken in does not change either one.
     function padMemory() internal pure {
         uint256 pointer;
         assembly ("memory-safe") {
