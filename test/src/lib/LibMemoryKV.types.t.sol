@@ -69,10 +69,8 @@ contract LibMemoryKVTypesTest is Test {
         }
     }
 
-    /// Two keys differing in the top bit alone, sharing one internal list. A
-    /// compare narrower than a word merges them: one pair counted instead of
-    /// two, and one value answering for both. No fuzzed pair of keys differs in
-    /// that bit alone, so the pair is searched for rather than drawn.
+    /// Two keys differing in the top bit alone, sharing one internal list, are
+    /// two keys: two pairs counted, and each key answering with its own value.
     function testTopBitCollidersAreTwoKeys() external pure {
         (MemoryKVKey low, MemoryKVKey high) = collidingPairDifferingInBit(0, TOP_BIT);
         assertTwoKeys(low, high);

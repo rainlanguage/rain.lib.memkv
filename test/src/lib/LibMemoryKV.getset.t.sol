@@ -63,9 +63,7 @@ contract LibMemoryKVGetSetTest is Test, SetAtFreePointer {
     /// The bound is on the node's HEAD pointer alone. A node inserted at the
     /// maximum head pointer `0xFFFF` holds its value word at `0x1001F`, above
     /// the bound, and `get` reads it: node fields are reached by full width
-    /// arithmetic from the head, not through 16 bit pointers. A `get` that
-    /// truncated a field address to 16 bits is indistinguishable from a
-    /// correct one for every node that fits entirely under the bound.
+    /// arithmetic from the head, not through 16 bit pointers.
     function testGetReadsAValueWordAboveTheBound(MemoryKVKey key, MemoryKVVal value) external view {
         (uint256 exists, MemoryKVVal got) = this.setAtPointerThenGetExternal(key, value, 0xFFFF);
 

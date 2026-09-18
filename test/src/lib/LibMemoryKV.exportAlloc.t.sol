@@ -155,10 +155,9 @@ contract LibMemoryKVExportAllocTest is Test {
     }
 
     /// A value of `0` is a value: `get` documents that any key MAY be set to
-    /// zero and reports existence separately from it. The export must write
-    /// that zero into the pair's second word rather than leave the word as
-    /// whatever memory held, so the free memory is dirtied first and the
-    /// assertion is on the zero itself.
+    /// zero and reports existence separately from it. The export writes that
+    /// zero into the pair's second word: the free memory is dirtied first, and
+    /// the assertion is on the zero itself.
     function testExportCopiesZeroValue(bytes32 seed) external pure {
         bytes32 sentinel = keccak256(abi.encode(seed, "sentinel"));
         bytes32 zeroValued = keccak256(abi.encode(seed, "zero valued"));

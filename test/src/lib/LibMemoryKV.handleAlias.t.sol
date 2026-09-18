@@ -15,9 +15,7 @@ import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
 /// tests pin what those copies report: an update reaches every handle holding
 /// the key, an insert reaches only the handle `set` returned, and
 /// `toBytes32Array` is the only way to hold values that a later update cannot
-/// move. Each case states the VALUE a handle must report, so a store that
-/// started copying on write, or one that stopped sharing items, is a different
-/// number rather than a revert.
+/// move. Each case states the VALUE a handle must report.
 contract LibMemoryKVHandleAliasTest is Test {
     using LibMemoryKV for MemoryKV;
 

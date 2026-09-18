@@ -392,8 +392,8 @@ contract LibMemoryKVBisectTest is Test {
     /// Exports all 32768 occupancy combinations and checks each against the
     /// pairs that combination must produce. The check is plain arithmetic and
     /// the first mask that fails it is carried out of the loop, so the assertion
-    /// machinery runs once rather than 32768 times and the mask that failed is
-    /// what the assertion reports.
+    /// machinery runs once and the mask that failed is what the assertion
+    /// reports.
     ///
     /// Every case is built from one free memory pointer, `free`, taken after
     /// `slotKeys` has allocated, so every node of every case lies in
@@ -459,8 +459,9 @@ contract LibMemoryKVBisectTest is Test {
 
     /// The length is not a slot. It sits directly above slot 14, which is the
     /// leaf the collapsed path reaches without scrubbing, and the export reads
-    /// no pointer out of it. Every pair here is on one low list, which leaves the whole high half
-    /// empty while the length is far larger than any single insert makes it.
+    /// no pointer out of it. Every pair here is on one low list, which leaves
+    /// the whole high half empty while the length is far larger than any single
+    /// insert makes it.
     ///
     /// It is also the only list built longer than one node, so it is the only
     /// place the walk down a list is exercised at all. Which order it comes back

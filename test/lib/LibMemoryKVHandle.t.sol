@@ -79,8 +79,7 @@ contract LibMemoryKVHandleTest is Test {
     }
 
     /// A node at `LibMemoryKV.POINTER_MASK` still fits a head slot; one byte
-    /// higher does not and reverts rather than handing back an address a handle
-    /// would truncate.
+    /// higher does not, and crafting a node there reverts.
     function testCraftNodeRevertsAboveTheWidestHeadPointer() external {
         assertEq(
             this.craftNodeAtExternal(LibMemoryKV.POINTER_MASK), LibMemoryKV.POINTER_MASK, "the widest head pointer"
