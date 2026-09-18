@@ -22,7 +22,9 @@ import {
     raiseFreePointerTo,
     craftNode,
     handleWith,
-    assertTextStates
+    assertTextStates,
+    assertValue,
+    countPair
 } from "test/lib/LibMemoryKVTestHelpers.sol";
 
 /// @title LibMemoryKVTestHelpersTest
@@ -54,6 +56,17 @@ contract LibMemoryKVTestHelpersTest is Test {
     /// failure.
     function assertTextStatesExternal(string memory text, string memory phrase, string memory source) external pure {
         assertTextStates(text, phrase, source);
+    }
+
+    /// `assertValue` on a store built in this frame, which holds `stored` under
+    /// `key` when `insert` is true and is empty otherwise, so a test can expect
+    /// its failure without passing a handle across a call.
+    function assertValueExternal(MemoryKVKey key, bool insert, uint256 stored, uint256 expected) external pure {
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        if (insert) {
+            kv = kv.set(key, MemoryKVVal.wrap(bytes32(stored)));
+        }
+        assertValue(kv, key, expected, "err");
     }
 
     /// The pair the search returns differs in the named bit and nothing else,
@@ -189,5 +202,71 @@ contract LibMemoryKVTestHelpersTest is Test {
         this.assertTextStatesExternal("a key alone costs ~390 gas to insert", "~39 gas", "text");
         vm.expectRevert(bytes("text does not state \"~3900 gas\""));
         this.assertTextStatesExternal("a key alone costs ~390 gas to insert", "~3900 gas", "text");
+    }
+
+    /// A key the store holds with exactly the expected value passes.
+    function testAssertValuePassesOnTheValueTheStoreHolds(MemoryKVKey key, uint256 value) external view {
+        this.assertValueExternal(key, true, value, value);
+    }
+
+    /// A key the store does not hold fails on existence, even when the
+    /// expected value is the zero a miss reads as.
+    function testAssertValueFailsOnAKeyTheStoreDoesNotHold(MemoryKVKey key) external {
+        vm.expectRevert(bytes("err exists: 0 != 1"));
+        this.assertValueExternal(key, false, 0, 0);
+    }
+
+    /// A key the store holds with another value fails on the value.
+    function testAssertValueFailsOnAnotherValue(MemoryKVKey key) external {
+        vm.expectRevert(bytes("err value: 1 != 2"));
+        this.assertValueExternal(key, true, 1, 2);
+    }
+
+    /// Only a key word at an even index followed by the value word counts: a
+    /// key with another value does not, and neither does a key word in a value
+    /// position followed by the value, nor a value word in a key position
+    /// followed by the value.
+    function testCountPairCountsOnlyKeyThenValueAtAPairBoundary(bytes32 key, bytes32 value, bytes32 other)
+        external
+        pure
+    {
+        vm.assume(key != value && key != other && value != other);
+        bytes32[] memory array = new bytes32[](8);
+        array[0] = key;
+        array[1] = value;
+        array[2] = key;
+        array[3] = other;
+        array[4] = other;
+        array[5] = key;
+        array[6] = value;
+        array[7] = value;
+
+        assertEq(countPair(array, key, value), 1, "key then value");
+        assertEq(countPair(array, key, other), 1, "key then other");
+        assertEq(countPair(array, value, value), 1, "value then value");
+        assertEq(countPair(array, other, value), 0, "no other then value");
+    }
+
+    /// Exactly `words` words from the free memory pointer up read as the
+    /// sentinel afterwards, the word after them keeps what it held, and the
+    /// pointer does not move.
+    function testDirtyFreeMemoryFillsExactlyTheWordsAndLeavesThePointer(bytes32 sentinel, uint8 words) external pure {
+        uint256 start = freePointer();
+        uint256 past = start + uint256(words) * 0x20;
+        LibPointer.unsafeWriteWord(Pointer.wrap(past), ~sentinel);
+
+        dirtyFreeMemory(sentinel, words);
+
+        // Read before asserting: an assert message allocates at the pointer.
+        uint256 end = freePointer();
+        uint256 sentinelWords = 0;
+        while (sentinelWords < words && wordAt(start + sentinelWords * 0x20) == sentinel) {
+            sentinelWords++;
+        }
+        bytes32 pastWord = wordAt(past);
+
+        assertEq(end, start, "pointer not moved");
+        assertEq(sentinelWords, words, "every word dirtied");
+        assertEq(pastWord, ~sentinel, "the word after them");
     }
 }
