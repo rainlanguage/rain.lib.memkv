@@ -23,8 +23,8 @@ import {countPair} from "test/lib/LibMemoryKVExport.sol";
 /// name it on failure. The enumerations run every occupancy mask, which is the
 /// walk's whole input: nothing it does branches on a key or a value.
 ///
-/// `listKeys` holds one constant key per list, so an occupancy is chosen
-/// rather than searched for.
+/// `listKeys` holds one constant key per list, so every test here chooses its
+/// occupancy and none takes a fuzz input.
 ///
 /// Every header and node of every case an enumeration builds is allocated from
 /// a free memory pointer that is rewound between cases, so each case builds at
@@ -61,7 +61,7 @@ contract LibMemoryKVExportOccupancyTest is Test {
     /// `LibMemoryKV.LIST_COUNT`, and `testKeyConstantsLandWhereClaimed` checks
     /// each.
     function listKeys() internal pure returns (bytes32[] memory keys) {
-        uint256[LibMemoryKV.LIST_COUNT] memory words = [uint256(4), 31, 2, 1, 9, 49, 24, 42, 3, 21, 16, 7, 6, 14, 11];
+        uint256[15] memory words = [uint256(4), 31, 2, 1, 9, 49, 24, 42, 3, 21, 16, 7, 6, 14, 11];
         keys = new bytes32[](LibMemoryKV.LIST_COUNT);
         for (uint256 list = 0; list < LibMemoryKV.LIST_COUNT; list++) {
             keys[list] = bytes32(words[list]);
@@ -164,8 +164,7 @@ contract LibMemoryKVExportOccupancyTest is Test {
 
     /// A single key in `list` and nothing else. Its occupancy bit is the whole
     /// mask, so the walk takes one step: it isolates that bit and copies the
-    /// list `SLOT_TABLE` names for it. A table byte that names any other list
-    /// copies that list's empty head instead, and the one pair is missing.
+    /// list `SLOT_TABLE` names for it.
     function checkSoleList(uint256 list) internal pure {
         bytes32[] memory keys = listKeys();
         MemoryKV kv = storeForOccupancy(occupancyBitOf(list), keys);
@@ -235,21 +234,20 @@ contract LibMemoryKVExportOccupancyTest is Test {
         checkSoleList(13);
     }
 
-    /// List 14 is the lowest bit of the mask, so the walk reaches it first.
-    function testList14AloneExports() public pure {
-        checkSoleList(14);
+    /// The last list is the lowest bit of the mask, so the walk reaches it
+    /// first.
+    function testLastListAloneExports() public pure {
+        checkSoleList(LibMemoryKV.LIST_COUNT - 1);
     }
 
     /// The lowest and the highest bit of the mask, the walk's first and last
-    /// possible steps, with every bit between them clear. A walk that stops
-    /// before the top of the mask drops list 0.
+    /// possible steps, with every bit between them clear.
     function testListsAtBothEndsOfTheMaskExport() public pure {
-        checkNamedOccupancy(occupancyBitOf(0) | occupancyBitOf(14), "lists 0 and 14");
+        uint256 last = LibMemoryKV.LIST_COUNT - 1;
+        checkNamedOccupancy(occupancyBitOf(0) | occupancyBitOf(last), string.concat("lists 0 and ", vm.toString(last)));
     }
 
-    /// Every two lists whose occupancy bits are neighbours. A step that clears
-    /// a neighbour of the bit it isolated skips a list, and one that clears
-    /// nothing copies the same list again.
+    /// Every two lists whose occupancy bits are neighbours.
     function testEveryAdjacentPairOfListsExports() public pure {
         for (uint256 list = 0; list + 1 < LibMemoryKV.LIST_COUNT; list++) {
             checkNamedOccupancy(
@@ -261,22 +259,22 @@ contract LibMemoryKVExportOccupancyTest is Test {
 
     /// Every other list, so every step of the walk skips a clear bit.
     function testAlternateListsExport() public pure {
-        checkNamedOccupancy(OCCUPANCY_EVEN_LISTS, "even lists");
-        checkNamedOccupancy(OCCUPANCY_ODD_LISTS, "odd lists");
+        checkNamedOccupancy(alternateLists(0), "even lists");
+        checkNamedOccupancy(alternateLists(1), "odd lists");
     }
 
-    /// All fifteen lists at once. Every step must copy a list no other step
-    /// copies, and between them reach every list.
+    /// Every list at once. Every step copies a list no other step copies, and
+    /// between them they reach every list.
     function testEveryListExportedExactlyOnce() public pure {
         checkNamedOccupancy(LibMemoryKV.OCCUPANCY_MASK, "every list");
     }
 
     function testEvenListsExportAboveSixteenBits() public pure {
-        checkNamedOccupancyAboveSixteenBits(OCCUPANCY_EVEN_LISTS, "even lists");
+        checkNamedOccupancyAboveSixteenBits(alternateLists(0), "even lists");
     }
 
     function testOddListsExportAboveSixteenBits() public pure {
-        checkNamedOccupancyAboveSixteenBits(OCCUPANCY_ODD_LISTS, "odd lists");
+        checkNamedOccupancyAboveSixteenBits(alternateLists(1), "odd lists");
     }
 
     function testEveryListExportedExactlyOnceAboveSixteenBits() public pure {
@@ -285,8 +283,8 @@ contract LibMemoryKVExportOccupancyTest is Test {
 
     /// Whether `array` holds exactly the pairs `expected` names and nothing
     /// else, as a multiset: bit `i` of `expected` names the pair `keys[i]`,
-    /// `valueFor(i)`. `toBytes32Array` documents its pair order as
-    /// unspecified, so position is deliberately not checked.
+    /// `valueFor(i)`. The pair order is unspecified, so position is not
+    /// checked.
     ///
     /// Each value is `VALUE_BASE + i`, so the index a pair claims is read out
     /// of its own value, and the pair is then held to the key that index must
@@ -294,10 +292,6 @@ contract LibMemoryKVExportOccupancyTest is Test {
     /// `expected` is multiset equality without a scan per pair: a pair exported
     /// twice is caught by its bit already being set, and one dropped,
     /// duplicated or invented by the bitsets differing.
-    ///
-    /// The named tests check the same thing through `countPair`, which costs a
-    /// scan per pair but names the list it checked. Here the whole point is
-    /// 32768 cases, so the check is the cheap one.
     function exportMatches(bytes32[] memory array, bytes32[] memory keys, uint256 expected)
         internal
         pure
@@ -326,11 +320,11 @@ contract LibMemoryKVExportOccupancyTest is Test {
         return found == expected;
     }
 
-    /// Builds and exports all 32768 occupancy combinations and checks each
-    /// against the mask, count and pairs that combination must produce. The
-    /// check is plain arithmetic and the first mask that fails it is carried
-    /// out of the loop, so the assertion machinery runs once rather than 32768
-    /// times and the mask that failed is what the assertion reports.
+    /// Builds and exports every occupancy combination and checks each against
+    /// the mask, count and pairs that combination must produce. The check is
+    /// plain arithmetic and the first mask that fails it is carried out of the
+    /// loop, so the assertion machinery runs once and the mask that failed is
+    /// what the assertion reports.
     function checkEveryOccupancy() internal pure {
         bytes32[] memory keys = listKeys();
 
@@ -350,15 +344,8 @@ contract LibMemoryKVExportOccupancyTest is Test {
         assertEq(failed, NO_MASK, "occupancy mask whose store or export did not match");
     }
 
-    /// The fifteen key constants are the whole reason a combination can be
-    /// chosen rather than searched for, and every test here reads its result
-    /// through the list each key claims. Should the hash that `get` and `set`
-    /// share ever move, the keys stop naming the lists they claim and the
-    /// tests silently cover something other than what they report.
-    ///
-    /// Occupying all fifteen at once is what makes them fifteen distinct lists
-    /// rather than fifteen keys that each hash somewhere. `set` routes on the
-    /// key alone, so that plus one key per list is every occupancy.
+    /// Each key constant hashes into the list it claims, and together they
+    /// occupy every list.
     function testKeyConstantsLandWhereClaimed() public pure {
         bytes32[] memory keys = listKeys();
         for (uint256 list = 0; list < LibMemoryKV.LIST_COUNT; list++) {
@@ -367,7 +354,7 @@ contract LibMemoryKVExportOccupancyTest is Test {
         assertEq(
             occupancyOf(storeForOccupancy(LibMemoryKV.OCCUPANCY_MASK, keys)),
             LibMemoryKV.OCCUPANCY_MASK,
-            "fifteen keys, fifteen lists"
+            "one key per list, every list occupied"
         );
     }
 
@@ -385,14 +372,11 @@ contract LibMemoryKVExportOccupancyTest is Test {
         checkEveryOccupancy();
     }
 
-    /// The word count sits in the meta word directly above the occupancy mask,
-    /// with only the zero bit 15 between them. A mask read wider than
-    /// `LibMemoryKV.OCCUPANCY_MASK` takes count bits for occupancy bits, and
-    /// `SLOT_TABLE` maps every bit to some list, so the walk then copies a
-    /// list a second time, after every true mask bit, past the end of the
-    /// array the count sized. Every list is occupied here so that any such bit
-    /// lands on a list with pairs in it, and the count then runs from 30 words
-    /// to 128, setting each count bit from the second to the eighth.
+    /// The word count sits in the meta word directly above the occupancy mask.
+    /// Every list is occupied, and the count then grows one pair at a time to
+    /// 128 words, setting each count bit from the second to the eighth; at
+    /// every step the export holds exactly the store's pairs and writes
+    /// nothing past its end.
     ///
     /// The extra pairs make list 0 a list many nodes long, so the walk down a
     /// list is exercised here too.
@@ -422,10 +406,7 @@ contract LibMemoryKVExportOccupancyTest is Test {
             bytes32 firstPastTheEnd = LibPointer.unsafeReadWord(Pointer.wrap(end));
             bytes32 secondPastTheEnd = LibPointer.unsafeReadWord(Pointer.wrap(end + 0x20));
 
-            uint256 arrayAt;
-            assembly ("memory-safe") {
-                arrayAt := array
-            }
+            uint256 arrayAt = Pointer.unwrap(LibBytes32Array.startPointer(array));
             assertEq(end, arrayAt + 0x20 + pairs * 0x40, "the export ends after its pairs");
             assertTrue(exportMatches(array, keys, (uint256(1) << pairs) - 1), "every pair exported exactly once");
             assertEq(firstPastTheEnd, PAST_THE_END, "the first word past the end is untouched");

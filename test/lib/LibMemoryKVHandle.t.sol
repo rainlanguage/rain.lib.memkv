@@ -43,8 +43,9 @@ contract LibMemoryKVHandleTest is Test {
         return LibPointer.unsafeReadWord(Pointer.wrap(pointer));
     }
 
-    /// `handleWith` in a frame of its own so a test can expect its revert. The
-    /// store is read here, because a handle MUST NOT leave the frame.
+    /// `handleWith` in a frame of its own so a test can expect its revert. It
+    /// returns what the store reads, not the handle, which MUST NOT leave the
+    /// frame.
     function handleWithExternal(uint256 slot, uint256 head, uint256 words)
         external
         pure
