@@ -6,126 +6,126 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
+import {keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
+import {headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVSetCapacityTest
-/// `set` can revert, and the ceiling it reverts at is the frame's free memory
-/// pointer rather than a pair count. These tests state that ceiling as the
-/// exact pair that crosses it and the exact pointer the revert carries, and
-/// state that an update is not subject to it at all, so a guard that moved
-/// onto the update path or a node that changed size is a different number
-/// here.
+/// `set` has no ceiling. The handle is the address of the header, and heads
+/// and next pointers are whole words, so neither where the store lives in
+/// memory nor how many pairs it holds is bounded by anything but the gas that
+/// memory costs. Each case reads EVERY key back and exports the store, so an
+/// address truncated anywhere on the way is a key that no longer reads back
+/// rather than a store that merely looks full.
 contract LibMemoryKVSetCapacityTest is Test {
     using LibMemoryKV for MemoryKV;
 
-    /// Insert `pairs` distinct keys into an empty store in a frame that starts
-    /// at the default free memory pointer and allocates nothing else, so the
-    /// nodes are the only allocation and their addresses are exact. Returns the
-    /// word count, so a fill that stopped early is a number rather than a
-    /// silence.
-    function fillEmptyFrameExternal(uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
-        MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 i = 1; i <= pairs; i++) {
-            kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
-        }
-        return MemoryKV.unwrap(kv) >> 0xf0;
+    /// The first address that does not fit in sixteen bits.
+    uint256 internal constant ABOVE_SIXTEEN_BITS = 0x10000;
+
+    /// Pairs the acceptance test sets, three times what a packed sixteen bit
+    /// pointer could reach from the lowest free memory pointer.
+    uint256 internal constant ACCEPTANCE_PAIRS = 2000;
+
+    /// Nodes the straddling store chains into one list.
+    uint256 internal constant CHAIN = 40;
+
+    /// The bytes the straddling store occupies: its header and its chain.
+    uint256 internal constant CHAIN_STORE_BYTES = LibMemoryKV.HEADER_BYTES + CHAIN * LibMemoryKV.NODE_BYTES;
+
+    function freePointer() internal pure returns (uint256) {
+        return Pointer.unwrap(LibPointer.allocatedMemoryPointer());
     }
 
-    /// Allocate an unrelated `bytes32[]` of `elements` elements in a frame that
-    /// starts at the default free memory pointer, then insert `pairs` distinct
-    /// keys behind it. The array costs a length word plus its elements, and
-    /// that cost is required rather than assumed so a frame that started
-    /// somewhere else is a failure here rather than a different capacity.
-    /// Returns the word count.
-    function fillAfterUnrelatedAllocationExternal(uint256 elements, uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
+    /// The value the acceptance test sets for pair `i`, distinct from every
+    /// key it sets.
+    function valueFor(uint256 i) internal pure returns (bytes32) {
+        return keccak256(abi.encode("value", i));
+    }
+
+    /// The #13 acceptance test. The free memory pointer is above sixteen bits
+    /// before the first insert, so the header and every node are too, and the
+    /// store then takes `ACCEPTANCE_PAIRS` distinct keys. Every key reads back
+    /// with its value, the count is every pair, the export holds every pair
+    /// once, and the allocation is exactly one header and one node per pair.
+    function testTwoThousandPairsFromAboveSixteenBits() external pure {
+        setFreePointer(ABOVE_SIXTEEN_BITS);
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        for (uint256 i = 1; i <= ACCEPTANCE_PAIRS; i++) {
+            kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(valueFor(i)));
         }
-        bytes32[] memory unrelated = new bytes32[](elements);
-        require(unrelated.length == elements, "the unrelated array is live");
-        require(
-            Pointer.unwrap(LibPointer.allocatedMemoryPointer()) == 0xA0 + elements * 0x20,
-            "the unrelated array is a length word and its elements"
+        uint256 end = freePointer();
+
+        assertEq(MemoryKV.unwrap(kv), ABOVE_SIXTEEN_BITS, "the header is where the free memory pointer was");
+        assertEq(
+            end,
+            ABOVE_SIXTEEN_BITS + LibMemoryKV.HEADER_BYTES + ACCEPTANCE_PAIRS * LibMemoryKV.NODE_BYTES,
+            "one header and one node per pair"
         );
+        assertEq(lengthOf(kv), ACCEPTANCE_PAIRS * 2, "two words per pair");
 
+        for (uint256 i = 1; i <= ACCEPTANCE_PAIRS; i++) {
+            (uint256 exists, MemoryKVVal value) = kv.get(MemoryKVKey.wrap(bytes32(i)));
+            assertEq(exists, 1, "every key exists");
+            assertEq(MemoryKVVal.unwrap(value), valueFor(i), "every key reads back its value");
+        }
+
+        // Every exported pair is a key the store was given, with its value,
+        // and none is exported twice. With the length that is every pair once.
+        bytes32[] memory array = kv.toBytes32Array();
+        assertEq(array.length, ACCEPTANCE_PAIRS * 2, "every pair exported");
+        bool[] memory seen = new bool[](ACCEPTANCE_PAIRS + 1);
+        for (uint256 cursor = 0; cursor < array.length; cursor += 2) {
+            uint256 key = uint256(array[cursor]);
+            assertTrue(key >= 1 && key <= ACCEPTANCE_PAIRS, "an exported key the store was given");
+            assertFalse(seen[key], "no key exported twice");
+            seen[key] = true;
+            assertEq(array[cursor + 1], valueFor(key), "each exported key beside its own value");
+        }
+    }
+
+    /// A store whose header and nodes straddle `0x10000`, at every alignment
+    /// the fuzzer picks. It starts below sixteen bits and ends above them, so
+    /// some of its words (a head, the meta word, a key, a value or a next
+    /// pointer, depending on where it starts) sit on each side, and the walk
+    /// down its one list follows next pointers across. Every key reads back
+    /// and the export holds every pair once.
+    function testAStoreStraddlingSixteenBitsReadsBackWhole(uint256 start, bytes32 seed) external pure {
+        MemoryKVKey[] memory keys = keysInSlot(seed, uint256(seed) % LibMemoryKV.LIST_COUNT, CHAIN);
+        start = bound(start, ABOVE_SIXTEEN_BITS - CHAIN_STORE_BYTES + 1, ABOVE_SIXTEEN_BITS - 1);
+        assertGt(start, freePointer(), "the store starts above everything this test allocated");
+
+        setFreePointer(start);
         MemoryKV kv = MEMORY_KV_EMPTY;
-        for (uint256 i = 1; i <= pairs; i++) {
-            kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
+        for (uint256 i = 0; i < CHAIN; i++) {
+            kv = kv.set(keys[i], MemoryKVVal.wrap(bytes32(i + 1)));
         }
-        return MemoryKV.unwrap(kv) >> 0xf0;
-    }
 
-    /// Insert `key`, then move the free memory pointer far above the bound and
-    /// update `key`, reading the value back in the same frame. The node stays
-    /// where it was allocated; only the free memory pointer is above the bound.
-    function updateAboveTheBoundExternal(MemoryKVKey key, MemoryKVVal first, MemoryKVVal second)
-        external
-        pure
-        returns (uint256, bytes32)
-    {
-        MemoryKV kv = MEMORY_KV_EMPTY.set(key, first);
-        assembly ("memory-safe") {
-            mstore(0x40, 0x20000)
+        assertEq(MemoryKV.unwrap(kv), start, "the header is where the free memory pointer was");
+        assertGt(start + CHAIN_STORE_BYTES, ABOVE_SIXTEEN_BITS, "the store ends above sixteen bits");
+        assertEq(
+            headOf(kv, keys[0]),
+            start + LibMemoryKV.HEADER_BYTES + (CHAIN - 1) * LibMemoryKV.NODE_BYTES,
+            "the newest node heads the one list"
+        );
+        assertEq(lengthOf(kv), CHAIN * 2, "two words per pair");
+
+        for (uint256 i = 0; i < CHAIN; i++) {
+            (uint256 exists, MemoryKVVal value) = kv.get(keys[i]);
+            assertEq(exists, 1, "every key exists");
+            assertEq(uint256(MemoryKVVal.unwrap(value)), i + 1, "every key reads back its value");
         }
-        kv = kv.set(key, second);
-        (uint256 exists, MemoryKVVal got) = kv.get(key);
-        return (exists, MemoryKVVal.unwrap(got));
-    }
 
-    /// A frame that allocates nothing else fits exactly 682 pairs: the first
-    /// node is at the default free memory pointer `0x80` and each takes three
-    /// words, so the 682nd starts at `0xFFE0` and still fits a 16 bit slot.
-    function testSet682PairsFitAnOtherwiseEmptyFrame() external view {
-        assertEq(this.fillEmptyFrameExternal(682), 1364, "682 pairs is 1364 words");
-    }
-
-    /// The 683rd pair would start at `0x10040`, past the widest pointer a slot
-    /// holds, so it reverts carrying that address. This is the ceiling as a
-    /// pair count, which is the form a caller can measure itself against.
-    function testSetOverflowsOnThe683rdPairOfAnOtherwiseEmptyFrame() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10040));
-        this.fillEmptyFrameExternal(683);
-    }
-
-    /// An empty `bytes32[]` is one word, and that one word costs a whole pair:
-    /// the nodes start at `0xA0` instead of `0x80`, so the last one that fits
-    /// is the 681st, at `0xFFA0`.
-    function testOneUnrelatedWordLeavesRoomFor681Pairs() external view {
-        assertEq(this.fillAfterUnrelatedAllocationExternal(0, 681), 1362, "681 pairs is 1362 words");
-    }
-
-    /// The same 682 pairs that fit an otherwise empty frame revert once one
-    /// unrelated word is in that frame, at `0xA0 + 681 * 0x60`. A pair count is
-    /// therefore not a capacity: what the caller has already allocated decides
-    /// whether the same count succeeds or reverts.
-    function testOneUnrelatedWordMakes682PairsOverflow() external {
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
-        this.fillAfterUnrelatedAllocationExternal(0, 682);
-    }
-
-    /// A bigger allocation costs more pairs, and not one per word: eight
-    /// unrelated words start the nodes at `0x180` and cost three pairs, leaving
-    /// 679 with the 680th at `0x10020`.
-    function testEightUnrelatedWordsCostThreePairs() external {
-        assertEq(this.fillAfterUnrelatedAllocationExternal(7, 679), 1358, "679 pairs is 1358 words");
-        vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10020));
-        this.fillAfterUnrelatedAllocationExternal(7, 680);
-    }
-
-    /// An update never reverts `MemoryKVOverflow`, however far past the bound
-    /// the frame has already allocated: the pointer the guard reads is the
-    /// matched node's, and a matched node is below the bound by construction.
-    function testSetUpdateDoesNotOverflowAboveTheBound(MemoryKVKey key, MemoryKVVal first, MemoryKVVal second)
-        external
-        view
-    {
-        vm.assume(MemoryKVVal.unwrap(first) != MemoryKVVal.unwrap(second));
-
-        (uint256 exists, bytes32 got) = this.updateAboveTheBoundExternal(key, first, second);
-
-        assertEq(exists, 1, "the key still exists after the update");
-        assertEq(got, MemoryKVVal.unwrap(second), "the update wrote through");
+        bytes32[] memory array = kv.toBytes32Array();
+        assertEq(array.length, CHAIN * 2, "every pair exported");
+        bool[] memory seen = new bool[](CHAIN);
+        for (uint256 cursor = 0; cursor < array.length; cursor += 2) {
+            uint256 value = uint256(array[cursor + 1]);
+            assertTrue(value >= 1 && value <= CHAIN, "an exported value the store was given");
+            uint256 index = value - 1;
+            assertFalse(seen[index], "no pair exported twice");
+            seen[index] = true;
+            assertEq(array[cursor], MemoryKVKey.unwrap(keys[index]), "each exported value beside its own key");
+        }
     }
 }
