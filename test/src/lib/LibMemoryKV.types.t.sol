@@ -4,16 +4,17 @@ pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.2/src/Test.sol";
 
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
-import {collidingPairDifferingInBit} from "test/lib/LibMemoryKVKeys.sol";
+import {collidingPairDifferingInBit, keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
 import {COUNT_MAX, headOf, lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 
 /// @title LibMemoryKVTypesTest
-/// The declarations the rest of the suite is written on top of: the one word an
-/// empty store is, the layout that packs the head pointers and the word count
-/// into a word, and the full width of the key and value a store carries. Here
-/// they are checked on the word itself.
+/// The store's declarations: the one word an empty store is, the layout that
+/// packs the head pointers and the word count into a word, and the full width
+/// of the key and value a store carries.
 contract LibMemoryKVTypesTest is Test {
     using LibMemoryKV for MemoryKV;
 
@@ -62,20 +63,31 @@ contract LibMemoryKVTypesTest is Test {
         assertEq(COUNT_MAX, LibMemoryKV.POINTER_MASK, "the count is one slot wide");
     }
 
-    /// The word count is the slot at `LibMemoryKV.COUNT_BIT_OFFSET`, the top of
-    /// the store, and an empty store has counted nothing.
-    function testEmptyStoreHasNoWordCount() external pure {
-        assertEq(lengthOf(MEMORY_KV_EMPTY), 0);
-    }
-
-    /// The `LibMemoryKV.LIST_COUNT` head pointers are the slots below the
-    /// count, `LibMemoryKV.SLOT_BITS` bits each, and every one of them is
-    /// empty. Slot `LibMemoryKV.LIST_COUNT - 1` is the one that abuts the
-    /// count, so a count wider than `LibMemoryKV.SLOT_BITS` would read here as a
-    /// pointer that is not there.
-    function testEmptyStoreHasNoHeadPointerInAnySlot() external pure {
+    /// With every internal list holding one pair, the count and the head
+    /// pointers tile the word as the layout states: the slot at
+    /// `COUNT_BIT_OFFSET` counts two words per pair, and the slot at
+    /// `slot * SLOT_BITS` points at the node holding the key that belongs to
+    /// list `slot`, with that key's value after it.
+    function testCountAndHeadPointersTileTheWord() external pure {
+        MemoryKV kv = MEMORY_KV_EMPTY;
+        MemoryKVKey[] memory keys = new MemoryKVKey[](LibMemoryKV.LIST_COUNT);
         for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
-            assertEq(headOf(MEMORY_KV_EMPTY, slot), 0, string.concat("slot ", vm.toString(slot)));
+            keys[slot] = keyForSlot(bytes32(slot), slot);
+            kv = kv.set(keys[slot], MemoryKVVal.wrap(bytes32(slot + 1)));
+        }
+
+        assertEq(lengthOf(kv), LibMemoryKV.LIST_COUNT * 2, "the count is two words per pair");
+
+        for (uint256 slot = 0; slot < LibMemoryKV.LIST_COUNT; slot++) {
+            string memory name = string.concat("slot ", vm.toString(slot));
+            Pointer head = Pointer.wrap(headOf(kv, slot));
+            assertTrue(Pointer.unwrap(head) != 0, string.concat(name, " occupied"));
+            assertEq(LibPointer.unsafeReadWord(head), MemoryKVKey.unwrap(keys[slot]), string.concat(name, " key"));
+            assertEq(
+                LibPointer.unsafeReadWord(LibPointer.unsafeAddWord(head)),
+                bytes32(slot + 1),
+                string.concat(name, " value")
+            );
         }
     }
 
