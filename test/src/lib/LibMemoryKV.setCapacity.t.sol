@@ -77,8 +77,7 @@ contract LibMemoryKVSetCapacityTest is Test {
 
     /// One pair past `EMPTY_FRAME_PAIRS` would start at
     /// `0x80 + EMPTY_FRAME_PAIRS * NODE_BYTES`, past the widest pointer a slot
-    /// holds, so it reverts carrying that address. This is the ceiling as a
-    /// pair count, which is the form a caller can measure itself against.
+    /// holds, so it reverts carrying that address.
     function testSetOverflowsOnePairPastAnOtherwiseEmptyFramesCapacity() external {
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -97,9 +96,8 @@ contract LibMemoryKVSetCapacityTest is Test {
 
     /// The `EMPTY_FRAME_PAIRS` pairs that fit an otherwise empty frame revert
     /// once one unrelated word is in that frame: the last of them would start
-    /// at `0x10000`. A pair count is therefore not a capacity: what the caller
-    /// has already allocated decides whether the same count succeeds or
-    /// reverts.
+    /// at `0x10000`. What the caller has already allocated decides whether the
+    /// same pair count succeeds or reverts.
     function testOneUnrelatedWordMakesAnEmptyFramesCapacityOverflow() external {
         vm.expectRevert(abi.encodeWithSelector(LibMemoryKV.MemoryKVOverflow.selector, 0x10000));
         this.fillAfterUnrelatedAllocationExternal(0, EMPTY_FRAME_PAIRS);

@@ -31,9 +31,8 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// How many keys the colliding measurements put into one list.
     uint256 internal constant COLLIDERS = 4;
 
-    /// The list the colliding measurements build. Any list would do: an insert
-    /// into an empty list and a get of a key alone in one cost the same in
-    /// every slot.
+    /// The list the colliding measurements build. An insert into an empty list
+    /// and a get of a key alone in one cost the same in every slot.
     uint256 internal constant COLLIDING_SLOT = 3;
 
     /// Expands memory past anything the measurements below allocate, then
