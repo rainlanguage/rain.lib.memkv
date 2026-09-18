@@ -273,7 +273,9 @@ library LibMemoryKV {
             // each symbol is as tightly scoped as it can be.
             let cursor := add(array, 0x20)
             {
-                // Remove the length from kv before iffing to save ~100 gas.
+                // Remove the length from kv before iffing, so p0 is zero
+                // exactly when lists 8 to 14 are empty and the bisect skips
+                // them.
                 let p0 := shr(0x90, shl(0x10, kv))
                 if iszero(iszero(p0)) {
                     {
