@@ -5,12 +5,57 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {countPair} from "test/lib/LibMemoryKVExport.sol";
 
 /// @title LibMemoryKVStorageParityTest
 /// The memory KV should behave the same as contract storage.
 contract LibMemoryKVStorageParityTest is Test {
+    using LibMemoryKV for MemoryKV;
+
+    /// Contract storage standing in for one store.
+    /// @param values The value each key was last set to.
+    /// @param seen Whether each key has been set.
+    /// @param distinct How many distinct keys have been set.
+    struct StorageStore {
+        mapping(bytes32 => bytes32) values;
+        mapping(bytes32 => bool) seen;
+        uint256 distinct;
+    }
+
     //forge-lint: disable-next-line(mixed-case-variable)
     mapping(bytes32 => bytes32) public sStorageKV;
+
+    StorageStore internal sStoreOne;
+
+    /// Set `pair` in both `kv` and `store`, returning the new `kv`.
+    function setBoth(MemoryKV kv, StorageStore storage store, KV memory pair) internal returns (MemoryKV) {
+        if (!store.seen[pair.key]) {
+            store.seen[pair.key] = true;
+            store.distinct++;
+        }
+        store.values[pair.key] = pair.value;
+        return kv.set(MemoryKVKey.wrap(pair.key), MemoryKVVal.wrap(pair.value));
+    }
+
+    /// `kv` holds what `store` holds, `pairs[0:end]` having been set in both:
+    /// every key set reads back through `get` with the value storage holds for
+    /// it, is exported exactly once with that value, and the export holds two
+    /// words per distinct key, so nothing else.
+    function assertMatchesStorage(MemoryKV kv, StorageStore storage store, KV[] memory pairs, uint256 end)
+        internal
+        view
+    {
+        bytes32[] memory exported = kv.toBytes32Array();
+        assertEq(exported.length, store.distinct * 2, "export holds every distinct key once");
+        for (uint256 i = 0; i < end; i++) {
+            bytes32 key = pairs[i].key;
+            bytes32 value = store.values[key];
+            (uint256 exists, MemoryKVVal got) = kv.get(MemoryKVKey.wrap(key));
+            assertEq(exists, 1, "exists");
+            assertEq(MemoryKVVal.unwrap(got), value, "get");
+            assertEq(countPair(exported, key, value), 1, "exported exactly once");
+        }
+    }
 
     /// A single get/set should behave the same as storage.
     function testSingleGetSet(bytes32 key, bytes32 value) external {
@@ -33,17 +78,14 @@ contract LibMemoryKVStorageParityTest is Test {
         bytes32 value;
     }
 
-    /// A list of get/sets should behave the same as storage.
-    function testMultiGetSetSingle(KV[] memory kvs) external {
+    /// Any sequence of sets leaves the store holding what storage holds after
+    /// the same sets.
+    function testSetSequenceMatchesStorage(KV[] memory kvs) external {
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < kvs.length; i++) {
-            sStorageKV[kvs[i].key] = kvs[i].value;
-            kv = LibMemoryKV.set(kv, MemoryKVKey.wrap(kvs[i].key), MemoryKVVal.wrap(kvs[i].value));
+            kv = setBoth(kv, sStoreOne, kvs[i]);
         }
-        bytes32[] memory finalKVs = LibMemoryKV.toBytes32Array(kv);
-        for (uint256 i = 0; i < finalKVs.length; i += 2) {
-            assertEq(sStorageKV[finalKVs[i]], finalKVs[i + 1], "storage");
-        }
+        assertMatchesStorage(kv, sStoreOne, kvs, kvs.length);
     }
 
     /// Many KVs should all behave the same as storage in aggregate.
