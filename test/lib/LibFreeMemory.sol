@@ -9,12 +9,10 @@ import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 /// does not read as zero. A word the allocator subsequently claims but never
 /// writes still reads as `sentinel`.
 function dirtyFreeMemory(bytes32 sentinel, uint256 words) pure {
-    assembly ("memory-safe") {
-        let cursor := mload(0x40)
-        for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-            mstore(cursor, sentinel)
-            cursor := add(cursor, 0x20)
-        }
+    Pointer cursor = LibPointer.allocatedMemoryPointer();
+    for (uint256 i = 0; i < words; i++) {
+        LibPointer.unsafeWriteWord(cursor, sentinel);
+        cursor = LibPointer.unsafeAddWord(cursor);
     }
 }
 

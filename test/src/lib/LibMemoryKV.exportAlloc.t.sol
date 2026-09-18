@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {dirtyFreeMemory} from "test/lib/LibFreeMemory.sol";
@@ -98,10 +99,7 @@ contract LibMemoryKVExportAllocTest is Test {
         bytes32[] memory array = kv.toBytes32Array();
         Pointer afterPointer = LibPointer.allocatedMemoryPointer();
 
-        uint256 arrayPointer;
-        assembly ("memory-safe") {
-            arrayPointer := array
-        }
+        uint256 arrayPointer = Pointer.unwrap(LibBytes32Array.startPointer(array));
 
         assertEq(arrayPointer, Pointer.unwrap(before), "array is at the free memory pointer");
         assertEq(Pointer.unwrap(afterPointer) - Pointer.unwrap(before), 0x20 + expectedWords * 0x20, "allocation size");
@@ -231,10 +229,7 @@ contract LibMemoryKVExportAllocTest is Test {
         dirtyFreeMemory(sentinel, 64);
 
         bytes32[] memory array = kv.toBytes32Array();
-        bytes32 past;
-        assembly ("memory-safe") {
-            past := mload(add(array, add(0x20, mul(mload(array), 0x20))))
-        }
+        bytes32 past = LibPointer.unsafeReadWord(LibBytes32Array.endPointer(array));
 
         assertEq(array.length, 12);
         assertEq(past, sentinel, "the word past the array end was written");

@@ -8,6 +8,7 @@ import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "
 import {keyForSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {lengthOf} from "test/lib/LibMemoryKVHandle.sol";
 import {assertValue} from "test/lib/LibMemoryKVAssert.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVCrossFunctionTest
 /// Two claims about a `MemoryKV` handle that no mutation of the library can
@@ -30,9 +31,7 @@ contract LibMemoryKVCrossFunctionTest is Test {
     /// from a free memory pointer this frame fixes, and hand back only the
     /// handle. The nodes are gone when this returns.
     function buildSaturatedExternal(bytes32[] memory keys) external pure returns (MemoryKV) {
-        assembly ("memory-safe") {
-            mstore(0x40, SATURATED_BASE)
-        }
+        setFreePointer(SATURATED_BASE);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 0; i < keys.length; i++) {
             kv = kv.set(MemoryKVKey.wrap(keys[i]), MemoryKVVal.wrap(bytes32(i + 1)));

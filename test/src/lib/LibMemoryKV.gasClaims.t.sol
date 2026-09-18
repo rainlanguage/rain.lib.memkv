@@ -3,10 +3,12 @@
 pragma solidity =0.8.25;
 
 import {Test} from "forge-std-1.16.1/src/Test.sol";
+import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {keyForSlot, keysInSlot} from "test/lib/LibMemoryKVKeys.sol";
 import {LibMemoryKVSlow} from "test/lib/LibMemoryKVSlow.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// Pins the gas figures the library documents for itself. Those figures are the
 /// reason the export is a bisect rather than a loop and the reason any of this
@@ -76,15 +78,10 @@ contract LibMemoryKVGasClaimsTest is Test {
     /// cost, which is a difference between allocations rather than between the
     /// things being compared.
     function padMemory() internal pure {
-        uint256 pointer;
-        assembly ("memory-safe") {
-            pointer := mload(0x40)
-        }
+        uint256 pointer = Pointer.unwrap(LibPointer.allocatedMemoryPointer());
         bytes memory pad = new bytes(0x1000);
         (pad);
-        assembly {
-            mstore(0x40, pointer)
-        }
+        setFreePointer(pointer);
     }
 
     function bisectGas(MemoryKV kv) internal view returns (uint256) {

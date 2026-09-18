@@ -6,6 +6,7 @@ import {Test} from "forge-std-1.16.1/src/Test.sol";
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVKey, MemoryKVVal, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
+import {setFreePointer} from "test/lib/LibFreeMemory.sol";
 
 /// @title LibMemoryKVSetCapacityTest
 /// `set` can revert, and the ceiling it reverts at is the frame's free memory
@@ -23,9 +24,7 @@ contract LibMemoryKVSetCapacityTest is Test {
     /// word count, so a fill that stopped early is a number rather than a
     /// silence.
     function fillEmptyFrameExternal(uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
+        setFreePointer(0x80);
         MemoryKV kv = MEMORY_KV_EMPTY;
         for (uint256 i = 1; i <= pairs; i++) {
             kv = kv.set(MemoryKVKey.wrap(bytes32(i)), MemoryKVVal.wrap(bytes32(i)));
@@ -40,9 +39,7 @@ contract LibMemoryKVSetCapacityTest is Test {
     /// somewhere else is a failure here rather than a different capacity.
     /// Returns the word count.
     function fillAfterUnrelatedAllocationExternal(uint256 elements, uint256 pairs) external pure returns (uint256) {
-        assembly ("memory-safe") {
-            mstore(0x40, 0x80)
-        }
+        setFreePointer(0x80);
         bytes32[] memory unrelated = new bytes32[](elements);
         require(unrelated.length == elements, "the unrelated array is live");
         require(
@@ -66,9 +63,7 @@ contract LibMemoryKVSetCapacityTest is Test {
         returns (uint256, bytes32)
     {
         MemoryKV kv = MEMORY_KV_EMPTY.set(key, first);
-        assembly ("memory-safe") {
-            mstore(0x40, 0x20000)
-        }
+        setFreePointer(0x20000);
         kv = kv.set(key, second);
         (uint256 exists, MemoryKVVal got) = kv.get(key);
         return (exists, MemoryKVVal.unwrap(got));

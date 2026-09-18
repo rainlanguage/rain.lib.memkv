@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {Test} from "forge-std-1.16.1/src/Test.sol";
 
 import {LibPointer, Pointer} from "rain-solmem-0.1.28/src/lib/LibPointer.sol";
+import {LibBytes32Array} from "rain-solmem-0.1.28/src/lib/LibBytes32Array.sol";
 
 import {LibMemoryKV, MemoryKV, MemoryKVVal, MemoryKVKey, MEMORY_KV_EMPTY} from "src/lib/LibMemoryKV.sol";
 import {countPair} from "test/lib/LibMemoryKVExport.sol";
@@ -98,10 +99,7 @@ contract LibMemoryKVArrayTest is Test {
         bytes32[] memory array = kv.toBytes32Array();
         Pointer pointerAfter = LibPointer.allocatedMemoryPointer();
 
-        uint256 pointerArray;
-        assembly ("memory-safe") {
-            pointerArray := array
-        }
+        uint256 pointerArray = Pointer.unwrap(LibBytes32Array.startPointer(array));
 
         assertTrue(array.length <= kvs.length);
         assertEq(Pointer.unwrap(pointerBefore), pointerArray);
